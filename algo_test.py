@@ -170,6 +170,7 @@ policy_kwargs = {
         }#ActorCriticWithAePolicy(env.observation_space, env.action_space, linear_schedule(0.001), Actor(None, 128*7*7+10*3,128, 12, 1 ), Critic(None, 128*7*7+10*3, 128,1,1), features_extractor_class =  AutoEncoder)
 model = A2CWithAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=1e-3)
 model.set_logger(new_logger)
+print("Using device: ", utils.get_device())
 model.learn(1000000, callback=video_recorder)
 # obs = env.reset()
 # for _ in range(1000):
