@@ -40,7 +40,7 @@ class AutoEncoder(BaseFeaturesExtractor):
         output_conv = nn.Conv2d(3, 1, 3, padding = 1)
         # output_conv.bias.data.fill_(0.3)
         self.decoder = nn.Sequential(
-            nn.Linear(128, 7*7*128),
+            nn.Linear(128, 7*7*32),
             Reshape(-1, 32, 7, 7),
             nn.ConvTranspose2d(32, 32, 3, padding = 1, stride=1), # 32. 14, 14
             nn.ReLU(),
@@ -58,7 +58,7 @@ class AutoEncoder(BaseFeaturesExtractor):
             # nn.ReLU(),
             nn.Conv2d(8, 3, 3, padding = 1), # b, 3, 224, 224
             nn.ReLU(),
-            output_conv  # b, 1, 224, 224
+            output_conv, # b, 1, 224, 224
             #nn.ReLU()
         )
 
@@ -66,6 +66,7 @@ class AutoEncoder(BaseFeaturesExtractor):
         # print(observation)
         encoding = self.encoder(observation)
         recon = self.decoder(encoding)
+        print(encoding.shape, recon.shape)
         return encoding,recon
 
 class AutoEncoderSmall(BaseFeaturesExtractor):
