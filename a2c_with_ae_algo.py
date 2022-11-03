@@ -195,7 +195,7 @@ class A2CWithAE(OnPolicyAlgorithm):
         self._n_updates += 1
         plot_img = self.rollout_buffer.sample(1)
         _, recon = self.policy.extract_features(plot_img.observations['depth'])
-        ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, plot_img.observations['depth'].squeeze(0)+0.5])
+        ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img.observations['depth'].squeeze(0)+0.5, size = (112, 112))])
         self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         self.logger.record("train/explained_variance", explained_var)

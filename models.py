@@ -66,7 +66,6 @@ class AutoEncoder(BaseFeaturesExtractor):
         # print(observation)
         encoding = self.encoder(observation)
         recon = self.decoder(encoding)
-        print(encoding.shape, recon.shape)
         return encoding,recon
 
 class AutoEncoderSmall(BaseFeaturesExtractor):
