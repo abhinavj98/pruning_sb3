@@ -305,7 +305,7 @@ class ur5GymEnv(gym.Env):
         rgbd = self.set_camera(cur_p[0], cur_p[1])
         rgb,  depth = self.seperate_rgbd_rgb_d(rgbd)
         depth = depth.astype(np.float32)
-        depth = self.linearize_depth(depth, self.far_val, self.near_val)
+        depth = self.linearize_depth(depth, self.far_val, self.near_val) - 0.5
         return rgb, depth
 
     def reset(self):
