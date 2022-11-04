@@ -162,7 +162,7 @@ env.logger = new_logger
 #print(env.action_space)
 # It will check your custom environment and output additional warnings if needed
 # check_env(env)
-video_recorder = VideoRecorderCallback(env, render_freq=10)
+video_recorder = VideoRecorderCallback(env, render_freq=1000)
 policy_kwargs = {
         "actor_model":  Actor(None, 128+10*3, 128, 12, 1),
         "critic_model":  Critic(None, 128+10*3, 128,1, 1),

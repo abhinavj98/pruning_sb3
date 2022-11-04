@@ -309,6 +309,7 @@ class ur5GymEnv(gym.Env):
         return rgb, depth
 
     def reset(self):
+        print("resetting", self.stepCounter, self.name)
         self.stepCounter = 0
         self.terminated = False
         self.ur5_or = [0.0, 1/2*math.pi, 0.0]
@@ -334,6 +335,7 @@ class ur5GymEnv(gym.Env):
 
     def step(self, action, debug = False):
         #discrete action
+        print("stepping", self.stepCounter)
         delta_pos = np.array([0, 0, 0]).astype('float32')
         delta_orient = np.array([0, 0, 0]).astype('float32')
         angle_scale = np.pi
@@ -400,8 +402,9 @@ class ur5GymEnv(gym.Env):
         info = {'is_success': False}
         if self.terminated == True:
             info['is_success'] = True
-
         self.stepCounter += 1
+        info['episode'] = {"l": self.stepCounter,  "r": reward}
+
         return self.observation, reward, done, info
 
     def render(self, mode = "human"):

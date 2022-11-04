@@ -149,46 +149,45 @@ class A2CWithAE(OnPolicyAlgorithm):
 
         # Update optimizer learning rate
         self._update_learning_rate(self.policy.optimizer)
-        
+        for _ in range(10):
         # This will only loop once (get all data in one go)
-        for rollout_data in self.rollout_buffer.get(batch_size=64):
+            for rollout_data in self.rollout_buffer.get(batch_size=64):
+                actions = rollout_data.actions
+                if isinstance(self.action_space, spaces.Discrete):
+                    # Convert discrete action from float to long
+                    actions = actions.long().flatten()
+                values, features, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
+                values = values.flatten()
 
-            actions = rollout_data.actions
-            if isinstance(self.action_space, spaces.Discrete):
-                # Convert discrete action from float to long
-                actions = actions.long().flatten()
-            values, features, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
-            values = values.flatten()
+                # Normalize advantage (not present in the original implementation)
+                advantages = rollout_data.advantages
+                if self.normalize_advantage:
+                    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-            # Normalize advantage (not present in the original implementation)
-            advantages = rollout_data.advantages
-            if self.normalize_advantage:
-                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+                # Policy gradient loss
+                policy_loss = -(advantages * log_prob).mean()
 
-            # Policy gradient loss
-            policy_loss = -(advantages * log_prob).mean()
+                # Value loss using the TD(gae_lambda) target
+                value_loss = F.mse_loss(rollout_data.returns, values)
 
-            # Value loss using the TD(gae_lambda) target
-            value_loss = F.mse_loss(rollout_data.returns, values)
+                ae_loss = F.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1])
 
-            ae_loss = F.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1])
+                # Entropy loss favor exploration
+                if entropy is None:
+                    # Approximate entropy when no analytical form
+                    entropy_loss = -th.mean(-log_prob)
+                else:
+                    entropy_loss = -th.mean(entropy)
 
-            # Entropy loss favor exploration
-            if entropy is None:
-                # Approximate entropy when no analytical form
-                entropy_loss = -th.mean(-log_prob)
-            else:
-                entropy_loss = -th.mean(entropy)
+                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + self.ae_coef*ae_loss
 
-            loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + self.ae_coef*ae_loss
+                # Optimization step
+                self.policy.optimizer.zero_grad()
+                loss.backward()
 
-            # Optimization step
-            self.policy.optimizer.zero_grad()
-            loss.backward()
-
-            # Clip grad norm
-            th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
-            self.policy.optimizer.step()
+                # Clip grad norm
+                th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                self.policy.optimizer.step()
 
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
@@ -211,13 +210,13 @@ class A2CWithAE(OnPolicyAlgorithm):
             self: A2CSelf,
             total_timesteps: int,
             callback: MaybeCallback = None,
-            log_interval: int = 1,
+            log_interval: int = 100,
             eval_env: Optional[GymEnv] = None,
-            eval_freq: int = 10,
+            eval_freq: int = -1,
             n_eval_episodes: int = 1,
             tb_log_name: str = "A2C",
             eval_log_path: Optional[str] = './',
-            reset_num_timesteps: bool = False,
+            reset_num_timesteps: bool = True,
         ) -> A2CSelf:
 
             return super(A2CWithAE, self).learn(
