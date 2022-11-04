@@ -38,7 +38,7 @@ class AutoEncoder(BaseFeaturesExtractor):
             Reshape(-1, 128)
         )
         output_conv = nn.Conv2d(3, 1, 3, padding = 1)
-        # output_conv.bias.data.fill_(0.3)
+        output_conv.bias.data.fill_(0.3)
         self.decoder = nn.Sequential(
             nn.Linear(128, 7*7*32),
             Reshape(-1, 32, 7, 7),
