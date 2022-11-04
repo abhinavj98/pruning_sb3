@@ -483,7 +483,7 @@ class ur5GymEnv(gym.Env):
         if not self.eval:
             self.logger.record("rewards/reward_goal", dist_reward)
             self.logger.record("rewards/reward_success", terminate_reward)
-            self.logger.record("rewards/reward_collision", collision)
+            self.logger.record("rewards/reward_collision", int(collision))
             self.logger.record("rewards/reward_total", reward)
 
         return reward

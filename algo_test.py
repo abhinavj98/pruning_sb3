@@ -159,7 +159,7 @@ new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", re
 env.logger = new_logger 
 # env = DummyVecEnv([lambda: env])
 # eval_env = DummyVecEnv([lambda: eval_env])
-
+#print(env.action_space)
 # It will check your custom environment and output additional warnings if needed
 # check_env(env)
 video_recorder = VideoRecorderCallback(env, render_freq=10)
@@ -167,6 +167,7 @@ policy_kwargs = {
         "actor_model":  Actor(None, 128+10*3, 128, 12, 1),
         "critic_model":  Critic(None, 128+10*3, 128,1, 1),
         "features_extractor_class" : AutoEncoder,
+        "optimizer_class" : th.optim.Adam
         }#ActorCriticWithAePolicy(env.observation_space, env.action_space, linear_schedule(0.001), Actor(None, 128*7*7+10*3,128, 12, 1 ), Critic(None, 128*7*7+10*3, 128,1,1), features_extractor_class =  AutoEncoder)
 model = A2CWithAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=1e-3)
 model.set_logger(new_logger)
