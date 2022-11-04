@@ -151,7 +151,7 @@ class A2CWithAE(OnPolicyAlgorithm):
         self._update_learning_rate(self.policy.optimizer)
         
         # This will only loop once (get all data in one go)
-        for rollout_data in self.rollout_buffer.get(batch_size=None):
+        for rollout_data in self.rollout_buffer.get(batch_size=64):
 
             actions = rollout_data.actions
             if isinstance(self.action_space, spaces.Discrete):
@@ -193,9 +193,10 @@ class A2CWithAE(OnPolicyAlgorithm):
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
         self._n_updates += 1
-        plot_img = self.rollout_buffer.sample(1)
-        _, recon = self.policy.extract_features(plot_img.observations['depth'])
-        ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img.observations['depth'].squeeze(0)+0.5, size = (112, 112))])
+        plot_img = self.rollout_buffer.sample(1).observations['depth']
+        _, recon = self.policy.extract_features(plot_img)
+        
+        ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
         self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         self.logger.record("train/explained_variance", explained_var)
