@@ -118,7 +118,7 @@ class VideoRecorderCallback(BaseCallback):
                 #         break
                 # cv2.destroyAllWindows()
 
-            evaluate_policy(
+            mean_reward, std_reward = evaluate_policy(
                 self.model,
                 self._eval_env,
                 callback=grab_screens,
@@ -126,7 +126,13 @@ class VideoRecorderCallback(BaseCallback):
                 deterministic=self._deterministic,
             )
             self.logger.record(
-                "trajectory/video",
+                "eval/reward", mean_reward
+            )
+            self.logger.record(
+                "eval/reward_std", std_reward
+            )
+            self.logger.record(
+                "eval/video",
                 Video(th.ByteTensor(np.array([screens])), fps=10),
                 exclude=("stdout", "log", "json", "csv"),
             )

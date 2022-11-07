@@ -209,8 +209,8 @@ class ActorCriticWithAePolicy(BasePolicy):
 
         # Setup optimizer with initial learning rate
         self.optimizer = self.optimizer_class(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
-
-    def forward(self, obs: Dict, deterministic: bool = False, *args, **kwargs) -> Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]:
+        
+    def forward(self, obs: Dict, deterministic: bool = True, *args, **kwargs) -> Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]:
         """
         Forward pass in all the networks (actor and critic)
         :param obs: Observation
@@ -289,8 +289,8 @@ class ActorCriticWithAePolicy(BasePolicy):
         
         features = self.extract_features(obs['depth'])
         state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
-        latent_pi = self.actor(features[0], state)
-        latent_vf = self.critic(features[0], state)
+        latent_pi = self.actor(features[0].detach(), state)
+        latent_vf = self.critic(features[0].detach(), state)
         values = self.value_net(latent_vf)
         distribution = self._get_action_dist_from_latent(latent_pi)
         #actions = distribution.get_actions(deterministic=deterministic)
@@ -305,7 +305,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         """
         features = self.extract_features(obs['depth'])
         state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
-        latent_pi = self.actor(features[0], state)
+        latent_pi = self.actor(features[0].detach(), state)
         return self._get_action_dist_from_latent(latent_pi)
 
     def predict_values(self, obs: th.Tensor) -> th.Tensor:
@@ -316,6 +316,6 @@ class ActorCriticWithAePolicy(BasePolicy):
         """
         features = self.extract_features(obs['depth'])
         state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
-        latent_vf = self.critic(features[0], state)
+        latent_vf = self.critic(features[0].detach(), state)
         return self.value_net(latent_vf)
 

@@ -82,15 +82,15 @@ class A2CWithAE(OnPolicyAlgorithm):
         policy: Union[str, Type[ActorCriticWithAePolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 1e-3,
-        n_steps: int = 100,
+        n_steps: int = 1000,
         gamma: float = 0.99,
         gae_lambda: float = 1.0,
         ent_coef: float = 0.0,
-        vf_coef: float = 0.5,
-        ae_coef: float = 0.5,
-        max_grad_norm: float = 0.5,
+        vf_coef: float = 1,
+        ae_coef: float = 1,
+        max_grad_norm: float = 1,
         rms_prop_eps: float = 1e-5,
-        use_rms_prop: bool = True,
+        use_rms_prop: bool = False,
         use_sde: bool = False,
         sde_sample_freq: int = -1,
         normalize_advantage: bool = True,
@@ -149,7 +149,7 @@ class A2CWithAE(OnPolicyAlgorithm):
 
         # Update optimizer learning rate
         self._update_learning_rate(self.policy.optimizer)
-        for _ in range(10):
+        for _ in range(5):
         # This will only loop once (get all data in one go)
             for rollout_data in self.rollout_buffer.get(batch_size=64):
                 actions = rollout_data.actions
@@ -205,12 +205,12 @@ class A2CWithAE(OnPolicyAlgorithm):
         self.logger.record("train/ae_loss", ae_loss.item())
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean())
-
+    #Put this logging in callback
     def learn(
             self: A2CSelf,
             total_timesteps: int,
             callback: MaybeCallback = None,
-            log_interval: int = 100,
+            log_interval: int = 1,
             eval_env: Optional[GymEnv] = None,
             eval_freq: int = -1,
             n_eval_episodes: int = 1,
