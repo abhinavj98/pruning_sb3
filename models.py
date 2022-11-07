@@ -31,18 +31,18 @@ class AutoEncoder(BaseFeaturesExtractor):
             nn.ReLU(),
             nn.Conv2d(128, 128, 3, padding=1, stride = 2),  #  b, 128, 7, 7
             nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding = 1), 
+            nn.Conv2d(128, 64, 3, padding = 1), 
             nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding = 1), 
+            nn.Conv2d(64, 32, 3, padding = 1), 
             nn.MaxPool2d(7),
-            Reshape(-1, 128)
+            Reshape(-1, 32)
         )
         output_conv = nn.Conv2d(3, 1, 3, padding = 1)
         output_conv.bias.data.fill_(0.3)
         self.decoder = nn.Sequential(
-            nn.Linear(128, 7*7*32),
-            Reshape(-1, 32, 7, 7),
-            nn.ConvTranspose2d(32, 32, 3, padding = 1, stride=1), # 32. 14, 14
+            nn.Linear(32, 7*7*8),
+            Reshape(-1, 8, 7, 7),
+            nn.ConvTranspose2d(8, 32, 3, padding = 1, stride=1), # 32. 14, 14
             nn.ReLU(),
             nn.ConvTranspose2d(32, 32, 2, stride=2), # 32. 14, 14
             nn.ReLU(),
@@ -57,6 +57,8 @@ class AutoEncoder(BaseFeaturesExtractor):
             # nn.ConvTranspose2d(16, 8, 2, stride=2), # b, 8, 224, 224
             # nn.ReLU(),
             nn.Conv2d(8, 3, 3, padding = 1), # b, 3, 224, 224
+            nn.ReLU(),
+            nn.Conv2d(3, 3, 3, padding = 1), # b, 3, 224, 224
             nn.ReLU(),
             output_conv, # b, 1, 224, 224
             #nn.ReLU()
