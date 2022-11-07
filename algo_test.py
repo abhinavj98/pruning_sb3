@@ -81,6 +81,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.logger import Video
 
 
+
 class VideoRecorderCallback(BaseCallback):
     def __init__(self, eval_env: gym.Env, render_freq: int, n_eval_episodes: int = 1, deterministic: bool = True):
         """
@@ -169,6 +170,7 @@ env.logger = new_logger
 # It will check your custom environment and output additional warnings if needed
 # check_env(env)
 video_recorder = VideoRecorderCallback(env, render_freq=1000)
+a = CustomCallback()
 policy_kwargs = {
         "actor_model":  Actor(None, 128+10*3, 128, 12, 1),
         "critic_model":  Critic(None, 128+10*3, 128,1, 1),
@@ -178,12 +180,10 @@ policy_kwargs = {
 model = A2CWithAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=1e-3)
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
-model.learn(1000000, callback=video_recorder)
-# obs = env.reset()
-# for _ in range(1000):
-#     action, _states = model.predict(obs)
-#     obs, rewards, dones, info = env.step(action)
-#     print(rewards, action)
-#     env.render()
-# env.close()
-#model = A2C('CnnPolicy', env).learn(total_timesteps=1000)
+
+env.reset()
+for _ in range(1000):
+    env.render()
+    env.step(env.action_space.sample()) # take a random action
+env.reset()
+model.learn(1000000, callback=[video_recorder, a])

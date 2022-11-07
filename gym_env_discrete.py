@@ -91,7 +91,7 @@ class ur5GymEnv(gym.Env):
       
         
         self.observation_space = spaces.Dict({ 
-            'depth': spaces.Box(low=0.,
+            'depth': spaces.Box(low=-1.,
                      high=1.0,
                      shape=(1, 224, 224), dtype=np.float32),\
             'goal_pos': spaces.Box(low = -5.,
@@ -309,7 +309,6 @@ class ur5GymEnv(gym.Env):
         return rgb, depth
 
     def reset(self):
-        print("resetting", self.stepCounter, self.name)
         self.stepCounter = 0
         self.terminated = False
         self.ur5_or = [0.0, 1/2*math.pi, 0.0]
@@ -335,7 +334,6 @@ class ur5GymEnv(gym.Env):
 
     def step(self, action, debug = False):
         #discrete action
-        print("stepping", self.stepCounter)
         delta_pos = np.array([0, 0, 0]).astype('float32')
         delta_orient = np.array([0, 0, 0]).astype('float32')
         angle_scale = np.pi
