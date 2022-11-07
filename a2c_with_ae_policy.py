@@ -135,7 +135,6 @@ class ActorCriticWithAePolicy(BasePolicy):
 
         # Action distribution
         self.action_dist = make_proba_distribution(action_space, use_sde=use_sde, dist_kwargs=dist_kwargs)
-
         self._build(lr_schedule)
 
     def _get_constructor_parameters(self) -> Dict[str, Any]:

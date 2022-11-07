@@ -9,6 +9,7 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common import utils
+from stable_baselines3.common.callbacks import EvalCallback
 import numpy as np
 import cv2
 from stable_baselines3.common.logger import configure
@@ -127,10 +128,10 @@ class VideoRecorderCallback(BaseCallback):
                 deterministic=self._deterministic,
             )
             self.logger.record(
-                "eval/reward", mean_reward
+                "eval/vreward", mean_reward, self.n_calls
             )
             self.logger.record(
-                "eval/reward_std", std_reward
+                "eval/vreward_std", std_reward, self.n_calls
             )
             self.logger.record(
                 "eval/video",
@@ -159,11 +160,17 @@ def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float
     return func
 # set up logger
 
+
         # Create eval callback if needed
 env = ur5GymEnv(renders=False)
 # eval_env = ur5GymEnv(renders=False, eval=True)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
+eval_env = ur5GymEnv(renders=False)
+# Use deterministic actions for evaluation
+eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
+                             log_path="./logs/", eval_freq=500,
+                             deterministic=True, render=False)
 # env = DummyVecEnv([lambda: env])
 # eval_env = DummyVecEnv([lambda: eval_env])
 #print(env.action_space)
@@ -186,4 +193,4 @@ for _ in range(1000):
     env.render()
     env.step(env.action_space.sample()) # take a random action
 env.reset()
-model.learn(1000000, callback=[video_recorder, a])
+model.learn(1000000, callback=[video_recorder, a, eval_callback])
