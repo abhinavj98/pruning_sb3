@@ -19,7 +19,7 @@ import numpy as np
 import sys
 from gym import spaces
 import gym
-
+from pybullet_utils import bullet_client as bc
 import os
 import math
 import pybullet
@@ -73,21 +73,22 @@ class ur5GymEnv(gym.Env):
                  complex_tree = 0,
                  width = 224,
                  height = 224,
-                 eval = False):
-
+                 eval = False, 
+                 name = "ur5GymEnv"):
+        super(ur5GymEnv, self).__init__()
         self.renders = renders
         self.eval = eval
         # setup pybullet sim:
         if self.renders:
-            pybullet.connect(pybullet.GUI)
+            self.con = bc.BulletClient(connection_mode=pybullet.GUI)
         else:
-            pybullet.connect(pybullet.DIRECT)
+            self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
 
-        pybullet.setTimeStep(5./240.)
-        pybullet.setGravity(0,0,-10)
-        pybullet.setRealTimeSimulation(False)
+        self.con.setTimeStep(5./240.)
+        self.con.setGravity(0,0,-10)
+        self.con.setRealTimeSimulation(False)
       
-        pybullet.resetDebugVisualizerCamera( cameraDistance=1.5, cameraYaw=-73.95, cameraPitch=-38.48, cameraTargetPosition=[1.04,-0.06,0.14])
+        self.con.resetDebugVisualizerCamera( cameraDistance=1.5, cameraYaw=-73.95, cameraPitch=-38.48, cameraTargetPosition=[1.04,-0.06,0.14])
       
         
         self.observation_space = spaces.Dict({ 
@@ -107,16 +108,16 @@ class ur5GymEnv(gym.Env):
         
         # setup robot arm:
         self.end_effector_index = 7
-        flags = pybullet.URDF_USE_SELF_COLLISION
-        self.ur5 = pybullet.loadURDF(ROBOT_URDF_PATH, [0.8, 0, 0], [0, 0, 0, 1], flags=flags)
-        self.num_joints = pybullet.getNumJoints(self.ur5)
+        flags = self.con.URDF_USE_SELF_COLLISION
+        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0.8, 0, 0], [0, 0, 0, 1], flags=flags)
+        self.num_joints = self.con.getNumJoints(self.ur5)
         self.control_joints = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
         self.joint_type_list = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
         self.joint_info = namedtuple("jointInfo", ["id", "name", "type", "lowerLimit", "upperLimit", "maxForce", "maxVelocity", "controllable"])
         
         self.joints = dict()
         for i in range(self.num_joints):
-            info = pybullet.getJointInfo(self.ur5, i)
+            info = self.con.getJointInfo(self.ur5, i)
             jointID = info[0]
             jointName = info[1].decode("utf-8")
             jointType = self.joint_type_list[info[2]]
@@ -127,7 +128,7 @@ class ur5GymEnv(gym.Env):
             controllable = True if jointName in self.control_joints else False
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce, jointMaxVelocity, controllable)
             if info.type == "REVOLUTE":
-                pybullet.setJointMotorControl2(self.ur5, info.id, pybullet.VELOCITY_CONTROL, targetVelocity=0, force=0)
+                self.con.setJointMotorControl2(self.ur5, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0, force=0)
             self.joints[info.name] = info
 
         # object:
@@ -139,18 +140,18 @@ class ur5GymEnv(gym.Env):
         self.far_val = 3
         self.height = height
         self.width = width
-        self.proj_mat = pybullet.computeProjectionMatrixFOV(
+        self.proj_mat = self.con.computeProjectionMatrixFOV(
             fov=42, aspect = width / height, nearVal=self.near_val,
             farVal=self.far_val)
         
         # step simualator:
         for i in range(1000):
-            pybullet.stepSimulation()
+            self.con.stepSimulation()
 
         self.tree_point_pos = [1, 0, 0] # initial object pos
         self.sphereUid = -1
 
-        self.name = 'ur5GymEnv'
+        self.name = name
        
         self.action_dim = 12
         self.stepCounter = 0
@@ -179,11 +180,11 @@ class ur5GymEnv(gym.Env):
         self.complex_tree = complex_tree
         scale = 1
         if self.complex_tree:
-            self.tree = pybullet.loadURDF(TREE_URDF_PATH+"complex_tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
+            self.tree = self.con.loadURDF(TREE_URDF_PATH+"complex_tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
             self.scene = pywavefront.Wavefront('ur_e_description/meshes/complex_tree.obj', collect_faces=True)
             scale = 0.15
         else:
-            self.tree = pybullet.loadURDF(TREE_URDF_PATH+"tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
+            self.tree = self.con.loadURDF(TREE_URDF_PATH+"tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
             self.scene = pywavefront.Wavefront('ur_e_description/meshes/tree.obj', collect_faces=True)
             scale = 0.1
 
@@ -200,13 +201,13 @@ class ur5GymEnv(gym.Env):
         
         point=[]
        
-        ur5_base_pos,_ = pybullet.getBasePositionAndOrientation(self.ur5)
-        tree_pos, tree_orient = pybullet.getBasePositionAndOrientation(self.tree)
-        tree_orient = pybullet.getQuaternionFromEuler([0,0,1.54])
+        ur5_base_pos,_ = self.con.getBasePositionAndOrientation(self.ur5)
+        tree_pos, tree_orient = self.con.getBasePositionAndOrientation(self.tree)
+        tree_orient = self.con.getQuaternionFromEuler([0,0,1.54])
         for i in range(count):
 
             scene_box = self.scene.vertices[i]
-            tree_w_frame = pybullet.multiplyTransforms(tree_pos,tree_orient,[scene_box[0]*scale,scene_box[1]*scale,scene_box[2]*scale],[0,0,0,1])
+            tree_w_frame = self.con.multiplyTransforms(tree_pos,tree_orient,[scene_box[0]*scale,scene_box[1]*scale,scene_box[2]*scale],[0,0,0,1])
             position=[tree_w_frame[0][0]-0.7,tree_w_frame[0][1],tree_w_frame[0][2]-.5]
             point.append(position)
            
@@ -232,9 +233,9 @@ class ur5GymEnv(gym.Env):
             indexes.append(joint.id)
             forces.append(joint.maxForce)
 
-        pybullet.setJointMotorControlArray(
+        self.con.setJointMotorControlArray(
             self.ur5, indexes,
-            pybullet.POSITION_CONTROL,
+            self.con.POSITION_CONTROL,
             targetPositions=joint_angles,
             targetVelocities=[0]*len(poses),
             positionGains=[0.05]*len(poses),
@@ -242,13 +243,13 @@ class ur5GymEnv(gym.Env):
         )
 
     def get_joint_angles(self):
-        j = pybullet.getJointStates(self.ur5, [1,2,3,4,5,6])
+        j = self.con.getJointStates(self.ur5, [1,2,3,4,5,6])
         joints = [i[0] for i in j]
         return joints
 
 
     def check_collisions(self):
-        collisions = pybullet.getContactPoints(bodyA = self.ur5, bodyB = self.tree, linkIndexA=self.end_effector_index)
+        collisions = self.con.getContactPoints(bodyA = self.ur5, bodyB = self.tree, linkIndexA=self.end_effector_index)
         # print(collisions)
         for i in range(len(collisions)):
             if collisions[i][-6] < 0 :
@@ -263,7 +264,7 @@ class ur5GymEnv(gym.Env):
         upper_limits = [math.pi]*6
         joint_ranges = [2*math.pi]*6
        
-        joint_angles = pybullet.calculateInverseKinematics(
+        joint_angles = self.con.calculateInverseKinematics(
             self.ur5, self.end_effector_index, position, orientation,
             jointDamping=[0.01]*6, upperLimits=upper_limits,
             lowerLimits=lower_limits, jointRanges=joint_ranges
@@ -272,22 +273,22 @@ class ur5GymEnv(gym.Env):
 
 
     def get_current_pose(self):
-        linkstate = pybullet.getLinkState(self.ur5, self.end_effector_index, computeForwardKinematics=True)
+        linkstate = self.con.getLinkState(self.ur5, self.end_effector_index, computeForwardKinematics=True)
         position, orientation = linkstate[4], linkstate[1] #Position wrt end effector, orientation wrt COM
         return (position, orientation)
 
     def set_camera(self, pose, orientation):
         pose, orientation = self.get_current_pose()
-        rot_mat = np.array(pybullet.getMatrixFromQuaternion(orientation)).reshape(3,3)
+        rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3,3)
 		#Initial vectors
         init_camera_vector = np.array([1, 0, 0])#
         init_up_vector = np.array([0, 0,1]) #
         #Rotated vectors
         camera_vector = rot_mat.dot(init_camera_vector)
         up_vector = rot_mat.dot(init_up_vector)
-        view_matrix = pybullet.computeViewMatrix(pose, pose + 0.1 * camera_vector, up_vector)
+        view_matrix = self.con.computeViewMatrix(pose, pose + 0.1 * camera_vector, up_vector)
        
-        return pybullet.getCameraImage(self.width, self.height, viewMatrix = view_matrix, projectionMatrix = self.proj_mat, renderer = pybullet.ER_BULLET_HARDWARE_OPENGL)
+        return self.con.getCameraImage(self.width, self.height, viewMatrix = view_matrix, projectionMatrix = self.proj_mat, renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
         
     @staticmethod
     def seperate_rgbd_rgb_d(rgbd, h = 224, w = 224):
@@ -314,16 +315,16 @@ class ur5GymEnv(gym.Env):
         self.ur5_or = [0.0, 1/2*math.pi, 0.0]
         #self.rgb, self.depth = self.get_rgbd_at_cur_pose()
         self.tree_point_pos = random.sample(self.tree_target,1)[0]
-        pybullet.removeBody(self.sphereUid)
+        self.con.removeBody(self.sphereUid)
         colSphereId = -1   
-        visualShapeId = pybullet.createVisualShape(pybullet.GEOM_SPHERE, radius=.02,rgbaColor =[1,0,0,1])
-        self.sphereUid = pybullet.createMultiBody(0.0, colSphereId, visualShapeId, [self.tree_point_pos[0],self.tree_point_pos[1],self.tree_point_pos[2]], [0,0,0,1])
+        visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=.02,rgbaColor =[1,0,0,1])
+        self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId, [self.tree_point_pos[0],self.tree_point_pos[1],self.tree_point_pos[2]], [0,0,0,1])
         joint_angles = (0, -1.57,1.80,-3.14,-1.57, -1.57)
         self.set_joint_angles(joint_angles)
 
         # step simualator:
         for i in range(1000):
-            pybullet.stepSimulation()
+            self.con.stepSimulation()
 
         # get obs and return:
         self.getExtendedObservation()
@@ -379,9 +380,9 @@ class ur5GymEnv(gym.Env):
         curr_p = self.get_current_pose()
         self.previous_pose = curr_p
         # add delta position:
-        delta_orient = pybullet.getQuaternionFromEuler(delta_orient)
+        delta_orient = self.con.getQuaternionFromEuler(delta_orient)
         
-        new_position, new_orientation = pybullet.multiplyTransforms(curr_p[0], curr_p[1], delta_pos, delta_orient)
+        new_position, new_orientation = self.con.multiplyTransforms(curr_p[0], curr_p[1], delta_pos, delta_orient)
         
         # actuate:
 
@@ -390,7 +391,7 @@ class ur5GymEnv(gym.Env):
        
         # step simualator:
         for i in range(30):
-            pybullet.stepSimulation()
+            self.con.stepSimulation()
             if self.renders: time.sleep(5./240.)
 
         self.getExtendedObservation()
@@ -420,7 +421,7 @@ class ur5GymEnv(gym.Env):
         #                                       height=720,
         #                                       viewMatrix=view_matrix,
         #                                       projectionMatrix=proj_matrix,
-        #                                       renderer=pybullet.ER_BULLET_HARDWARE_OPENGL)
+        #                                       renderer=self.con.ER_BULLET_HARDWARE_OPENGL)
 
         # rgb_array = np.array(px, dtype=np.uint8)
         # rgb_array = np.reshape(rgb_array, (720,960, 4))
@@ -428,12 +429,12 @@ class ur5GymEnv(gym.Env):
         # rgb_array = rgb_array[:, :, :3]
         # return rgb_array
         cam_prop =(1024, 768, (0.9961947202682495, -0.043577890843153, 0.07547912001609802, 0.0, 0.087155781686306, 0.49809736013412476, -0.8627299666404724, 0.0, -0.0, 0.8660255074501038, 0.5, 0.0, -1.0308130979537964, -0.04603677988052368, -1.7002619504928589, 1.0), (0.7499999403953552, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0000200271606445, -1.0, 0.0, 0.0, -0.02000020071864128, 0.0), (0.0, 0.0, 1.0), (-0.07547912001609802, 0.8627299666404724, -0.5), (26565.193359375, 2324.154052734375, -0.0), (-871.5578002929688, 9961.947265625, 17320.5078125), 5.0, -30.0, 1.5, (1.0399999618530273, -0.05999999865889549, 0.14000000059604645))
-        img_rgbd = pybullet.getCameraImage(cam_prop[0], cam_prop[1], viewMatrix = cam_prop[2], projectionMatrix = cam_prop[3], renderer = pybullet.ER_BULLET_HARDWARE_OPENGL)
+        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1], viewMatrix = cam_prop[2], projectionMatrix = cam_prop[3], renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
         # img_rgb,  _ = self.seperate_rgbd_rgb_d(img_rgbd, cam_prop[0], cam_prop[1])
         return img_rgbd[2]
     
     def close(self):
-        pybullet.disconnect()
+        self.con.disconnect()
 
 
     # observations are: arm (tip/tool) position, arm acceleration, ...
