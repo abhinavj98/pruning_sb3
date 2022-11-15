@@ -85,10 +85,10 @@ class A2CWithAE(OnPolicyAlgorithm):
         n_steps: int = 1000,
         gamma: float = 0.99,
         gae_lambda: float = 0.5,
-        ent_coef: float = 0.25,
-        vf_coef: float = 4,
+        ent_coef: float = 0.05,
+        vf_coef: float = 10,
         ae_coef: float = 1,
-        pl_coef: float = 0.25,
+        pl_coef: float = 0.05,
         max_grad_norm: float = 0.5,
         rms_prop_eps: float = 1e-5,
         use_rms_prop: bool = False,
@@ -151,14 +151,14 @@ class A2CWithAE(OnPolicyAlgorithm):
 
         # Update optimizer learning rate
         self._update_learning_rate(self.policy.optimizer)
-        for _ in range(5):
+        for _ in range(1):
         # This will only loop once (get all data in one go)
             for rollout_data in self.rollout_buffer.get(batch_size=64):
                 actions = rollout_data.actions
                 if isinstance(self.action_space, spaces.Discrete):
                     # Convert discrete action from float to long
                     actions = actions.long().flatten()
-                values, features, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
+                values, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
                 values = values.flatten()
 
                 # Normalize advantage (not present in the original implementation)
@@ -172,8 +172,6 @@ class A2CWithAE(OnPolicyAlgorithm):
                 # Value loss using the TD(gae_lambda) target
                 value_loss = F.mse_loss(rollout_data.returns, values)
 
-                ae_loss = F.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1])
-
                 # Entropy loss favor exploration
                 if entropy is None:
                     # Approximate entropy when no analytical form
@@ -181,7 +179,7 @@ class A2CWithAE(OnPolicyAlgorithm):
                 else:
                     entropy_loss = -th.mean(entropy)
 
-                loss = self.pl_coef * policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + self.ae_coef*ae_loss
+                loss = self.pl_coef * policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
 
                 # Optimization step
                 self.policy.optimizer.zero_grad()
@@ -194,17 +192,12 @@ class A2CWithAE(OnPolicyAlgorithm):
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
         self._n_updates += 1
-        plot_img = self.rollout_buffer.sample(1).observations['depth']
-        _, recon = self.policy.extract_features(plot_img)
         
-        ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
-        self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         self.logger.record("train/explained_variance", explained_var)
         self.logger.record("train/entropy_loss", self.ent_coef*entropy_loss.item())
         self.logger.record("train/policy_loss", self.pl_coef*policy_loss.item())
         self.logger.record("train/value_loss", self.vf_coef*value_loss.item())
-        self.logger.record("train/ae_loss", self.ae_coef*ae_loss.item())
         self.logger.record("train/loss", loss.item())
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean())

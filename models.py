@@ -136,16 +136,9 @@ class Actor(nn.Module):
                     #nn.Linear(emb_size, action_dim),
                     #nn.Softmax(dim=-1) #discrete action
                     )
-    def forward(self, image_features, state):
+    def forward(self, state):
         state = torch.cat((state, state, state),-1)
-        dense_input = torch.cat((state, image_features),-1)
-        # conv_head = self.conv(image_features)
-        # if len(image_features.shape) == 4:
-        #     conv_head = conv_head.view(conv_head.shape[0], -1)
-        # else:
-        #     conv_head = conv_head.view(1, -1)
-        # dense_input = torch.cat((conv_head, state),-1) 
-        action = self.dense(dense_input)
+        action = self.dense(state)
         return action
 
 class Critic(nn.Module):
@@ -162,17 +155,9 @@ class Critic(nn.Module):
                 nn.ReLU(),
                 #nn.Linear(emb_size, 1)
                 )
-    def forward(self, image_features, state):
+    def forward(self, state):
         state = torch.cat((state, state, state),-1)
-        # conv_head = self.conv(image_features)
-        # if len(image_features.shape) == 4:
-        #     conv_head = conv_head.view(conv_head.shape[0], -1)
-        # else:
-        #     conv_head = conv_head.view(1, -1)
-
-        # dense_input = torch.cat((conv_head, state),1) 
-        dense_input = torch.cat((state, image_features),-1)
-        value = self.dense(dense_input)
+        value = self.dense(state)
         return value
 
 

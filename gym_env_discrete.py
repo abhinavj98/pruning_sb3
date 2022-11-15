@@ -464,7 +464,7 @@ class ur5GymEnv(gym.Env):
         self.target_reward = float(goal_reward(achieved_goal, achieved_previous_goal, desired_goal))
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
-        scale = 10.
+        scale = 5.
         reward += self.target_reward/(self.maxSteps*self.step_size)*scale #Mean around 0 -> Change in distance
         dist_reward = self.target_reward/(self.maxSteps*self.step_size)*scale
         # task 0: reach object:

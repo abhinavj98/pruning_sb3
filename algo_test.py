@@ -175,7 +175,7 @@ env = ur5GymEnv(renders=False)
 # eval_env = ur5GymEnv(renders=False, eval=True)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
-eval_env = ur5GymEnv(renders=True, name = "evalenv")
+eval_env = ur5GymEnv(renders=False, name = "evalenv")
 # Use deterministic actions for evaluation
 eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
                              log_path="./logs/", eval_freq=1000,
@@ -188,17 +188,17 @@ eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
 video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
 a = CustomCallback()
 policy_kwargs = {
-        "actor_model":  Actor(None, 32+10*3, 128, 12, 1),
-        "critic_model":  Critic(None, 32+10*3, 128,1, 1),
+        "actor_model":  Actor(None, 10*3, 32, 12, 1),
+        "critic_model":  Critic(None, 10*3, 32,1, 1),
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam
         }#ActorCriticWithAePolicy(env.observation_space, env.action_space, linear_schedule(0.001), Actor(None, 128*7*7+10*3,128, 12, 1 ), Critic(None, 128*7*7+10*3, 128,1,1), features_extractor_class =  AutoEncoder)
-model = A2CWithAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=0)
+model = A2CWithAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=1e-3)
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
 
 env.reset()
-for _ in range(1000):
+for _ in range(100):
     env.render()
     env.step(env.action_space.sample()) # take a random action
 env.reset()
