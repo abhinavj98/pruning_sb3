@@ -126,3 +126,6 @@ dmypy.json
 
 
 runs/*
+logs/*
+*.zip
+*.npz

@@ -12,6 +12,7 @@ from stable_baselines3.common import utils
 from stable_baselines3.common.callbacks import EvalCallback
 import numpy as np
 import cv2
+from ppo import PPO
 from stable_baselines3.common.logger import configure
 class CustomCallback(BaseCallback):
     """
@@ -193,7 +194,7 @@ policy_kwargs = {
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam
         }#ActorCriticWithAePolicy(env.observation_space, env.action_space, linear_schedule(0.001), Actor(None, 128*7*7+10*3,128, 12, 1 ), Critic(None, 128*7*7+10*3, 128,1,1), features_extractor_class =  AutoEncoder)
-model = A2CWithAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=1e-3)
+model = PPO(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=1e-3)
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
 

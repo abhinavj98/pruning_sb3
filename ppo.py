@@ -173,7 +173,7 @@ class PPO(OnPolicyAlgorithm):
         Update policy using the currently gathered rollout buffer.
         """
         # Switch to train mode (this affects batch norm / dropout)
-        self.policy.set_training_mode(True)
+        # self.policy.set_training_mode(True)
         # Update optimizer learning rate
         self._update_learning_rate(self.policy.optimizer)
         # Compute current clip range
@@ -298,7 +298,7 @@ class PPO(OnPolicyAlgorithm):
         log_interval: int = 1,
         tb_log_name: str = "PPO",
         reset_num_timesteps: bool = True,
-        progress_bar: bool = False,
+        
     ) -> PPOSelf:
 
         return super().learn(
@@ -307,5 +307,5 @@ class PPO(OnPolicyAlgorithm):
             log_interval=log_interval,
             tb_log_name=tb_log_name,
             reset_num_timesteps=reset_num_timesteps,
-            progress_bar=progress_bar,
+           
         )
