@@ -249,7 +249,6 @@ class ActorCriticWithAePolicy(BasePolicy):
         :return: Action distribution
         """
         mean_actions = self.action_net(latent_pi)
-        print(mean_actions)
         if isinstance(self.action_dist, DiagGaussianDistribution):
             return self.action_dist.proba_distribution(mean_actions, self.log_std)
         elif isinstance(self.action_dist, CategoricalDistribution):

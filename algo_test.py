@@ -2,6 +2,7 @@ from tabnanny import verbose
 import gym
 from a2c_with_ae_algo import A2CWithAE
 from a2c_with_ae_policy import ActorCriticWithAePolicy
+from ppo_policy import PPO
 from gym_env_discrete import ur5GymEnv
 from models import *
 from typing import Any, Dict
@@ -175,7 +176,7 @@ env = ur5GymEnv(renders=False)
 # eval_env = ur5GymEnv(renders=False, eval=True)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
-eval_env = ur5GymEnv(renders=True, name = "evalenv")
+eval_env = ur5GymEnv(renders=False, name = "evalenv")
 # Use deterministic actions for evaluation
 eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
                              log_path="./logs/", eval_freq=1000,
@@ -193,13 +194,13 @@ policy_kwargs = {
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam
         }#ActorCriticWithAePolicy(env.observation_space, env.action_space, linear_schedule(0.001), Actor(None, 128*7*7+10*3,128, 12, 1 ), Critic(None, 128*7*7+10*3, 128,1,1), features_extractor_class =  AutoEncoder)
-model = A2CWithAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=0)
+model = PPO(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=0)
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
 
 env.reset()
 for _ in range(1000):
-    env.render()
+    # env.render() 
     env.step(env.action_space.sample()) # take a random action
 env.reset()
 model.learn(1000000, callback=[video_recorder, a, eval_callback])
