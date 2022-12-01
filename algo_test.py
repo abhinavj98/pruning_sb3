@@ -2,7 +2,7 @@ from tabnanny import verbose
 import gym
 from a2c import A2CWithAE
 from a2c_with_ae_policy import ActorCriticWithAePolicy
-from ppo import PPO
+from ppo_ae import PPO
 from gym_env_discrete import ur5GymEnv
 from models import *
 from typing import Any, Dict
