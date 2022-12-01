@@ -84,10 +84,11 @@ class A2CWithAE(OnPolicyAlgorithm):
         learning_rate: Union[float, Schedule] = 1e-3,
         n_steps: int = 1000,
         gamma: float = 0.99,
-        gae_lambda: float = 1.0,
-        ent_coef: float = 1,
-        vf_coef: float = 1,
+        gae_lambda: float = 0.5,
+        ent_coef: float = 0.25,
+        vf_coef: float = 4,
         ae_coef: float = 1,
+        pl_coef: float = 0.25,
         max_grad_norm: float = 0.5,
         rms_prop_eps: float = 1e-5,
         use_rms_prop: bool = False,
@@ -128,6 +129,7 @@ class A2CWithAE(OnPolicyAlgorithm):
             ),
         )
         self.ae_coef = ae_coef
+        self.pl_coef = pl_coef
         self.normalize_advantage = normalize_advantage
 
         # Update optimizer inside the policy if we want to use RMSProp
@@ -145,7 +147,7 @@ class A2CWithAE(OnPolicyAlgorithm):
         rollout buffer (one gradient step over whole data).
         """
         # Switch to train mode (this affects batch norm / dropout)
-#        self.policy.set_training_mode(True)
+        self.policy.set_training_mode(True)
 
         # Update optimizer learning rate
         self._update_learning_rate(self.policy.optimizer)
@@ -179,7 +181,7 @@ class A2CWithAE(OnPolicyAlgorithm):
                 else:
                     entropy_loss = -th.mean(entropy)
 
-                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + self.ae_coef*ae_loss
+                loss = self.pl_coef * policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + self.ae_coef*ae_loss
 
                 # Optimization step
                 self.policy.optimizer.zero_grad()
@@ -199,34 +201,29 @@ class A2CWithAE(OnPolicyAlgorithm):
         self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         self.logger.record("train/explained_variance", explained_var)
-        self.logger.record("train/entropy_loss", entropy_loss.item())
-        self.logger.record("train/policy_loss", policy_loss.item())
-        self.logger.record("train/value_loss", value_loss.item())
-        self.logger.record("train/ae_loss", ae_loss.item())
+        self.logger.record("train/entropy_loss", self.ent_coef*entropy_loss.item())
+        self.logger.record("train/policy_loss", self.pl_coef*policy_loss.item())
+        self.logger.record("train/value_loss", self.vf_coef*value_loss.item())
+        self.logger.record("train/ae_loss", self.ae_coef*ae_loss.item())
+        self.logger.record("train/loss", loss.item())
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean())
     #Put this logging in callback
     def learn(
-            self: A2CSelf,
-            total_timesteps: int,
-            callback: MaybeCallback = None,
-            log_interval: int = 1,
-            eval_env: Optional[GymEnv] = None,
-            eval_freq: int = -1,
-            n_eval_episodes: int = 1,
-            tb_log_name: str = "A2C",
-            eval_log_path: Optional[str] = './',
-            reset_num_timesteps: bool = True,
-        ) -> A2CSelf:
+        self: A2CSelf,
+        total_timesteps: int,
+        callback: MaybeCallback = None,
+        log_interval: int = 100,
+        tb_log_name: str = "A2C",
+        reset_num_timesteps: bool = True,
+        progress_bar: bool = False,
+    ) -> A2CSelf:
 
-            return super(A2CWithAE, self).learn(
-                total_timesteps=total_timesteps,
-                callback=callback,
-                log_interval=log_interval,
-                eval_env=eval_env,
-                eval_freq=eval_freq,
-                n_eval_episodes=n_eval_episodes,
-                tb_log_name=tb_log_name,
-                eval_log_path=eval_log_path,
-                reset_num_timesteps=reset_num_timesteps,
-            )
+        return super().learn(
+            total_timesteps=total_timesteps,
+            callback=callback,
+            log_interval=log_interval,
+            tb_log_name=tb_log_name,
+            reset_num_timesteps=reset_num_timesteps,
+            progress_bar=progress_bar,
+        )

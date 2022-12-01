@@ -122,7 +122,7 @@ class AutoEncoderSmall(BaseFeaturesExtractor):
 
 
 class Actor(nn.Module):
-    def __init__(self, device, state_dim, emb_size, action_dim, action_std):
+    def __init__(self, state_dim, emb_size, action_dim, action_std):
         super(Actor, self).__init__()
         emb_ds = int(emb_size/4)
         self.output_dim = emb_size
@@ -149,7 +149,7 @@ class Actor(nn.Module):
         return action
 
 class Critic(nn.Module):
-    def __init__(self, device, state_dim, emb_size, action_dim, action_std):
+    def __init__(self, state_dim, emb_size, action_dim, action_std):
         super(Critic, self).__init__()
         self.output_dim = emb_size
         emb_ds = int(emb_size/4)

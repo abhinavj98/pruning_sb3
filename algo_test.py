@@ -1,7 +1,8 @@
 from tabnanny import verbose
 import gym
-from a2c_with_ae_algo import A2CWithAE
+from a2c import A2CWithAE
 from a2c_with_ae_policy import ActorCriticWithAePolicy
+from ppo_ae import PPO
 from gym_env_discrete import ur5GymEnv
 from models import *
 from typing import Any, Dict
@@ -103,6 +104,9 @@ class VideoRecorderCallback(BaseCallback):
         if self.n_calls % self._render_freq == 0:
             screens = []
 
+            # def get_action_critic(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
+            #     print(_locals)
+                
             def grab_screens(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
                 """
                 Renders the environment in its current state, recording the screen in the captured `screens` list
@@ -112,13 +116,19 @@ class VideoRecorderCallback(BaseCallback):
                 """
                 screen = self._eval_env.render()
                 # PyTorch uses CxHxW vs HxWxC gym (and tensorflow) image convention
+                
+                # critic_value = ppo.policy.critic(memory.depth_features[-1].unsqueeze(0), memory.states[-1])
+                # debug_img = cv2.putText(debug_img, "Critic: "+str(critic_value.item()), (0,50), cv2.FONT_HERSHEY_SIMPLEX, 
+                #     1, (255,0,0), 2, cv2.LINE_AA)
+                screen = cv2.putText(screen, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
+                    1, (255,0,0), 2, cv2.LINE_AA)
+                screen = cv2.putText(screen, "Action: "+str(self._eval_env.rev_actions[int(_locals['actions'])]), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
+                    1, (255,0,0), 2, cv2.LINE_AA)
+                screen = cv2.putText(screen, "Current: "+str(self._eval_env.achieved_goal), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
+                    1, (255,0,0), 2, cv2.LINE_AA)
+                screen = cv2.putText(screen, "Goal: "+str(self._eval_env.desired_goal), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
+                    1, (255,0,0), 2, cv2.LINE_AA)
                 screens.append(screen.transpose(2, 0, 1))
-                # print("asd")
-                # cv2.imshow("asd",screen)
-                # while True:
-                #     if cv2.waitKey(0) & 0xFF == ord('q'):
-                #         break
-                # cv2.destroyAllWindows()
 
             mean_reward, std_reward = evaluate_policy(
                 self.model,
@@ -128,10 +138,10 @@ class VideoRecorderCallback(BaseCallback):
                 deterministic=self._deterministic,
             )
             self.logger.record(
-                "eval/vreward", mean_reward, self.n_calls
+                "eval/vreward", mean_reward
             )
             self.logger.record(
-                "eval/vreward_std", std_reward, self.n_calls
+                "eval/vreward_std", std_reward
             )
             self.logger.record(
                 "eval/video",
@@ -179,18 +189,20 @@ eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
 video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
 a = CustomCallback()
 policy_kwargs = {
-        "actor_model":  Actor(None, 32+10*3, 128, 12, 1),
-        "critic_model":  Critic(None, 32+10*3, 128,1, 1),
+        "actor_class":  Actor,
+        "critic_class":  Critic,
+        "actor_kwargs": {"state_dim": 32+10*3, "emb_size":128, "action_dim":12, "action_std":1},
+        "critic_kwargs": {"state_dim": 32+10*3, "emb_size":128, "action_dim":1, "action_std":1},
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam
         }#ActorCriticWithAePolicy(env.observation_space, env.action_space, linear_schedule(0.001), Actor(None, 128*7*7+10*3,128, 12, 1 ), Critic(None, 128*7*7+10*3, 128,1,1), features_extractor_class =  AutoEncoder)
-model = A2CWithAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=1e-3)
+model = PPO(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=0)
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
 
 env.reset()
 for _ in range(1000):
-    env.render()
+    # env.render() 
     env.step(env.action_space.sample()) # take a random action
 env.reset()
-model.learn(1000000, callback=[video_recorder, a, eval_callback])
+model.learn(1000000, callback=[video_recorder, a, eval_callback], progress_bar = False)

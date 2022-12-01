@@ -70,7 +70,7 @@ class ur5GymEnv(gym.Env):
                  renders=False,
                  maxSteps=100,
                  learning_param=0,
-                 complex_tree = 0,
+                 complex_tree = 1,
                  width = 224,
                  height = 224,
                  eval = False, 
@@ -83,7 +83,6 @@ class ur5GymEnv(gym.Env):
             self.con = bc.BulletClient(connection_mode=pybullet.GUI)
         else:
             self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
-
         self.con.setTimeStep(5./240.)
         self.con.setGravity(0,0,-10)
         self.con.setRealTimeSimulation(False)
@@ -163,18 +162,18 @@ class ur5GymEnv(gym.Env):
         self.step_size = 0.05
 
         self.action_space = spaces.Discrete(self.action_dim)
-        self.actions = {'+x':1,
-                        '-x':2,
-                        '+y' : 3,
-                        '-y' : 4,
-                        '+z' : 5,
-                        '-z' : 6,
-                        'roll_+x' : 7,
-                        'roll_-x': 8,
-                        'pitch_+y' : 9,
-                        'pitch_-y' : 10,
-                        'yaw_+z' : 11,
-                        'yaw_-z' : 12}
+        self.actions = {'+x':0,
+                        '-x':1,
+                        '+y' : 2,
+                        '-y' : 3,
+                        '+z' : 4,
+                        '-z' : 5,
+                        'roll_+x' : 6,
+                        'roll_-x': 7,
+                        'pitch_+y' : 8,
+                        'pitch_-y' : 9,
+                        'yaw_+z' : 10,
+                        'yaw_-z' : 11}
 
         self.rev_actions = {v: k for k,v in self.actions.items()}
         self.complex_tree = complex_tree
@@ -392,7 +391,7 @@ class ur5GymEnv(gym.Env):
         # step simualator:
         for i in range(30):
             self.con.stepSimulation()
-            if self.renders: time.sleep(5./240.)
+            # if self.renders: time.sleep(5./240.)
 
         self.getExtendedObservation()
         reward = self.compute_reward(self.achieved_goal, self.achieved_orient, self.desired_goal, self.previous_goal, None)
@@ -431,6 +430,7 @@ class ur5GymEnv(gym.Env):
         cam_prop =(1024, 768, (0.9961947202682495, -0.043577890843153, 0.07547912001609802, 0.0, 0.087155781686306, 0.49809736013412476, -0.8627299666404724, 0.0, -0.0, 0.8660255074501038, 0.5, 0.0, -1.0308130979537964, -0.04603677988052368, -1.7002619504928589, 1.0), (0.7499999403953552, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0000200271606445, -1.0, 0.0, 0.0, -0.02000020071864128, 0.0), (0.0, 0.0, 1.0), (-0.07547912001609802, 0.8627299666404724, -0.5), (26565.193359375, 2324.154052734375, -0.0), (-871.5578002929688, 9961.947265625, 17320.5078125), 5.0, -30.0, 1.5, (1.0399999618530273, -0.05999999865889549, 0.14000000059604645))
         img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1], viewMatrix = cam_prop[2], projectionMatrix = cam_prop[3], renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
         # img_rgb,  _ = self.seperate_rgbd_rgb_d(img_rgbd, cam_prop[0], cam_prop[1])
+        
         return img_rgbd[2]
     
     def close(self):
@@ -464,7 +464,7 @@ class ur5GymEnv(gym.Env):
         self.target_reward = float(goal_reward(achieved_goal, achieved_previous_goal, desired_goal))
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
-        scale = 5.
+        scale = 10.
         reward += self.target_reward/(self.maxSteps*self.step_size)*scale #Mean around 0 -> Change in distance
         dist_reward = self.target_reward/(self.maxSteps*self.step_size)*scale
         # task 0: reach object:
