@@ -306,16 +306,17 @@ class ActorCriticWithAePolicy(BasePolicy):
         :param deterministic: Whether to use stochastic or deterministic actions
         :return: Taken action according to the policy
         """
-        features = self.extract_features(observation['depth'])
-        state = th.cat([observation['cur_pos'], observation['cur_or'], observation['goal_pos']], dim = 1)
-        latent_pi = self.actor(features[0].detach(), state)
-        # latent_vf = self.critic(features[0].detach(), state)
-        # values = self.value_net(latent_vf)
-        distribution = self._get_action_dist_from_latent(latent_pi)
-        #actions = distribution.get_actions(deterministic=deterministic)
-        # log_prob = distribution.log_prob(actions)
-        # return self.get_distribution(observation).get_actions(deterministic=deterministic)
-        return distribution.get_actions(deterministic = deterministic)
+        with th.no_grad():
+            features = self.extract_features(observation['depth'])
+            state = th.cat([observation['cur_pos'], observation['cur_or'], observation['goal_pos']], dim = 1)
+            latent_pi = self.actor(features[0], state)
+            # latent_vf = self.critic(features[0].detach(), state)
+            # values = self.value_net(latent_vf)
+            distribution = self._get_action_dist_from_latent(latent_pi)
+            #actions = distribution.get_actions(deterministic=deterministic)
+            # log_prob = distribution.log_prob(actions)
+            # return self.get_distribution(observation).get_actions(deterministic=deterministic)
+            return distribution.get_actions(deterministic = deterministic)
 
     def evaluate_actions(self, obs: th.Tensor, actions: th.Tensor) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
         """
@@ -329,8 +330,8 @@ class ActorCriticWithAePolicy(BasePolicy):
         # Preprocess the observation if needed
         features = self.extract_features(obs['depth'])
         state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
-        latent_pi = self.actor(features[0].detach(), state)
-        latent_vf = self.critic(features[0].detach(), state)
+        latent_pi = self.actor(features[0], state)
+        latent_vf = self.critic(features[0], state)
         values = self.value_net(latent_vf)
         distribution = self._get_action_dist_from_latent(latent_pi)
         #actions = distribution.get_actions(deterministic=deterministic)
@@ -354,10 +355,11 @@ class ActorCriticWithAePolicy(BasePolicy):
         :param obs:
         :return: the estimated values.
         """
-        features = self.extract_features(obs['depth'])
-        state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
-        latent_vf = self.critic(features[0].detach(), state)
-        return self.value_net(latent_vf)
+        with th.no_grad():
+            features = self.extract_features(obs['depth'])
+            state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
+            latent_vf = self.critic(features[0], state)
+            return self.value_net(latent_vf)
 
 
     def set_training_mode(self, mode: bool) -> None:
