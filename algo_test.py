@@ -1,8 +1,6 @@
 from tabnanny import verbose
-import gym
-from a2c_with_ae_algo import A2CWithAE
-from a2c_with_ae_policy import ActorCriticWithAePolicy
-from gym_env_discrete import ur5GymEnv
+import gym 
+
 from models import *
 from typing import Any, Dict
 from stable_baselines3.common.env_checker import check_env
@@ -12,8 +10,15 @@ from stable_baselines3.common import utils
 from stable_baselines3.common.callbacks import EvalCallback
 import numpy as np
 import cv2
-from ppo import PPO
-from stable_baselines3.common.logger import configure
+
+from gym_env_discrete import ur5GymEnv
+
+from ppo import PPOWithAE
+from a2c import A2CWithAE
+
+from a2c_ae_policy import ActorCriticWithAePolicy
+
+
 class CustomCallback(BaseCallback):
     """
     A custom callback that derives from ``BaseCallback``.
@@ -194,7 +199,7 @@ policy_kwargs = {
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam
         }#ActorCriticWithAePolicy(env.observation_space, env.action_space, linear_schedule(0.001), Actor(None, 128*7*7+10*3,128, 12, 1 ), Critic(None, 128*7*7+10*3, 128,1,1), features_extractor_class =  AutoEncoder)
-model = PPO(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=1e-3)
+model = SACWtihAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=1e-3)
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
 
@@ -203,4 +208,4 @@ for _ in range(100):
     env.render()
     env.step(env.action_space.sample()) # take a random action
 env.reset()
-model.learn(1000000, callback=[video_recorder, a, eval_callback])
+model.learn(1000000, callback=[video_recorder, a, eval_callback], progress_bar=True)

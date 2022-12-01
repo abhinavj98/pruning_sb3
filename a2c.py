@@ -1,29 +1,7 @@
-from typing import Any, Dict, Optional, Type, TypeVar, Union, Tuple
-from a2c_with_ae_policy import ActorCriticWithAePolicy
-import torch as th
-import gym
-from gym import spaces, Env
-import warnings
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Generator, List, Optional, Union
-from stable_baselines3.common.utils import obs_as_tensor, safe_mean
-#from stable_baselines3.common.vec_env import 
-import numpy as np
+from typing import Any, Dict, Optional, Type, TypeVar, Union
+
 import torch as th
 from gym import spaces
-from stable_baselines3.common.logger import Image
-from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.preprocessing import get_action_dim, get_obs_shape
-from stable_baselines3.common.type_aliases import (
-    DictReplayBufferSamples,
-    DictRolloutBufferSamples,
-    ReplayBufferSamples,
-    RolloutBufferSamples,
-)
-from stable_baselines3.common.utils import get_device
-from stable_baselines3.common.vec_env import VecNormalize
-import torchvision
 from torch.nn import functional as F
 
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
@@ -31,16 +9,19 @@ from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticP
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import explained_variance
 
-A2CSelf = TypeVar("A2CSelf", bound="A2CWithAE")
+SelfA2C = TypeVar("SelfA2C", bound="A2C")
 
 
 class A2CWithAE(OnPolicyAlgorithm):
     """
     Advantage Actor Critic (A2C)
+
     Paper: https://arxiv.org/abs/1602.01783
     Code: This implementation borrows code from https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail and
     and Stable Baselines (https://github.com/hill-a/stable-baselines)
+
     Introduction to A2C: https://hackernoon.com/intuitive-rl-intro-to-advantage-actor-critic-a2c-4ff545978752
+
     :param policy: The policy model to use (MlpPolicy, CnnPolicy, ...)
     :param env: The environment to learn from (if registered in Gym, can be str)
     :param learning_rate: The learning rate, it can be a function
@@ -79,23 +60,21 @@ class A2CWithAE(OnPolicyAlgorithm):
 
     def __init__(
         self,
-        policy: Union[str, Type[ActorCriticWithAePolicy]],
+        policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
-        learning_rate: Union[float, Schedule] = 1e-3,
-        n_steps: int = 1000,
+        learning_rate: Union[float, Schedule] = 7e-4,
+        n_steps: int = 5,
         gamma: float = 0.99,
-        gae_lambda: float = 0.5,
-        ent_coef: float = 0.05,
-        vf_coef: float = 10,
-        ae_coef: float = 1,
-        pl_coef: float = 0.05,
+        gae_lambda: float = 1.0,
+        ent_coef: float = 0.0,
+        vf_coef: float = 0.5,
         max_grad_norm: float = 0.5,
         rms_prop_eps: float = 1e-5,
-        use_rms_prop: bool = False,
+        use_rms_prop: bool = True,
         use_sde: bool = False,
         sde_sample_freq: int = -1,
-        normalize_advantage: bool = True,
-        tensorboard_log: Optional[str] = "./",
+        normalize_advantage: bool = False,
+        tensorboard_log: Optional[str] = None,
         policy_kwargs: Optional[Dict[str, Any]] = None,
         verbose: int = 0,
         seed: Optional[int] = None,
@@ -128,8 +107,7 @@ class A2CWithAE(OnPolicyAlgorithm):
                 spaces.MultiBinary,
             ),
         )
-        self.ae_coef = ae_coef
-        self.pl_coef = pl_coef
+
         self.normalize_advantage = normalize_advantage
 
         # Update optimizer inside the policy if we want to use RMSProp
@@ -140,89 +118,83 @@ class A2CWithAE(OnPolicyAlgorithm):
 
         if _init_setup_model:
             self._setup_model()
-    
+
     def train(self) -> None:
         """
         Update policy using the currently gathered
         rollout buffer (one gradient step over whole data).
         """
         # Switch to train mode (this affects batch norm / dropout)
-#        self.policy.set_training_mode(True)
+        self.policy.set_training_mode(True)
 
         # Update optimizer learning rate
         self._update_learning_rate(self.policy.optimizer)
-        for _ in range(1):
+
         # This will only loop once (get all data in one go)
-            for rollout_data in self.rollout_buffer.get(batch_size=64):
-                actions = rollout_data.actions
-                if isinstance(self.action_space, spaces.Discrete):
-                    # Convert discrete action from float to long
-                    actions = actions.long().flatten()
-                values, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
-                values = values.flatten()
+        for rollout_data in self.rollout_buffer.get(batch_size=None):
 
-                # Normalize advantage (not present in the original implementation)
-                advantages = rollout_data.advantages
-                if self.normalize_advantage:
-                    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            actions = rollout_data.actions
+            if isinstance(self.action_space, spaces.Discrete):
+                # Convert discrete action from float to long
+                actions = actions.long().flatten()
 
-                # Policy gradient loss
-                policy_loss = -(advantages * log_prob).mean()
+            values, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
+            values = values.flatten()
 
-                # Value loss using the TD(gae_lambda) target
-                value_loss = F.mse_loss(rollout_data.returns, values)
+            # Normalize advantage (not present in the original implementation)
+            advantages = rollout_data.advantages
+            if self.normalize_advantage:
+                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-                # Entropy loss favor exploration
-                if entropy is None:
-                    # Approximate entropy when no analytical form
-                    entropy_loss = -th.mean(-log_prob)
-                else:
-                    entropy_loss = -th.mean(entropy)
+            # Policy gradient loss
+            policy_loss = -(advantages * log_prob).mean()
 
-                loss = self.pl_coef * policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
+            # Value loss using the TD(gae_lambda) target
+            value_loss = F.mse_loss(rollout_data.returns, values)
 
-                # Optimization step
-                self.policy.optimizer.zero_grad()
-                loss.backward()
+            # Entropy loss favor exploration
+            if entropy is None:
+                # Approximate entropy when no analytical form
+                entropy_loss = -th.mean(-log_prob)
+            else:
+                entropy_loss = -th.mean(entropy)
 
-                # Clip grad norm
-                th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
-                self.policy.optimizer.step()
+            loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
+
+            # Optimization step
+            self.policy.optimizer.zero_grad()
+            loss.backward()
+
+            # Clip grad norm
+            th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+            self.policy.optimizer.step()
 
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
         self._n_updates += 1
-        
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         self.logger.record("train/explained_variance", explained_var)
-        self.logger.record("train/entropy_loss", self.ent_coef*entropy_loss.item())
-        self.logger.record("train/policy_loss", self.pl_coef*policy_loss.item())
-        self.logger.record("train/value_loss", self.vf_coef*value_loss.item())
-        self.logger.record("train/loss", loss.item())
+        self.logger.record("train/entropy_loss", entropy_loss.item())
+        self.logger.record("train/policy_loss", policy_loss.item())
+        self.logger.record("train/value_loss", value_loss.item())
         if hasattr(self.policy, "log_std"):
-            self.logger.record("train/std", th.exp(self.policy.log_std).mean())
-    #Put this logging in callback
-    def learn(
-            self: A2CSelf,
-            total_timesteps: int,
-            callback: MaybeCallback = None,
-            log_interval: int = 1,
-            eval_env: Optional[GymEnv] = None,
-            eval_freq: int = -1,
-            n_eval_episodes: int = 1,
-            tb_log_name: str = "A2C",
-            eval_log_path: Optional[str] = './',
-            reset_num_timesteps: bool = True,
-        ) -> A2CSelf:
+            self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
 
-            return super(A2CWithAE, self).learn(
-                total_timesteps=total_timesteps,
-                callback=callback,
-                log_interval=log_interval,
-                eval_env=eval_env,
-                eval_freq=eval_freq,
-                n_eval_episodes=n_eval_episodes,
-                tb_log_name=tb_log_name,
-                eval_log_path=eval_log_path,
-                reset_num_timesteps=reset_num_timesteps,
-            )
+    def learn(
+        self: SelfA2C,
+        total_timesteps: int,
+        callback: MaybeCallback = None,
+        log_interval: int = 100,
+        tb_log_name: str = "A2C",
+        reset_num_timesteps: bool = True,
+        progress_bar: bool = False,
+    ) -> SelfA2C:
+
+        return super().learn(
+            total_timesteps=total_timesteps,
+            callback=callback,
+            log_interval=log_interval,
+            tb_log_name=tb_log_name,
+            reset_num_timesteps=reset_num_timesteps,
+            progress_bar=progress_bar,
+        )

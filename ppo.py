@@ -14,7 +14,7 @@ from stable_baselines3.common.utils import explained_variance, get_schedule_fn
 PPOSelf = TypeVar("PPOSelf", bound="PPO")
 
 
-class PPO(OnPolicyAlgorithm):
+class PPOWithAE(OnPolicyAlgorithm):
     """
     Proximal Policy Optimization algorithm (PPO) (clip version)
     Paper: https://arxiv.org/abs/1707.06347

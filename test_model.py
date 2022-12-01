@@ -1,7 +1,7 @@
 from tabnanny import verbose
 import gym
-from a2c_with_ae_algo import A2CWithAE
-from a2c_with_ae_policy import ActorCriticWithAePolicy
+from a2c import A2CWithAE
+from a2c_ae_policy import ActorCriticWithAePolicy
 from gym_env_discrete import ur5GymEnv
 from models import *
 from typing import Any, Dict
