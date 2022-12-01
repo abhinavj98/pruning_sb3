@@ -1,8 +1,8 @@
 from tabnanny import verbose
 import gym
-from a2c_with_ae_algo import A2CWithAE
+from a2c import A2CWithAE
 from a2c_with_ae_policy import ActorCriticWithAePolicy
-from ppo_policy import PPO
+from ppo import PPO
 from gym_env_discrete import ur5GymEnv
 from models import *
 from typing import Any, Dict
@@ -205,4 +205,4 @@ for _ in range(1000):
     # env.render() 
     env.step(env.action_space.sample()) # take a random action
 env.reset()
-model.learn(1000000, callback=[video_recorder, a, eval_callback])
+model.learn(1000000, callback=[video_recorder, a, eval_callback], progress_bar = False)

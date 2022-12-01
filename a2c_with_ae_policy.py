@@ -112,9 +112,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.activation_fn = activation_fn
         self.ortho_init = ortho_init
 
-        self.features_extractor = features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
-        self.features_dim = self.features_extractor.features_dim
-
+        
         self.actor_class = actor_class
         self.critic_class = critic_class
         self.actor_kwargs = actor_kwargs
@@ -203,6 +201,9 @@ class ActorCriticWithAePolicy(BasePolicy):
         """
 
         #Make Actor Critic using actro critic class and kwargs, update get constructor parameters as welll
+        self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
+        self.features_dim = self.features_extractor.features_dim
+
         self._build_actor_critic()
         self.latent_dim_pi = self.actor.output_dim
         self.latent_dim_vf = self.critic.output_dim
@@ -367,4 +368,5 @@ class ActorCriticWithAePolicy(BasePolicy):
             """
             self.actor.train(mode)
             self.critic.train(mode)
+            self.features_extractor.train(mode)
             self.training = mode

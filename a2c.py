@@ -210,26 +210,20 @@ class A2CWithAE(OnPolicyAlgorithm):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean())
     #Put this logging in callback
     def learn(
-            self: A2CSelf,
-            total_timesteps: int,
-            callback: MaybeCallback = None,
-            log_interval: int = 1,
-            eval_env: Optional[GymEnv] = None,
-            eval_freq: int = -1,
-            n_eval_episodes: int = 1,
-            tb_log_name: str = "A2C",
-            eval_log_path: Optional[str] = './',
-            reset_num_timesteps: bool = True,
-        ) -> A2CSelf:
+        self: A2CSelf,
+        total_timesteps: int,
+        callback: MaybeCallback = None,
+        log_interval: int = 100,
+        tb_log_name: str = "A2C",
+        reset_num_timesteps: bool = True,
+        progress_bar: bool = False,
+    ) -> A2CSelf:
 
-            return super(A2CWithAE, self).learn(
-                total_timesteps=total_timesteps,
-                callback=callback,
-                log_interval=log_interval,
-                eval_env=eval_env,
-                eval_freq=eval_freq,
-                n_eval_episodes=n_eval_episodes,
-                tb_log_name=tb_log_name,
-                eval_log_path=eval_log_path,
-                reset_num_timesteps=reset_num_timesteps,
-            )
+        return super().learn(
+            total_timesteps=total_timesteps,
+            callback=callback,
+            log_interval=log_interval,
+            tb_log_name=tb_log_name,
+            reset_num_timesteps=reset_num_timesteps,
+            progress_bar=progress_bar,
+        )
