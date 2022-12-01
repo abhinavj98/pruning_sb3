@@ -67,8 +67,10 @@ class ActorCriticWithAePolicy(BasePolicy):
         observation_space: gym.spaces.Space,
         action_space: gym.spaces.Space,
         lr_schedule: Schedule,
-        actor_model: Type[nn.Module],
-        critic_model: Type[nn.Module],
+        actor_class: Type[nn.Module],
+        critic_class: Type[nn.Module],
+        critic_kwargs: Optional[Dict[str, Any]] = None,
+        actor_kwargs: Optional[Dict[str, Any]] = None,
         activation_fn: Type[nn.Module] = nn.Tanh,
         ortho_init: bool = True,
         use_sde: bool = False,
@@ -112,15 +114,19 @@ class ActorCriticWithAePolicy(BasePolicy):
 
         self.features_extractor = features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
         self.features_dim = self.features_extractor.features_dim
-        self.actor = actor_model
-        self.critic = critic_model
 
-        self.latent_dim_pi = self.actor.output_dim
-        self.latent_dim_vf = self.critic.output_dim
+        self.actor_class = actor_class
+        self.critic_class = critic_class
+        self.actor_kwargs = actor_kwargs
+        self.critic_kwargs = critic_kwargs
+        self.action_space = action_space
+        self.use_sde = use_sde
+      
 
         self.normalize_images = normalize_images
         self.log_std_init = log_std_init
         dist_kwargs = None
+        self.dist_kwargs = dist_kwargs
         # Keyword arguments for gSDE distribution
         if use_sde:
             dist_kwargs = {
@@ -134,8 +140,10 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.dist_kwargs = dist_kwargs
 
         # Action distribution
-        self.action_dist = make_proba_distribution(action_space, use_sde=use_sde, dist_kwargs=dist_kwargs)
+        # print("Buildinf")
+       
         self._build(lr_schedule)
+        
 
     def _get_constructor_parameters(self) -> Dict[str, Any]:
         data = super()._get_constructor_parameters()
@@ -169,6 +177,24 @@ class ActorCriticWithAePolicy(BasePolicy):
         assert isinstance(self.action_dist, StateDependentNoiseDistribution), "reset_noise() is only available when using gSDE"
         self.action_dist.sample_weights(self.log_std, batch_size=n_envs)
 
+    def _build_mlp_extractor(self) -> None:
+        """
+        Create the policy and value networks.
+        Part of the layers can be shared.
+        """
+        # Note: If net_arch is None and some features extractor is used,
+        #       net_arch here is an empty list and mlp_extractor does not
+        #       really contain any layers (acts like an identity module).
+        self.mlp_extractor = MlpExtractor(
+            self.features_dim,
+            net_arch=self.net_arch,
+            activation_fn=self.activation_fn,
+            device=self.device,
+        )
+    def _build_actor_critic(self) -> None:
+        self.actor = self.actor_class(**self.actor_kwargs).to(self.device)
+        self.critic = self.critic_class(**self.critic_kwargs).to(self.device)
+
     def _build(self, lr_schedule: Schedule) -> None:
         """
         Create the networks and the optimizer.
@@ -176,7 +202,12 @@ class ActorCriticWithAePolicy(BasePolicy):
             lr_schedule(1) is the initial learning rate
         """
 
-
+        #Make Actor Critic using actro critic class and kwargs, update get constructor parameters as welll
+        self._build_actor_critic()
+        self.latent_dim_pi = self.actor.output_dim
+        self.latent_dim_vf = self.critic.output_dim
+        self.action_dist = make_proba_distribution(self.action_space, use_sde=False, dist_kwargs=self.dist_kwargs)
+        
         if isinstance(self.action_dist, DiagGaussianDistribution):
             self.action_net, self.log_std = self.action_dist.proba_distribution_net(
                 latent_dim=self.latent_dim_pi, log_std_init=self.log_std_init
@@ -198,7 +229,9 @@ class ActorCriticWithAePolicy(BasePolicy):
             # features_extractor/mlp values are
             # originally from openai/baselines (default gains/init_scales).
             module_gains = {
-                #self.features_extractor: np.sqrt(2),
+                self.features_extractor: np.sqrt(2),
+                self.actor: np.sqrt(2),
+                self.critic: np.sqrt(2),
                 #self.mlp_extractor: np.sqrt(2),
                 self.action_net: 0.01,
                 self.value_net: 1,
@@ -293,7 +326,6 @@ class ActorCriticWithAePolicy(BasePolicy):
             and entropy of the action distribution.
         """
         # Preprocess the observation if needed
-        print("evaluate actions")
         features = self.extract_features(obs['depth'])
         state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
         latent_pi = self.actor(features[0].detach(), state)
@@ -326,3 +358,13 @@ class ActorCriticWithAePolicy(BasePolicy):
         latent_vf = self.critic(features[0].detach(), state)
         return self.value_net(latent_vf)
 
+
+    def set_training_mode(self, mode: bool) -> None:
+            """
+            Put the policy in either training or evaluation mode.
+            This affects certain modules, such as batch normalisation and dropout.
+            :param mode: if true, set to training mode, else set to evaluation mode
+            """
+            self.actor.train(mode)
+            self.critic.train(mode)
+            self.training = mode
