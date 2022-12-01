@@ -14,7 +14,7 @@ from stable_baselines3.common.utils import explained_variance, get_schedule_fn
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
 
 
-class PPO(OnPolicyAlgorithm):
+class PPOAE(OnPolicyAlgorithm):
     """
     Proximal Policy Optimization algorithm (PPO) (clip version)
 
@@ -77,7 +77,7 @@ class PPO(OnPolicyAlgorithm):
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 3e-4,
-        n_steps: int = 2048,
+        n_steps: int = 10,
         batch_size: int = 64,
         n_epochs: int = 10,
         gamma: float = 0.99,
@@ -216,13 +216,13 @@ class PPO(OnPolicyAlgorithm):
                 values = values.flatten()
                 # Normalize advantage
                 advantages = rollout_data.advantages
-                loss = th.tensor(0)
+                loss = th.tensor(0.0)
                 # Normalization does not make sense if mini batchsize == 1, see GH issue #325
                 if self.normalize_advantage and len(advantages) > 1:
                     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
                 # ratio between old and new policy, should be one at the first iteration
-                if (self.n_Updates/self.n_epochs) % self.train_iterations_a2c == 0:
+                if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
                     ratio = th.exp(log_prob - rollout_data.old_log_prob)
 
                     # clipped surrogate loss
@@ -256,10 +256,10 @@ class PPO(OnPolicyAlgorithm):
                     entropy_losses.append(entropy_loss.item())
                     loss += policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss 
 
-                if (self.n_Updates/self.n_epochs) % self.train_iterations_ae == 0:
+                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
                     ae_loss = F.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1]) 
                     ae_losses.append(ae_loss.item())
-                    loss += self.ae_coef * ae_loss + self.latent_coef*th.norm(features[0], dim = (1))
+                    loss += self.ae_coef * ae_loss + self.latent_coef*th.norm(features[0], dim = (1)).mean()
                 # Entropy loss favor exploration
                 
 

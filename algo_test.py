@@ -2,7 +2,7 @@ from tabnanny import verbose
 import gym
 from a2c import A2CWithAE
 from a2c_with_ae_policy import ActorCriticWithAePolicy
-from ppo_ae import PPO
+from ppo_ae import PPOAE
 from gym_env_discrete import ur5GymEnv
 from models import *
 from typing import Any, Dict
@@ -196,7 +196,7 @@ policy_kwargs = {
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam
         }#ActorCriticWithAePolicy(env.observation_space, env.action_space, linear_schedule(0.001), Actor(None, 128*7*7+10*3,128, 12, 1 ), Critic(None, 128*7*7+10*3, 128,1,1), features_extractor_class =  AutoEncoder)
-model = PPO(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=0)
+model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=0.001)
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
 
@@ -205,4 +205,4 @@ for _ in range(1000):
     # env.render() 
     env.step(env.action_space.sample()) # take a random action
 env.reset()
-model.learn(1000000, callback=[video_recorder, a, eval_callback], progress_bar = False)
+model.learn(1000000, callback=[video_recorder, a, eval_callback], progress_bar = True)
