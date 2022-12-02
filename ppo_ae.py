@@ -5,12 +5,13 @@ import numpy as np
 import torch as th
 from gym import spaces
 from torch.nn import functional as F
+import torchvision
 
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticPolicy, BasePolicy, MultiInputActorCriticPolicy
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import explained_variance, get_schedule_fn
-
+from stable_baselines3.common.logger import Image
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
 
 
@@ -77,7 +78,7 @@ class PPOAE(OnPolicyAlgorithm):
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 3e-4,
-        n_steps: int = 10,
+        n_steps: int = 1000,
         batch_size: int = 64,
         n_epochs: int = 10,
         gamma: float = 0.99,
@@ -292,6 +293,11 @@ class PPOAE(OnPolicyAlgorithm):
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
         # Logs
+        plot_img = self.rollout_buffer.sample(1).observations['depth']
+        _, recon = self.policy.extract_features(plot_img)
+        
+        ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
+        self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
         self.logger.record("train/entropy_loss", np.mean(entropy_losses))
         self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
         self.logger.record("train/value_loss", np.mean(value_losses))
@@ -299,6 +305,7 @@ class PPOAE(OnPolicyAlgorithm):
         self.logger.record("train/clip_fraction", np.mean(clip_fractions))
         self.logger.record("train/loss", loss.item())
         self.logger.record("train/explained_variance", explained_var)
+        self.logger.record("train/ae_loss", self.ae_coef*ae_loss.item())
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
 

@@ -69,7 +69,7 @@ class ur5GymEnv(gym.Env):
     def __init__(self,
                  renders=False,
                  maxSteps=100,
-                 learning_param=0,
+                 learning_param=0.05,
                  complex_tree = 1,
                  width = 224,
                  height = 224,
