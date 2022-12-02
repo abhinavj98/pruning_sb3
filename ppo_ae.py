@@ -77,7 +77,7 @@ class PPOAE(OnPolicyAlgorithm):
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 3e-4,
-        n_steps: int = 10,
+        n_steps: int = 1000,
         batch_size: int = 64,
         n_epochs: int = 10,
         gamma: float = 0.99,
@@ -216,7 +216,7 @@ class PPOAE(OnPolicyAlgorithm):
                 values = values.flatten()
                 # Normalize advantage
                 advantages = rollout_data.advantages
-                loss = th.tensor(0.0)
+                loss = th.tensor(0.0).to(self.device)
                 # Normalization does not make sense if mini batchsize == 1, see GH issue #325
                 if self.normalize_advantage and len(advantages) > 1:
                     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
@@ -259,7 +259,7 @@ class PPOAE(OnPolicyAlgorithm):
                 if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
                     ae_loss = F.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1]) 
                     ae_losses.append(ae_loss.item())
-                    loss += self.ae_coef * ae_loss + self.latent_coef*th.norm(features[0], dim = (1)).mean()
+                    loss += self.ae_coef * ae_loss + self.latent_coef*th.norm(features[0], dim = (1)).to(self.device).mean()
                 # Entropy loss favor exploration
                 
 
@@ -323,5 +323,5 @@ class PPOAE(OnPolicyAlgorithm):
             log_interval=log_interval,
             tb_log_name=tb_log_name,
             reset_num_timesteps=reset_num_timesteps,
-            progress_bar=progress_bar,
+        #    progress_bar=progress_bar,
         )
