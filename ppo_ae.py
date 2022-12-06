@@ -90,8 +90,8 @@ class PPOAE(OnPolicyAlgorithm):
         ent_coef: float = 0.0,
         vf_coef: float = 0.5,
         ae_coef: float = 1,
-        train_iterations_ae: int = 10,
-        train_iterations_a2c: int = 1,
+        train_iterations_ae: int = 1,
+        train_iterations_a2c: int = 2,
         max_grad_norm: float = 0.5,
         use_sde: bool = False,
         sde_sample_freq: int = -1,
@@ -196,9 +196,8 @@ class PPOAE(OnPolicyAlgorithm):
         entropy_losses = []
         pg_losses, value_losses, ae_losses = [], [], []
         clip_fractions = []
-
+        ae_losses = []
         continue_training = True
-
         # train for n_epochs epochs
         for epoch in range(self.n_epochs):
             approx_kl_divs = []
@@ -289,23 +288,24 @@ class PPOAE(OnPolicyAlgorithm):
             if not continue_training:
                 break
 
-        self._n_updates += self.n_epochs
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
         # Logs
-        plot_img = self.rollout_buffer.sample(1).observations['depth']
-        _, recon = self.policy.extract_features(plot_img)
-        
-        ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
-        self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
-        self.logger.record("train/entropy_loss", np.mean(entropy_losses))
-        self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
-        self.logger.record("train/value_loss", np.mean(value_losses))
+
+        if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
+            plot_img = self.rollout_buffer.sample(1).observations['depth']
+            _, recon = self.policy.extract_features(plot_img)
+            ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
+            self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
+            self.logger.record("train/ae_loss", self.ae_coef*ae_loss.item())
+        if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
+            self.logger.record("train/entropy_loss", np.mean(entropy_losses))
+            self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
+            self.logger.record("train/value_loss", np.mean(value_losses))
         self.logger.record("train/approx_kl", np.mean(approx_kl_divs))
         self.logger.record("train/clip_fraction", np.mean(clip_fractions))
         self.logger.record("train/loss", loss.item())
         self.logger.record("train/explained_variance", explained_var)
-        self.logger.record("train/ae_loss", self.ae_coef*ae_loss.item())
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
 
@@ -313,6 +313,8 @@ class PPOAE(OnPolicyAlgorithm):
         self.logger.record("train/clip_range", clip_range)
         if self.clip_range_vf is not None:
             self.logger.record("train/clip_range_vf", clip_range_vf)
+
+        self._n_updates += self.n_epochs
 
     def learn(
         self: SelfPPO,
