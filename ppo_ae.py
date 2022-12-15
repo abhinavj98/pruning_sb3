@@ -1,17 +1,33 @@
 import warnings
-from typing import Any, Dict, Optional, Type, TypeVar, Union
+from typing import Any, Dict, Optional, Type, TypeVar, Union, List
 
 import numpy as np
 import torch as th
 from gym import spaces
 from torch.nn import functional as F
 import torchvision
-
+import gym
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticPolicy, BasePolicy, MultiInputActorCriticPolicy
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import explained_variance, get_schedule_fn
 from stable_baselines3.common.logger import Image
+from stable_baselines3.common.base_class import BaseAlgorithm
+from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.policies import ActorCriticPolicy
+from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
+from stable_baselines3.common.utils import obs_as_tensor, safe_mean
+from stable_baselines3.common.vec_env import VecEnv
+
+from stable_baselines3.common.utils import (
+    check_for_correct_spaces,
+    get_device,
+    get_schedule_fn,
+    get_system_info,
+    set_random_seed,
+    update_learning_rate,
+)
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
 
 
@@ -72,11 +88,13 @@ class PPOAE(OnPolicyAlgorithm):
         "CnnPolicy": ActorCriticCnnPolicy,
         "MultiInputPolicy": MultiInputActorCriticPolicy,
     }
+###MAke custom learning rate method -> update_learning_raet -> Check BasePolict base_class.py
 
     def __init__(
         self,
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
+        learning_rate_ae: Union[float, Schedule] = 3e-4,
         learning_rate: Union[float, Schedule] = 3e-4,
         n_steps: int = 1000,
         batch_size: int = 64,
@@ -129,6 +147,8 @@ class PPOAE(OnPolicyAlgorithm):
                 spaces.MultiBinary,
             ),
         )
+        th.autograd.set_detect_anomaly(True)
+        self.learning_rate_ae = learning_rate
         self.ae_coef = ae_coef
         self.latent_coef = latent_coef
         self.train_iterations_ae = train_iterations_ae
@@ -169,8 +189,29 @@ class PPOAE(OnPolicyAlgorithm):
             self._setup_model()
 
     def _setup_model(self) -> None:
-        super()._setup_model()
+        # super()._setup_model()
+        self._custom_setup_lr_schedule()
+        self.set_random_seed(self.seed)
 
+        buffer_cls = DictRolloutBuffer if isinstance(self.observation_space, gym.spaces.Dict) else RolloutBuffer
+
+        self.rollout_buffer = buffer_cls(
+            self.n_steps,
+            self.observation_space,
+            self.action_space,
+            device=self.device,
+            gamma=self.gamma,
+            gae_lambda=self.gae_lambda,
+            n_envs=self.n_envs,
+        )
+        self.policy = self.policy_class(  # pytype:disable=not-instantiable
+            self.observation_space,
+            self.action_space,
+            self.lr_schedule,
+            use_sde=self.use_sde,
+            **self.policy_kwargs  # pytype:disable=not-instantiable
+        )
+        self.policy = self.policy.to(self.device)
         # Initialize schedules for policy/value clipping
         self.clip_range = get_schedule_fn(self.clip_range)
         if self.clip_range_vf is not None:
@@ -178,6 +219,26 @@ class PPOAE(OnPolicyAlgorithm):
                 assert self.clip_range_vf > 0, "`clip_range_vf` must be positive, " "pass `None` to deactivate vf clipping"
 
             self.clip_range_vf = get_schedule_fn(self.clip_range_vf)
+    # def _custom_update_learning_rate():
+    def _custom_update_learning_rate(self, optimizers: Union[List[th.optim.Optimizer], th.optim.Optimizer]) -> None:
+            """
+            Update the optimizers learning rate using the current learning rate schedule
+            and the current progress remaining (from 1 to 0).
+            :param optimizers:
+                An optimizer or a list of optimizers.
+            """
+            # Log the current learning rate
+            self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
+            self.logger.record("train/learning_rate_ae", self.lr_schedule_ae(self._current_progress_remaining))
+
+            update_learning_rate(self.policy.optimizer, self.lr_schedule(self._current_progress_remaining))
+            update_learning_rate(self.policy.optimizer_ae, self.lr_schedule_ae(self._current_progress_remaining))
+
+
+    def _custom_setup_lr_schedule(self) -> None:
+        """Transform to callable if needed."""
+        self.lr_schedule = get_schedule_fn(self.learning_rate)
+        self.lr_schedule_ae = get_schedule_fn(self.learning_rate_ae)
 
     def train(self) -> None:
         """
@@ -186,7 +247,8 @@ class PPOAE(OnPolicyAlgorithm):
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
         # Update optimizer learning rate
-        self._update_learning_rate(self.policy.optimizer)
+        self._custom_update_learning_rate([self.policy.optimizer, self.policy.optimizer_ae])
+        # self._update_learning_rate(self.policy.optimizer_ae) #Make this work with 2 different netweorks
         # Compute current clip range
         clip_range = self.clip_range(self._current_progress_remaining)
         # Optional: clip range for the value function
@@ -257,9 +319,9 @@ class PPOAE(OnPolicyAlgorithm):
                     loss += policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss 
 
                 if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
-                    ae_loss = F.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1]) 
-                    ae_losses.append(ae_loss.item())
-                    loss += self.ae_coef * ae_loss + self.latent_coef*th.norm(features[0], dim = (1)).to(self.device).mean()
+                    ae_l2_loss = F.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1]) 
+                    ae_losses.append(ae_l2_loss.item())
+                    ae_loss = self.ae_coef * ae_l2_loss + self.latent_coef*th.norm(features[0], dim = (1)).to(self.device).mean()
                 # Entropy loss favor exploration
                 
 
@@ -280,10 +342,18 @@ class PPOAE(OnPolicyAlgorithm):
 
                 # Optimization step
                 self.policy.optimizer.zero_grad()
+                self.policy.optimizer_ae.zero_grad()
+                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
+                    retain_graph = True
+                    ae_loss.backward(retain_graph = True)
                 loss.backward()
                 # Clip grad norm
                 th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                 self.policy.optimizer.step()
+                # if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
+                #     ae_loss.backward()
+                #     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                #     self.policy.optimizer_ae.step()
 
             if not continue_training:
                 break
