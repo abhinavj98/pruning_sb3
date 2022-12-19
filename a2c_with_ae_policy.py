@@ -83,7 +83,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         normalize_images: bool = False,
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
-        lr_schedule_ae: float = 0.0001
+        lr_schedule_ae: Schedule = 0.0001
     ):
 
         if optimizer_kwargs is None:
@@ -140,8 +140,8 @@ class ActorCriticWithAePolicy(BasePolicy):
 
         # Action distribution
         # print("Buildinf")
-        self.lr_schedule_ae = lr_schedule_ae
-        self._build(lr_schedule)
+        # self.lr_schedule_ae = lr_schedule_ae
+        self._build(lr_schedule, lr_schedule_ae)
         
 
     def _get_constructor_parameters(self) -> Dict[str, Any]:
@@ -194,7 +194,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.actor = self.actor_class(**self.actor_kwargs).to(self.device)
         self.critic = self.critic_class(**self.critic_kwargs).to(self.device)
 
-    def _build(self, lr_schedule: Schedule) -> None:
+    def _build(self, lr_schedule: Schedule, lr_schedule_ae: Schedule) -> None:
         """
         Create the networks and the optimizer.
         :param lr_schedule: Learning rate schedule
@@ -225,26 +225,26 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.value_net = nn.Linear(self.latent_dim_vf, 1)
         # Init weights: use orthogonal initialization
         # with small initial weight for the output
-        if self.ortho_init:
-            # TODO: check for features_extractor
-            # Values from stable-baselines.
-            # features_extractor/mlp values are
-            # originally from openai/baselines (default gains/init_scales).
-            module_gains = {
-                self.features_extractor: np.sqrt(2),
-                self.actor: np.sqrt(2),
-                self.critic: np.sqrt(2),
-                #self.mlp_extractor: np.sqrt(2),
-                self.action_net: 0.01,
-                self.value_net: 1,
-            }
-            for module, gain in module_gains.items():
-                module.apply(partial(self.init_weights, gain=gain))
+        # if self.ortho_init:
+        #     # TODO: check for features_extractor
+        #     # Values from stable-baselines.
+        #     # features_extractor/mlp values are
+        #     # originally from openai/baselines (default gains/init_scales).
+        #     module_gains = {
+        #         self.features_extractor: np.sqrt(2),
+        #         self.actor: np.sqrt(2),
+        #         self.critic: np.sqrt(2),
+        #         #self.mlp_extractor: np.sqrt(2),
+        #         self.action_net: 0.01,
+        #         self.value_net: 1,
+        #     }
+        #     for module, gain in module_gains.items():
+        #         module.apply(partial(self.init_weights, gain=gain))
 
         # Setup optimizer with initial learning rate
-        self.optimizer = self.optimizer_class(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
-        self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
-    
+        self.optimizer = self.optimizer_class([*self.actor.parameters(), *self.critic.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
+
        
         
     def forward(self, obs: Dict, deterministic: bool = False, *args, **kwargs) -> Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]:
@@ -278,7 +278,8 @@ class ActorCriticWithAePolicy(BasePolicy):
         """
         assert self.features_extractor is not None, "No features extractor was set"
         #preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
-        return self.features_extractor(obs)
+        features = self.features_extractor(obs)
+        return features
         
     def _get_action_dist_from_latent(self, latent_pi: th.Tensor) -> Distribution:
         """
@@ -350,7 +351,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         """
         features = self.extract_features(obs['depth'])
         state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
-        latent_pi = self.actor(features[0].detach(), state)
+        latent_pi = self.actor(features[0], state)
         return self._get_action_dist_from_latent(latent_pi)
 
     def predict_values(self, obs: th.Tensor) -> th.Tensor:

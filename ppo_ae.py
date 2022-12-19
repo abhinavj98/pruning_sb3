@@ -29,7 +29,7 @@ from stable_baselines3.common.utils import (
     update_learning_rate,
 )
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
-
+mean = 0
 
 class PPOAE(OnPolicyAlgorithm):
     """
@@ -97,7 +97,7 @@ class PPOAE(OnPolicyAlgorithm):
         learning_rate_ae: Union[float, Schedule] = 3e-4,
         learning_rate: Union[float, Schedule] = 3e-4,
         n_steps: int = 1000,
-        batch_size: int = 64,
+        batch_size: int = 100,
         n_epochs: int = 10,
         gamma: float = 0.99,
         latent_coef: float = 0.1,
@@ -107,9 +107,9 @@ class PPOAE(OnPolicyAlgorithm):
         normalize_advantage: bool = True,
         ent_coef: float = 0.0,
         vf_coef: float = 0.5,
-        ae_coef: float = 1,
+        ae_coef: float = 2,
         train_iterations_ae: int = 1,
-        train_iterations_a2c: int = 2,
+        train_iterations_a2c: int = 1,
         max_grad_norm: float = 0.5,
         use_sde: bool = False,
         sde_sample_freq: int = -1,
@@ -148,7 +148,7 @@ class PPOAE(OnPolicyAlgorithm):
             ),
         )
         th.autograd.set_detect_anomaly(True)
-        self.learning_rate_ae = learning_rate
+        self.learning_rate_ae = learning_rate_ae
         self.ae_coef = ae_coef
         self.latent_coef = latent_coef
         self.train_iterations_ae = train_iterations_ae
@@ -209,6 +209,7 @@ class PPOAE(OnPolicyAlgorithm):
             self.action_space,
             self.lr_schedule,
             use_sde=self.use_sde,
+            lr_schedule_ae = self.lr_schedule_ae,
             **self.policy_kwargs  # pytype:disable=not-instantiable
         )
         self.policy = self.policy.to(self.device)
@@ -244,8 +245,10 @@ class PPOAE(OnPolicyAlgorithm):
         """
         Update policy using the currently gathered rollout buffer.
         """
+        global mean
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
+        print(self.lr_schedule_ae(self._current_progress_remaining))
         # Update optimizer learning rate
         self._custom_update_learning_rate([self.policy.optimizer, self.policy.optimizer_ae])
         # self._update_learning_rate(self.policy.optimizer_ae) #Make this work with 2 different netweorks
@@ -265,6 +268,8 @@ class PPOAE(OnPolicyAlgorithm):
             approx_kl_divs = []
             # Do a complete pass on the rollout buffer
             for rollout_data in self.rollout_buffer.get(self.batch_size):
+                # mean = 0.5* mean + th.mean(rollout_data.observations['depth'].reshape(-1))
+                # print(mean)
                 actions = rollout_data.actions
                 if isinstance(self.action_space, spaces.Discrete):
                     # Convert discrete action from float to long
@@ -318,10 +323,11 @@ class PPOAE(OnPolicyAlgorithm):
                     entropy_losses.append(entropy_loss.item())
                     loss += policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss 
 
-                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
+                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0 and epoch == 0:
                     ae_l2_loss = F.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1]) 
                     ae_losses.append(ae_l2_loss.item())
                     ae_loss = self.ae_coef * ae_l2_loss + self.latent_coef*th.norm(features[0], dim = (1)).to(self.device).mean()
+                    loss+=ae_loss
                 # Entropy loss favor exploration
                 
 
@@ -343,18 +349,14 @@ class PPOAE(OnPolicyAlgorithm):
                 # Optimization step
                 self.policy.optimizer.zero_grad()
                 self.policy.optimizer_ae.zero_grad()
-                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
-                    retain_graph = True
-                    ae_loss.backward(retain_graph = True)
+                
                 loss.backward()
                 # Clip grad norm
                 th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
-                self.policy.optimizer.step()
-                # if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
-                #     ae_loss.backward()
-                #     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
-                #     self.policy.optimizer_ae.step()
-
+                if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
+                    self.policy.optimizer.step()
+                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0 and epoch == 0:
+                    self.policy.optimizer_ae.step()
             if not continue_training:
                 break
 
@@ -364,10 +366,11 @@ class PPOAE(OnPolicyAlgorithm):
 
         if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
             plot_img = self.rollout_buffer.sample(1).observations['depth']
-            _, recon = self.policy.extract_features(plot_img)
+            with th.no_grad():
+                _, recon = self.policy.extract_features(plot_img)
             ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
             self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
-            self.logger.record("train/ae_loss", self.ae_coef*ae_loss.item())
+            self.logger.record("train/ae_loss", ae_loss.item())
         if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
             self.logger.record("train/entropy_loss", np.mean(entropy_losses))
             self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
