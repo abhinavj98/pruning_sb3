@@ -77,7 +77,7 @@ class AutoEncoder(BaseFeaturesExtractor):
             nn.MaxPool2d(7),
         )
         output_conv = nn.Conv2d(3, 1, 3, padding = 1)
-        # output_conv.bias.data.fill_(0.3)
+        #output_conv.bias.data.fill_(0.3)
         self.fc = nn.Sequential(
             nn.Linear(32, 7*7*32),
             nn.ReLU())
@@ -98,16 +98,13 @@ class AutoEncoder(BaseFeaturesExtractor):
             nn.ReLU(),
             nn.ConvTranspose2d(8, 8, 2, stride=2),  # b, 16, 112, 112
             nn.ReLU(),
-            # nn.ConvTranspose2d(16, 8, 2, stride=2), # b, 8, 224, 224
-            # nn.ReLU(),
             nn.Conv2d(8, 3, 3, padding = 1), # b, 3, 224, 224
             nn.ReLU(),
             nn.Conv2d(3, 3, 3, padding = 1), # b, 3, 224, 224
             nn.ReLU(),
             output_conv, # b, 1, 224, 224
-            #nn.ReLU()
         )
-
+  
     def forward(self, observation : Dict) -> th.Tensor:
         # print(observation)
         encoding = self.encoder(observation).view(-1, 32)
@@ -137,7 +134,7 @@ class AutoEncoderSmall(BaseFeaturesExtractor):
             nn.ReLU()
         )
         output_conv = nn.Conv2d(3, 1, 3, padding = 1)
-        output_conv.bias.data.fill_(0.3)
+        # output_conv.bias.data.fill_(-0.3)
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(128, 128, 3, padding = 1, stride=1), # 128. 14, 14
             nn.ReLU(),

@@ -193,6 +193,13 @@ class ActorCriticWithAePolicy(BasePolicy):
     def _build_actor_critic(self) -> None:
         self.actor = self.actor_class(**self.actor_kwargs).to(self.device)
         self.critic = self.critic_class(**self.critic_kwargs).to(self.device)
+        self.actor.apply(self.init_kaiming)
+        self.actor.apply(self.init_kaiming)
+
+    @staticmethod    
+    def init_kaiming(m):
+        if type(m) == nn.Conv2d or type(m)==nn.Linear or type(m)==nn.ConvTranspose2d:
+            th.nn.init.kaiming_normal_(m.weight, a=0, mode='fan_in', nonlinearity='leaky_relu')
 
     def _build(self, lr_schedule: Schedule, lr_schedule_ae: Schedule) -> None:
         """
@@ -204,7 +211,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         #Make Actor Critic using actro critic class and kwargs, update get constructor parameters as welll
         self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
         self.features_dim = self.features_extractor.features_dim
-
+        self.features_extractor.apply(self.init_kaiming)
         self._build_actor_critic()
         self.latent_dim_pi = self.actor.output_dim
         self.latent_dim_vf = self.critic.output_dim

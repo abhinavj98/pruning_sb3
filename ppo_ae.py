@@ -107,10 +107,10 @@ class PPOAE(OnPolicyAlgorithm):
         normalize_advantage: bool = True,
         ent_coef: float = 0.0,
         vf_coef: float = 0.5,
-        ae_coef: float = 2,
+        ae_coef: float = 1,
         train_iterations_ae: int = 1,
         train_iterations_a2c: int = 1,
-        max_grad_norm: float = 0.5,
+        max_grad_norm: float = 1,
         use_sde: bool = False,
         sde_sample_freq: int = -1,
         target_kl: Optional[float] = None,
@@ -184,7 +184,7 @@ class PPOAE(OnPolicyAlgorithm):
         self.clip_range_vf = clip_range_vf
         self.normalize_advantage = normalize_advantage
         self.target_kl = target_kl
-
+        self.mse_loss = th.nn.MSELoss()
         if _init_setup_model:
             self._setup_model()
 
@@ -323,11 +323,16 @@ class PPOAE(OnPolicyAlgorithm):
                     entropy_losses.append(entropy_loss.item())
                     loss += policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss 
 
-                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0 and epoch == 0:
-                    ae_l2_loss = F.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1]) 
-                    ae_losses.append(ae_l2_loss.item())
-                    ae_loss = self.ae_coef * ae_l2_loss + self.latent_coef*th.norm(features[0], dim = (1)).to(self.device).mean()
-                    loss+=ae_loss
+                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
+                    ae_l2_loss = self.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1]) 
+                    ae_loss = self.ae_coef * ae_l2_loss + 0.2*self.latent_coef*th.norm(features[0], dim = (1)).to(self.device).mean()
+                    ae_losses.append(ae_loss.item())
+                    loss += ae_loss
+                
+                    # print(th.min(rollout_data.observations['depth'].reshape(-1)))
+                    # print(th.max(rollout_data.observations['depth'].reshape(-1)))
+                    # print(th.min(features[1].reshape(-1)))
+                    # print(th.max(features[1].reshape(-1)))
                 # Entropy loss favor exploration
                 
 
@@ -355,7 +360,7 @@ class PPOAE(OnPolicyAlgorithm):
                 th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                 if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
                     self.policy.optimizer.step()
-                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0 and epoch == 0:
+                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
                     self.policy.optimizer_ae.step()
             if not continue_training:
                 break
@@ -370,7 +375,7 @@ class PPOAE(OnPolicyAlgorithm):
                 _, recon = self.policy.extract_features(plot_img)
             ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
             self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
-            self.logger.record("train/ae_loss", ae_loss.item())
+            self.logger.record("train/ae_loss", np.mean(ae_losses))
         if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
             self.logger.record("train/entropy_loss", np.mean(entropy_losses))
             self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
