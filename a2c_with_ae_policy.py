@@ -194,7 +194,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.actor = self.actor_class(**self.actor_kwargs).to(self.device)
         self.critic = self.critic_class(**self.critic_kwargs).to(self.device)
         self.actor.apply(self.init_kaiming)
-        self.actor.apply(self.init_kaiming)
+        self.critic.apply(self.init_kaiming)
 
     @staticmethod    
     def init_kaiming(m):

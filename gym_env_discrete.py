@@ -12,7 +12,7 @@
 # from OpenGL.GLU import *
 from threading import currentThread
 import pywavefront
-
+import numpy as np
 import random
 import time
 import numpy as np
@@ -31,7 +31,8 @@ from collections import namedtuple
 from enum import Enum
 
 ROBOT_URDF_PATH = "./ur_e_description/urdf/ur5e_with_camera.urdf"
-TREE_URDF_PATH = "./ur_e_description/urdf/"
+TREE_URDF_PATH = "./ur_e_description/urdf/tree.urdf"
+TREE_OBJ_PATH = "./ur_e_description/meshes/tree.obj"
 
 # x,y,z distance
 def goal_distance(goal_a, goal_b):
@@ -51,6 +52,51 @@ def goal_distance2d(goal_a, goal_b):
     assert goal_a.shape == goal_b.shape
     return np.linalg.norm(goal_a[0:2] - goal_b[0:2], axis=-1)
 
+class Tree():
+    #TO DO
+    def __init__(self, env, urdf_path, obj_path, pos = np.array([0,0,0]), orientation = np.array([0,0,0,1]), scale = 1) -> None:
+        #Load tree
+        #Get all points and save in a list
+        self.env = env
+        self.scale = scale
+        self.pos = pos
+        self.orientation = orientation
+        self.tree_urdf = self.env.con.loadURDF(urdf_path, self.pos, self.orientation, globalScaling=self.scale)
+        self.tree_obj = pywavefront.Wavefront(obj_path, collect_faces=True)
+        self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
+        # print(self.points)
+        # print(dir(self.tree_urdf))
+        # self.tree_pos, self.tree_orient = self.con.getBasePositionAndOrientation(self.tree)
+        ur5_base_pos, _ = self.env.con.getBasePositionAndOrientation(self.env.ur5)
+        self.get_reachable_points(ur5_base_pos)
+
+    def transform_obj_vertex(self, vertex):
+        vertex_pos = np.array(vertex[0:3])*self.scale
+        vertex_orientation = vertex[3:] + (1,)
+        vertex_w_transform = np.array(self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation))
+        return vertex_w_transform
+
+    def is_reachable(self, vertice, ur5_base_pos):
+        # vertice = np.array(vertice)
+        # vertice = vertice[0:3]*self.scale
+        # vertice_w_tree = np.array(self.env.con.multiplyTransforms(self.pos, self.orientation, vertice, [0,0,0,1])[0])
+        # # print(vertice_w_tree, vertice, ur5_base_pos)
+        ur5_base_pos = np.array(ur5_base_pos)
+        vertice = vertice[0]
+        # position=[tree_w_frame[0][0]-0.7,tree_w_frame[0][1],tree_w_frame[0][2]-.5]
+        # point.append(position)
+        dist=np.linalg.norm(ur5_base_pos - vertice, axis=-1)#np.sqrt((np.square(ur5_base_pos[0]-position[0]))+((np.square(ur5_base_pos[1]-position[1]))+((np.square(ur5_base_pos[2]-position[2])))))
+        if dist <= 1. and vertice[2]>0.2:
+            return True
+        return False
+
+    def get_reachable_points(self, ur5_base_pos):
+        self.reachable_points = list(filter(lambda x: self.is_reachable(x, ur5_base_pos), self.transformed_vertices))
+        self.reachable_points = [np.array(i[0][0:3]) for i in self.reachable_points]
+        return 
+
+
+        
 class action(Enum):
     up = 1
     down = 2
@@ -108,7 +154,7 @@ class ur5GymEnv(gym.Env):
         # setup robot arm:
         self.end_effector_index = 7
         flags = self.con.URDF_USE_SELF_COLLISION
-        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0.8, 0, 0], [0, 0, 0, 1], flags=flags)
+        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 0], [0, 0, 0, 1], flags=flags)
         self.num_joints = self.con.getNumJoints(self.ur5)
         self.control_joints = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
         self.joint_type_list = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
@@ -131,8 +177,8 @@ class ur5GymEnv(gym.Env):
             self.joints[info.name] = info
 
         # object:
-        joint_angles = (0, -1.57,1.80,-3.14,-1.57, -1.57)
-        self.set_joint_angles(joint_angles)
+        self.init_joint_angles = (-1.57, -1.57,1.80,-3.14,-1.57, -1.57)
+        self.set_joint_angles(self.init_joint_angles)
 
         
         self.near_val = 0.01
@@ -178,46 +224,23 @@ class ur5GymEnv(gym.Env):
         self.rev_actions = {v: k for k,v in self.actions.items()}
         self.complex_tree = complex_tree
         scale = 1
-        if self.complex_tree:
-            self.tree = self.con.loadURDF(TREE_URDF_PATH+"complex_tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
-            self.scene = pywavefront.Wavefront('ur_e_description/meshes/complex_tree.obj', collect_faces=True)
-            scale = 0.15
-        else:
-            self.tree = self.con.loadURDF(TREE_URDF_PATH+"tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
-            self.scene = pywavefront.Wavefront('ur_e_description/meshes/tree.obj', collect_faces=True)
-            scale = 0.1
 
-        self.tree_reachble = []
-        self.tree_target=self.getTreePoints(len(self.scene.vertices), scale)
-       
-        
-      
-    """
-    Rewrite this function
-    """
-    def getTreePoints(self, count, scale):
+        #TO DO - Replace this with tree class and create points for each
+        # glob to get all tree paths
 
-        
-        point=[]
-       
-        ur5_base_pos,_ = self.con.getBasePositionAndOrientation(self.ur5)
-        tree_pos, tree_orient = self.con.getBasePositionAndOrientation(self.tree)
-        tree_orient = self.con.getQuaternionFromEuler([0,0,1.54])
-        for i in range(count):
+        # if self.complex_tree:
+        #     self.tree = self.con.loadURDF(TREE_URDF_PATH+"complex_tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
+        #     self.scene = pywavefront.Wavefront('ur_e_description/meshes/complex_tree.obj', collect_faces=True)
+        #     scale = 0.15
+        # else:
+        self.tree = Tree(self, TREE_URDF_PATH, TREE_OBJ_PATH, pos = np.array([0, -0.8, 0]), scale=0.07)
+        #print(self.tree.reachable_points)
+        # self.con.loadURDF(TREE_URDF_PATH+"tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
+        # self.scene = pywavefront.Wavefront('ur_e_description/meshes/tree.obj', collect_faces=True)
+        # scale = 0.1
 
-            scene_box = self.scene.vertices[i]
-            tree_w_frame = self.con.multiplyTransforms(tree_pos,tree_orient,[scene_box[0]*scale,scene_box[1]*scale,scene_box[2]*scale],[0,0,0,1])
-            position=[tree_w_frame[0][0]-0.7,tree_w_frame[0][1],tree_w_frame[0][2]-.5]
-            point.append(position)
-           
-            dist=np.sqrt((np.square(ur5_base_pos[0]-position[0]))+((np.square(ur5_base_pos[1]-position[1]))+((np.square(ur5_base_pos[2]-position[2])))))
-            if dist <= 1. and position[2]>0.2:
-                self.tree_reachble.append(position)
-
-
-        #print("got tree points")
-        return self.tree_reachble
-
+        # self.tree_reachble = []
+        # self.tree_target=self.getTreePoints(len(self.scene.vertices), scale)
 
 
 
@@ -248,7 +271,7 @@ class ur5GymEnv(gym.Env):
 
 
     def check_collisions(self):
-        collisions = self.con.getContactPoints(bodyA = self.ur5, bodyB = self.tree, linkIndexA=self.end_effector_index)
+        collisions = self.con.getContactPoints(bodyA = self.ur5, bodyB = self.tree.tree_urdf, linkIndexA=self.end_effector_index)
         # print(collisions)
         for i in range(len(collisions)):
             if collisions[i][-6] < 0 :
@@ -258,7 +281,6 @@ class ur5GymEnv(gym.Env):
 
 
     def calculate_ik(self, position, orientation):
-        
         lower_limits = [-math.pi]*6
         upper_limits = [math.pi]*6
         joint_ranges = [2*math.pi]*6
@@ -313,13 +335,18 @@ class ur5GymEnv(gym.Env):
         self.terminated = False
         self.ur5_or = [0.0, 1/2*math.pi, 0.0]
         #self.rgb, self.depth = self.get_rgbd_at_cur_pose()
-        self.tree_point_pos = random.sample(self.tree_target,1)[0]
+        
+        
+        #TO DO
+        # Sample new tree after n calls
+        # Sample new point
+
+        self.tree_point_pos = random.sample(self.tree.reachable_points,1)[0]
         self.con.removeBody(self.sphereUid)
         colSphereId = -1   
         visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=.02,rgbaColor =[1,0,0,1])
         self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId, [self.tree_point_pos[0],self.tree_point_pos[1],self.tree_point_pos[2]], [0,0,0,1])
-        joint_angles = (0, -1.57,1.80,-3.14,-1.57, -1.57)
-        self.set_joint_angles(joint_angles)
+        self.set_joint_angles(self.init_joint_angles)
 
         # step simualator:
         for i in range(1000):

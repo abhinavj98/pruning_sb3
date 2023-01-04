@@ -137,12 +137,7 @@ class VideoRecorderCallback(BaseCallback):
                 n_eval_episodes=self._n_eval_episodes,
                 deterministic=self._deterministic,
             )
-            self.logger.record(
-                "eval/vreward", mean_reward
-            )
-            self.logger.record(
-                "eval/vreward_std", std_reward
-            )
+
             self.logger.record(
                 "eval/video",
                 Video(th.ByteTensor(np.array([screens])), fps=10),
@@ -168,11 +163,30 @@ def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float
         return progress_remaining * initial_value
 
     return func
+
+def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
+    """
+    Linear learning rate schedule.
+    :param initial_value: (float or str)
+    :return: (function)
+    """
+    if isinstance(initial_value, str):
+        initial_value = float(initial_value)
+
+    def func(progress_remaining: float) -> float:
+        """
+        Progress will decrease from 1 (beginning) to 0
+        :param progress_remaining: (float)
+        :return: (float)
+        """
+        return (progress_remaining * initial_value)**2
+
+    return func
 # set up logger
 
 
         # Create eval callback if needed
-env = ur5GymEnv(renders=False)
+env = ur5GymEnv(renders=True)
 # eval_env = ur5GymEnv(renders=False, eval=True)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
@@ -196,13 +210,13 @@ policy_kwargs = {
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam
         }#ActorCriticWithAePolicy(env.observation_space, env.action_space, linear_schedule(0.001), Actor(None, 128*7*7+10*3,128, 12, 1 ), Critic(None, 128*7*7+10*3, 128,1,1), features_extractor_class =  AutoEncoder)
-model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=0.001, learning_rate_ae=0.001)
+model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(0.001), learning_rate_ae=exp_schedule(0.001))
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
 
 env.reset()
 for _ in range(1000):
-    # env.render() 
+    env.render() 
     env.step(env.action_space.sample()) # take a random action
 env.reset()
-model.learn(1000000, callback=[video_recorder, a, eval_callback], progress_bar = True)
+# model.learn(1000000, callback=[video_recorder, a, eval_callback], progress_bar = True)
