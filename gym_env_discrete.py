@@ -3,8 +3,6 @@
 
 # PyBullet UR-5 from https://github.com/josepdaniel/UR5Bullet
 
-
-
 # import pygame
 # import OpenGL
 # from pygame.locals import *
@@ -29,10 +27,11 @@ import pybullet_data
 from collections import namedtuple
 #from attrdict import AttrDict
 from enum import Enum
+import glob
 
 ROBOT_URDF_PATH = "./ur_e_description/urdf/ur5e_with_camera.urdf"
-TREE_URDF_PATH = "./ur_e_description/urdf/tree.urdf"
-TREE_OBJ_PATH = "./ur_e_description/meshes/tree.obj"
+TREE_URDF_PATH = "./ur_e_description/urdf/trees/"
+TREE_OBJ_PATH = "./ur_e_description/meshes/trees/"
 
 # x,y,z distance
 def goal_distance(goal_a, goal_b):
@@ -57,11 +56,11 @@ class Tree():
     def __init__(self, env, urdf_path, obj_path, pos = np.array([0,0,0]), orientation = np.array([0,0,0,1]), scale = 1) -> None:
         #Load tree
         #Get all points and save in a list
+        self.urdf_path = urdf_path
         self.env = env
         self.scale = scale
         self.pos = pos
         self.orientation = orientation
-        self.tree_urdf = self.env.con.loadURDF(urdf_path, self.pos, self.orientation, globalScaling=self.scale)
         self.tree_obj = pywavefront.Wavefront(obj_path, collect_faces=True)
         self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
         # print(self.points)
@@ -69,10 +68,14 @@ class Tree():
         # self.tree_pos, self.tree_orient = self.con.getBasePositionAndOrientation(self.tree)
         ur5_base_pos, _ = self.env.con.getBasePositionAndOrientation(self.env.ur5)
         self.get_reachable_points(ur5_base_pos)
-
+    def active(self):
+        self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
+    def inactive(self):
+        self.env.con.removeBody(self.tree_urdf)
     def transform_obj_vertex(self, vertex):
         vertex_pos = np.array(vertex[0:3])*self.scale
-        vertex_orientation = vertex[3:] + (1,)
+        vertex_orientation = [0,0,0,1]#vertex[3:] + (1,)
+        #print(self.pos, self.orientation, vertex_pos, vertex_orientation)
         vertex_w_transform = np.array(self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation))
         return vertex_w_transform
 
@@ -95,7 +98,14 @@ class Tree():
         self.reachable_points = [np.array(i[0][0:3]) for i in self.reachable_points]
         return 
 
+    @staticmethod
+    def make_list_from_folder(env, trees_urdf_path, trees_obj_path, pos, orientation, scale):
+        trees = []
+        for urdf, obj in zip(glob.glob(trees_urdf_path+'/*.urdf'), glob.glob(trees_obj_path+'/*.obj')):
+            trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation = orientation, scale=scale))
 
+        return trees
+   
         
 class action(Enum):
     up = 1
@@ -133,7 +143,7 @@ class ur5GymEnv(gym.Env):
         self.con.setGravity(0,0,-10)
         self.con.setRealTimeSimulation(False)
       
-        self.con.resetDebugVisualizerCamera( cameraDistance=1.5, cameraYaw=-73.95, cameraPitch=-38.48, cameraTargetPosition=[1.04,-0.06,0.14])
+        self.con.resetDebugVisualizerCamera( cameraDistance=1.06, cameraYaw=-120.3, cameraPitch=-12.48, cameraTargetPosition=[-0.3,-0.06,0.4])
       
         
         self.observation_space = spaces.Dict({ 
@@ -151,6 +161,8 @@ class ur5GymEnv(gym.Env):
                         shape = (4,), dtype=np.float32)
                         })
         
+        self.reset_counter = 0
+        self.randomize_tree_count = 5
         # setup robot arm:
         self.end_effector_index = 7
         flags = self.con.URDF_USE_SELF_COLLISION
@@ -198,7 +210,7 @@ class ur5GymEnv(gym.Env):
 
         self.name = name
        
-        self.action_dim = 12
+        self.action_dim = 10
         self.stepCounter = 0
         self.maxSteps = maxSteps
         self.terminated = False
@@ -214,16 +226,17 @@ class ur5GymEnv(gym.Env):
                         '-y' : 3,
                         '+z' : 4,
                         '-z' : 5,
-                        'roll_+x' : 6,
-                        'roll_-x': 7,
-                        'pitch_+y' : 8,
-                        'pitch_-y' : 9,
-                        'yaw_+z' : 10,
-                        'yaw_-z' : 11}
+                        'pitch_+y' : 6,
+                        'pitch_-y' : 7,
+                        'yaw_+z' : 8,
+                        'yaw_-z' : 9
+                        }
+                        # 'roll_+x' : 6,
+                        # 'roll_-x': 7,}
 
         self.rev_actions = {v: k for k,v in self.actions.items()}
-        self.complex_tree = complex_tree
-        scale = 1
+        # self.complex_tree = complex_tree
+        # scale = 1
 
         #TO DO - Replace this with tree class and create points for each
         # glob to get all tree paths
@@ -233,7 +246,9 @@ class ur5GymEnv(gym.Env):
         #     self.scene = pywavefront.Wavefront('ur_e_description/meshes/complex_tree.obj', collect_faces=True)
         #     scale = 0.15
         # else:
-        self.tree = Tree(self, TREE_URDF_PATH, TREE_OBJ_PATH, pos = np.array([0, -0.8, 0]), scale=0.07)
+        self.trees = Tree.make_list_from_folder(self, TREE_URDF_PATH, TREE_OBJ_PATH, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.07)
+        self.tree = random.sample(self.trees, 1)[0]
+        self.tree.active()
         #print(self.tree.reachable_points)
         # self.con.loadURDF(TREE_URDF_PATH+"tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
         # self.scene = pywavefront.Wavefront('ur_e_description/meshes/tree.obj', collect_faces=True)
@@ -334,13 +349,20 @@ class ur5GymEnv(gym.Env):
         self.stepCounter = 0
         self.terminated = False
         self.ur5_or = [0.0, 1/2*math.pi, 0.0]
+        self.reset_counter+=1
         #self.rgb, self.depth = self.get_rgbd_at_cur_pose()
         
         
         #TO DO
         # Sample new tree after n calls
-        # Sample new point
+        if self.reset_counter%self.randomize_tree_count == 0:
+            print("RANDOM TREE")
+            print(self.tree.urdf_path)
+            self.tree.inactive()
+            self.tree = random.sample(self.trees, 1)[0]
+            self.tree.active()
 
+        # Sample new point
         self.tree_point_pos = random.sample(self.tree.reachable_points,1)[0]
         self.con.removeBody(self.sphereUid)
         colSphereId = -1   
@@ -384,11 +406,11 @@ class ur5GymEnv(gym.Env):
         elif action == self.actions['-z']:
             delta_pos[2] = -step_size
 
-        elif action == self.actions['roll_+x']:
-            delta_orient[0] = step_size * angle_scale
+        # elif action == self.actions['roll_+x']:
+        #     delta_orient[0] = step_size * angle_scale
 
-        elif action == self.actions['roll_-x']:
-            delta_orient[0] = -step_size * angle_scale
+        # elif action == self.actions['roll_-x']:
+        #     delta_orient[0] = -step_size * angle_scale
 
         elif action == self.actions['pitch_+y']:
             delta_orient[1] = step_size * angle_scale

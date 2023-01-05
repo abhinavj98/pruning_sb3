@@ -186,7 +186,8 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
 
 
         # Create eval callback if needed
-env = ur5GymEnv(renders=True)
+render = False
+env = ur5GymEnv(renders=render)
 # eval_env = ur5GymEnv(renders=False, eval=True)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
@@ -215,8 +216,7 @@ model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
 
 env.reset()
-for _ in range(1000):
+for _ in range(100):
     env.render() 
     env.step(env.action_space.sample()) # take a random action
-env.reset()
-# model.learn(1000000, callback=[video_recorder, a, eval_callback], progress_bar = True)
+model.learn(1000000, callback=[video_recorder, a, eval_callback], progress_bar = True)
