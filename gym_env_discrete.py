@@ -101,7 +101,7 @@ class Tree():
     @staticmethod
     def make_list_from_folder(env, trees_urdf_path, trees_obj_path, pos, orientation, scale):
         trees = []
-        for urdf, obj in zip(glob.glob(trees_urdf_path+'/*.urdf'), glob.glob(trees_obj_path+'/*.obj')):
+        for urdf, obj in zip(sorted(glob.glob(trees_urdf_path+'/*.urdf')), sorted(glob.glob(trees_obj_path+'/*.obj'))):
             trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation = orientation, scale=scale))
 
         return trees
@@ -249,7 +249,6 @@ class ur5GymEnv(gym.Env):
         self.trees = Tree.make_list_from_folder(self, TREE_URDF_PATH, TREE_OBJ_PATH, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.07)
         self.tree = random.sample(self.trees, 1)[0]
         self.tree.active()
-        #print(self.tree.reachable_points)
         # self.con.loadURDF(TREE_URDF_PATH+"tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
         # self.scene = pywavefront.Wavefront('ur_e_description/meshes/tree.obj', collect_faces=True)
         # scale = 0.1

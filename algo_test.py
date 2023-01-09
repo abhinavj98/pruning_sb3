@@ -186,7 +186,7 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
 
 
         # Create eval callback if needed
-render = True
+render = False
 env = ur5GymEnv(renders=render)
 # eval_env = ur5GymEnv(renders=False, eval=True)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
@@ -195,7 +195,7 @@ eval_env = ur5GymEnv(renders=False, name = "evalenv")
 # Use deterministic actions for evaluation
 eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
                              log_path="./logs/", eval_freq=1000,
-                             deterministic=True, render=True)
+                             deterministic=True, render=False)
 # env = DummyVecEnv([lambda: env])
 # eval_env = DummyVecEnv([lambda: eval_env])
 #print(env.action_space)
