@@ -354,7 +354,7 @@ class ur5GymEnv(gym.Env):
         
         
         #TO DO
-        # Sample new tree after n calls
+        # Sample new tree after n calls 
         if self.reset_counter%self.randomize_tree_count == 0:
             print("RANDOM TREE")
             print(self.tree.urdf_path)
@@ -477,7 +477,7 @@ class ur5GymEnv(gym.Env):
         # rgb_array = rgb_array[:, :, :3]
         # return rgb_array
         cam_prop =(1024, 768, (0.9961947202682495, -0.043577890843153, 0.07547912001609802, 0.0, 0.087155781686306, 0.49809736013412476, -0.8627299666404724, 0.0, -0.0, 0.8660255074501038, 0.5, 0.0, -1.0308130979537964, -0.04603677988052368, -1.7002619504928589, 1.0), (0.7499999403953552, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0000200271606445, -1.0, 0.0, 0.0, -0.02000020071864128, 0.0), (0.0, 0.0, 1.0), (-0.07547912001609802, 0.8627299666404724, -0.5), (26565.193359375, 2324.154052734375, -0.0), (-871.5578002929688, 9961.947265625, 17320.5078125), 5.0, -30.0, 1.5, (1.0399999618530273, -0.05999999865889549, 0.14000000059604645))
-        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1], viewMatrix = cam_prop[2], projectionMatrix = cam_prop[3], renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
+        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1])#, viewMatrix = cam_prop[2], projectionMatrix = cam_prop[3], renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
         # img_rgb,  _ = self.seperate_rgbd_rgb_d(img_rgbd, cam_prop[0], cam_prop[1])
         
         return img_rgbd[2]

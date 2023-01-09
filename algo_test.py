@@ -179,14 +179,14 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
         :param progress_remaining: (float)
         :return: (float)
         """
-        return (progress_remaining * initial_value)**2
+        return (progress_remaining)**2 * initial_value
 
     return func
 # set up logger
 
 
         # Create eval callback if needed
-render = False
+render = True
 env = ur5GymEnv(renders=render)
 # eval_env = ur5GymEnv(renders=False, eval=True)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
@@ -195,7 +195,7 @@ eval_env = ur5GymEnv(renders=False, name = "evalenv")
 # Use deterministic actions for evaluation
 eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
                              log_path="./logs/", eval_freq=1000,
-                             deterministic=True, render=False)
+                             deterministic=True, render=True)
 # env = DummyVecEnv([lambda: env])
 # eval_env = DummyVecEnv([lambda: eval_env])
 #print(env.action_space)
