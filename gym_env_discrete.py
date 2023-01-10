@@ -246,7 +246,7 @@ class ur5GymEnv(gym.Env):
         #     self.scene = pywavefront.Wavefront('ur_e_description/meshes/complex_tree.obj', collect_faces=True)
         #     scale = 0.15
         # else:
-        self.trees = Tree.make_list_from_folder(self, TREE_URDF_PATH, TREE_OBJ_PATH, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.07)
+        self.trees = Tree.make_list_from_folder(self, TREE_URDF_PATH, TREE_OBJ_PATH, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.1)
         self.tree = random.sample(self.trees, 1)[0]
         self.tree.active()
         # self.con.loadURDF(TREE_URDF_PATH+"tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
