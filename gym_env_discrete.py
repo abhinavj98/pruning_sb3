@@ -1,14 +1,4 @@
-# E. Culurciello
-# February 2021
 
-# PyBullet UR-5 from https://github.com/josepdaniel/UR5Bullet
-
-# import pygame
-# import OpenGL
-# from pygame.locals import *
-# from OpenGL.GL import *
-# from OpenGL.GLU import *
-from threading import currentThread
 import pywavefront
 import numpy as np
 import random
@@ -25,7 +15,6 @@ import pybullet_data
 from datetime import datetime
 import pybullet_data
 from collections import namedtuple
-#from attrdict import AttrDict
 from enum import Enum
 import glob
 
@@ -39,8 +28,8 @@ def goal_distance(goal_a, goal_b):
     return np.linalg.norm(goal_a - goal_b, axis=-1)
 
 def goal_reward(current, previous, target):
-    #assert goal_a.shape == goal_b.shape
-    #assert goal_a.shape == target.shape
+    assert current.shape == previous.shape
+    assert current.shape == target.shape
     diff_prev = goal_distance(previous, target)
     diff_curr = goal_distance(current, target)
     reward = diff_prev - diff_curr
@@ -52,10 +41,7 @@ def goal_distance2d(goal_a, goal_b):
     return np.linalg.norm(goal_a[0:2] - goal_b[0:2], axis=-1)
 
 class Tree():
-    #TO DO
     def __init__(self, env, urdf_path, obj_path, pos = np.array([0,0,0]), orientation = np.array([0,0,0,1]), scale = 1) -> None:
-        #Load tree
-        #Get all points and save in a list
         self.urdf_path = urdf_path
         self.env = env
         self.scale = scale
@@ -63,33 +49,26 @@ class Tree():
         self.orientation = orientation
         self.tree_obj = pywavefront.Wavefront(obj_path, collect_faces=True)
         self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
-        # print(self.points)
-        # print(dir(self.tree_urdf))
-        # self.tree_pos, self.tree_orient = self.con.getBasePositionAndOrientation(self.tree)
         ur5_base_pos, _ = self.env.con.getBasePositionAndOrientation(self.env.ur5)
         self.get_reachable_points(ur5_base_pos)
+
     def active(self):
         self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
+
     def inactive(self):
         self.env.con.removeBody(self.tree_urdf)
+
     def transform_obj_vertex(self, vertex):
         vertex_pos = np.array(vertex[0:3])*self.scale
-        vertex_orientation = [0,0,0,1]#vertex[3:] + (1,)
-        #print(self.pos, self.orientation, vertex_pos, vertex_orientation)
+        vertex_orientation = [0,0,0,1] #Dont care about orientation
         vertex_w_transform = np.array(self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation))
         return vertex_w_transform
 
     def is_reachable(self, vertice, ur5_base_pos):
-        # vertice = np.array(vertice)
-        # vertice = vertice[0:3]*self.scale
-        # vertice_w_tree = np.array(self.env.con.multiplyTransforms(self.pos, self.orientation, vertice, [0,0,0,1])[0])
-        # # print(vertice_w_tree, vertice, ur5_base_pos)
         ur5_base_pos = np.array(ur5_base_pos)
         vertice = vertice[0]
-        # position=[tree_w_frame[0][0]-0.7,tree_w_frame[0][1],tree_w_frame[0][2]-.5]
-        # point.append(position)
-        dist=np.linalg.norm(ur5_base_pos - vertice, axis=-1)#np.sqrt((np.square(ur5_base_pos[0]-position[0]))+((np.square(ur5_base_pos[1]-position[1]))+((np.square(ur5_base_pos[2]-position[2])))))
-        if dist <= 1. and vertice[2]>0.2:
+        dist=np.linalg.norm(ur5_base_pos - vertice, axis=-1)
+        if dist <= 1. and vertice[2]>0.2: #Make it hyperparameter
             return True
         return False
 
@@ -163,6 +142,7 @@ class ur5GymEnv(gym.Env):
         
         self.reset_counter = 0
         self.randomize_tree_count = 5
+
         # setup robot arm:
         self.end_effector_index = 7
         flags = self.con.URDF_USE_SELF_COLLISION
@@ -235,27 +215,12 @@ class ur5GymEnv(gym.Env):
                         # 'roll_-x': 7,}
 
         self.rev_actions = {v: k for k,v in self.actions.items()}
-        # self.complex_tree = complex_tree
-        # scale = 1
-
-        #TO DO - Replace this with tree class and create points for each
-        # glob to get all tree paths
-
-        # if self.complex_tree:
-        #     self.tree = self.con.loadURDF(TREE_URDF_PATH+"complex_tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
-        #     self.scene = pywavefront.Wavefront('ur_e_description/meshes/complex_tree.obj', collect_faces=True)
-        #     scale = 0.15
-        # else:
+       
+        #Init trees
         self.trees = Tree.make_list_from_folder(self, TREE_URDF_PATH, TREE_OBJ_PATH, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.1)
         self.tree = random.sample(self.trees, 1)[0]
         self.tree.active()
-        # self.con.loadURDF(TREE_URDF_PATH+"tree.urdf", [2.3, 0.0, 0.0], [0, 0, 0, 1], globalScaling=1)
-        # self.scene = pywavefront.Wavefront('ur_e_description/meshes/tree.obj', collect_faces=True)
-        # scale = 0.1
-
-        # self.tree_reachble = []
-        # self.tree_target=self.getTreePoints(len(self.scene.vertices), scale)
-
+       
 
 
     def set_joint_angles(self, joint_angles):
@@ -286,7 +251,6 @@ class ur5GymEnv(gym.Env):
 
     def check_collisions(self):
         collisions = self.con.getContactPoints(bodyA = self.ur5, bodyB = self.tree.tree_urdf, linkIndexA=self.end_effector_index)
-        # print(collisions)
         for i in range(len(collisions)):
             if collisions[i][-6] < 0 :
                 #print("[Collision detected!] {}, {}".format(datetime.now(), collisions[i]))
@@ -309,7 +273,7 @@ class ur5GymEnv(gym.Env):
 
     def get_current_pose(self):
         linkstate = self.con.getLinkState(self.ur5, self.end_effector_index, computeForwardKinematics=True)
-        position, orientation = linkstate[4], linkstate[1] #Position wrt end effector, orientation wrt COM
+        position, orientation = linkstate[4], linkstate[5] #Position wrt end effector, orientation wrt COM
         return (position, orientation)
 
     def set_camera(self, pose, orientation):
@@ -349,11 +313,6 @@ class ur5GymEnv(gym.Env):
         self.terminated = False
         self.ur5_or = [0.0, 1/2*math.pi, 0.0]
         self.reset_counter+=1
-        #self.rgb, self.depth = self.get_rgbd_at_cur_pose()
-        
-        
-        #TO DO
-        # Sample new tree after n calls 
         if self.reset_counter%self.randomize_tree_count == 0:
             print("RANDOM TREE")
             print(self.tree.urdf_path)
@@ -376,7 +335,7 @@ class ur5GymEnv(gym.Env):
         # get obs and return:
         self.getExtendedObservation()
         # print("resetting")
-        # self.observation['cur_or'] = np.ones((4,))
+      
         return self.observation
 
 
@@ -384,7 +343,7 @@ class ur5GymEnv(gym.Env):
         #discrete action
         delta_pos = np.array([0, 0, 0]).astype('float32')
         delta_orient = np.array([0, 0, 0]).astype('float32')
-        angle_scale = np.pi
+        angle_scale = 2*np.pi
         step_size =  self.step_size
 
         if action == self.actions['+x']:
@@ -426,13 +385,12 @@ class ur5GymEnv(gym.Env):
         # get current position:
         curr_p = self.get_current_pose()
         self.previous_pose = curr_p
+
         # add delta position:
         delta_orient = self.con.getQuaternionFromEuler(delta_orient)
-        
         new_position, new_orientation = self.con.multiplyTransforms(curr_p[0], curr_p[1], delta_pos, delta_orient)
         
         # actuate:
-
         joint_angles = self.calculate_ik(new_position, new_orientation) # XYZ and angles set to zero
         self.set_joint_angles(joint_angles)
        
@@ -454,33 +412,10 @@ class ur5GymEnv(gym.Env):
         return self.observation, reward, done, info
 
     def render(self, mode = "human"):
-        # view_matrix = p.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[0.7,0,0.05],
-        #                                                     distance=.7,
-        #                                                     yaw=90,
-        #                                                     pitch=-70,
-        #                                                     roll=0,
-        #                                                     upAxisIndex=2)
-        # proj_matrix = p.computeProjectionMatrixFOV(fov=60,
-        #                                              aspect=float(960) /720,
-        #                                              nearVal=0.1,
-        #                                              farVal=100.0)
-        # (_, _, px, _, _) = p.getCameraImage(width=960,
-        #                                       height=720,
-        #                                       viewMatrix=view_matrix,
-        #                                       projectionMatrix=proj_matrix,
-        #                                       renderer=self.con.ER_BULLET_HARDWARE_OPENGL)
-
-        # rgb_array = np.array(px, dtype=np.uint8)
-        # rgb_array = np.reshape(rgb_array, (720,960, 4))
-
-        # rgb_array = rgb_array[:, :, :3]
-        # return rgb_array
-        cam_prop =(1024, 768, (0.9961947202682495, -0.043577890843153, 0.07547912001609802, 0.0, 0.087155781686306, 0.49809736013412476, -0.8627299666404724, 0.0, -0.0, 0.8660255074501038, 0.5, 0.0, -1.0308130979537964, -0.04603677988052368, -1.7002619504928589, 1.0), (0.7499999403953552, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0000200271606445, -1.0, 0.0, 0.0, -0.02000020071864128, 0.0), (0.0, 0.0, 1.0), (-0.07547912001609802, 0.8627299666404724, -0.5), (26565.193359375, 2324.154052734375, -0.0), (-871.5578002929688, 9961.947265625, 17320.5078125), 5.0, -30.0, 1.5, (1.0399999618530273, -0.05999999865889549, 0.14000000059604645))
-        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1])#, viewMatrix = cam_prop[2], projectionMatrix = cam_prop[3], renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
-        # img_rgb,  _ = self.seperate_rgbd_rgb_d(img_rgbd, cam_prop[0], cam_prop[1])
-        
+        cam_prop = (1024, 768)
+        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1])
         return img_rgbd[2]
-    
+     
     def close(self):
         self.con.disconnect()
 
@@ -515,7 +450,6 @@ class ur5GymEnv(gym.Env):
         scale = 10.
         reward += self.target_reward/(self.maxSteps*self.step_size)*scale #Mean around 0 -> Change in distance
         dist_reward = self.target_reward/(self.maxSteps*self.step_size)*scale
-        # task 0: reach object:
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
             self.terminated = True

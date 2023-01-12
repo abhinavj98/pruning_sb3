@@ -14,6 +14,10 @@ from stable_baselines3.common.callbacks import EvalCallback
 import numpy as np
 import cv2
 from stable_baselines3.common.logger import configure
+
+from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.logger import Video
+
 class CustomCallback(BaseCallback):
     """
     A custom callback that derives from ``BaseCallback``.
@@ -79,9 +83,6 @@ class CustomCallback(BaseCallback):
 
         """
         pass
-from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.logger import Video
-
 
 
 class VideoRecorderCallback(BaseCallback):
@@ -186,31 +187,31 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
 
 
         # Create eval callback if needed
-render = False
+render = True
 env = ur5GymEnv(renders=render)
-# eval_env = ur5GymEnv(renders=False, eval=True)
+
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
 eval_env = ur5GymEnv(renders=False, name = "evalenv")
+
 # Use deterministic actions for evaluation
 eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
                              log_path="./logs/", eval_freq=1000,
                              deterministic=True, render=False)
-# env = DummyVecEnv([lambda: env])
-# eval_env = DummyVecEnv([lambda: eval_env])
-#print(env.action_space)
 # It will check your custom environment and output additional warnings if needed
 # check_env(env)
+
 video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
-a = CustomCallback()
+custom_callback = CustomCallback()
 policy_kwargs = {
         "actor_class":  Actor,
         "critic_class":  Critic,
-        "actor_kwargs": {"state_dim": 32+10*3, "emb_size":128, "action_dim":10, "action_std":1},
-        "critic_kwargs": {"state_dim": 32+10*3, "emb_size":128, "action_dim":1, "action_std":1},
+        "actor_kwargs": {"state_dim": 72+10*3, "emb_size":128, "action_dim":10, "action_std":1},
+        "critic_kwargs": {"state_dim": 72+10*3, "emb_size":128, "action_dim":1, "action_std":1},
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam
-        }#ActorCriticWithAePolicy(env.observation_space, env.action_space, linear_schedule(0.001), Actor(None, 128*7*7+10*3,128, 12, 1 ), Critic(None, 128*7*7+10*3, 128,1,1), features_extractor_class =  AutoEncoder)
+        }
+
 model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(0.001), learning_rate_ae=exp_schedule(0.001))
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
@@ -219,4 +220,4 @@ env.reset()
 for _ in range(100):
     env.render() 
     env.step(env.action_space.sample()) # take a random action
-model.learn(1000000, callback=[video_recorder, a, eval_callback], progress_bar = True)
+model.learn(1000000, callback=[video_recorder, custom_callback, eval_callback], progress_bar = False)

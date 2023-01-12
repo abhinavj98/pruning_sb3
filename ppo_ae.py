@@ -287,6 +287,9 @@ class PPOAE(OnPolicyAlgorithm):
                 # Normalization does not make sense if mini batchsize == 1, see GH issue #325
                 if self.normalize_advantage and len(advantages) > 1:
                     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+                    #print("Mean: ", rollout_data.returns.mean(),  "Values :", values.mean())
+                   #NOTE: ZERO out last layer of critic
+
 
                 # ratio between old and new policy, should be one at the first iteration
                 if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
@@ -328,11 +331,6 @@ class PPOAE(OnPolicyAlgorithm):
                     ae_loss = self.ae_coef * ae_l2_loss + 0.2*self.latent_coef*th.norm(features[0], dim = (1)).to(self.device).mean()
                     ae_losses.append(ae_loss.item())
                     loss += ae_loss
-                
-                    # print(th.min(rollout_data.observations['depth'].reshape(-1)))
-                    # print(th.max(rollout_data.observations['depth'].reshape(-1)))
-                    # print(th.min(features[1].reshape(-1)))
-                    # print(th.max(features[1].reshape(-1)))
                 # Entropy loss favor exploration
                 
 
@@ -357,7 +355,8 @@ class PPOAE(OnPolicyAlgorithm):
                 
                 loss.backward()
                 # Clip grad norm
-                th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                th.nn.utils.clip_grad_value_(self.policy.parameters(), self.max_grad_norm)
+                #Replace clip grad_norm with clip by value
                 if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
                     self.policy.optimizer.step()
                 if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
@@ -410,5 +409,5 @@ class PPOAE(OnPolicyAlgorithm):
             log_interval=log_interval,
             tb_log_name=tb_log_name,
             reset_num_timesteps=reset_num_timesteps,
-        #    progress_bar=progress_bar,
+            progress_bar=progress_bar,
         )

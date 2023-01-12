@@ -195,7 +195,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.critic = self.critic_class(**self.critic_kwargs).to(self.device)
         self.actor.apply(self.init_kaiming)
         self.critic.apply(self.init_kaiming)
-
+        
     @staticmethod    
     def init_kaiming(m):
         if type(m) == nn.Conv2d or type(m)==nn.Linear or type(m)==nn.ConvTranspose2d:
@@ -213,6 +213,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.features_dim = self.features_extractor.features_dim
         self.features_extractor.apply(self.init_kaiming)
         self._build_actor_critic()
+        #Initialize value_net and action_net with kaiming
         self.latent_dim_pi = self.actor.output_dim
         self.latent_dim_vf = self.critic.output_dim
         self.action_dist = make_proba_distribution(self.action_space, use_sde=False, dist_kwargs=self.dist_kwargs)
@@ -230,6 +231,9 @@ class ActorCriticWithAePolicy(BasePolicy):
         else:
             raise NotImplementedError(f"Unsupported distribution '{self.action_dist}'.")
         self.value_net = nn.Linear(self.latent_dim_vf, 1)
+        self.value_net.weight.data.fill_(0)
+        self.value_net.bias.data.fill_(-0.35)
+
         # Init weights: use orthogonal initialization
         # with small initial weight for the output
         # if self.ortho_init:
@@ -249,7 +253,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         #         module.apply(partial(self.init_weights, gain=gain))
 
         # Setup optimizer with initial learning rate
-        self.optimizer = self.optimizer_class([*self.actor.parameters(), *self.critic.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.optimizer = self.optimizer_class([*self.actor.parameters(), *self.critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
         self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
 
        
