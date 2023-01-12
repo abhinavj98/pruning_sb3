@@ -187,7 +187,7 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
 
 
         # Create eval callback if needed
-render = True
+render = False
 env = ur5GymEnv(renders=render)
 
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
