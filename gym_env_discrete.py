@@ -167,11 +167,11 @@ class ur5GymEnv(gym.Env):
             if info.type == "REVOLUTE":
                 self.con.setJointMotorControl2(self.ur5, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0, force=0)
             self.joints[info.name] = info
-
+        
         # object:
         self.init_joint_angles = (-1.57, -1.57,1.80,-3.14,-1.57, -1.57)
         self.set_joint_angles(self.init_joint_angles)
-
+        self.collisions = 0
         
         self.near_val = 0.01
         self.far_val = 3
@@ -273,7 +273,7 @@ class ur5GymEnv(gym.Env):
 
     def get_current_pose(self):
         linkstate = self.con.getLinkState(self.ur5, self.end_effector_index, computeForwardKinematics=True)
-        position, orientation = linkstate[4], linkstate[5] #Position wrt end effector, orientation wrt COM
+        position, orientation = linkstate[4], linkstate[1] #Position wrt end effector, orientation wrt COM
         return (position, orientation)
 
     def set_camera(self, pose, orientation):
@@ -313,6 +313,7 @@ class ur5GymEnv(gym.Env):
         self.terminated = False
         self.ur5_or = [0.0, 1/2*math.pi, 0.0]
         self.reset_counter+=1
+        self.collisions = 0
         if self.reset_counter%self.randomize_tree_count == 0:
             print("RANDOM TREE")
             print(self.tree.urdf_path)
@@ -387,11 +388,15 @@ class ur5GymEnv(gym.Env):
         self.previous_pose = curr_p
 
         # add delta position:
-        delta_orient = self.con.getQuaternionFromEuler(delta_orient)
-        new_position, new_orientation = self.con.multiplyTransforms(curr_p[0], curr_p[1], delta_pos, delta_orient)
+        # delta_orient = self.con.getQuaternionFromEuler(delta_orient)
+        new_position, new_orientation = self.con.multiplyTransforms(curr_p[0], curr_p[1], delta_pos, [0,0,0,1])
         
         # actuate:
-        joint_angles = self.calculate_ik(new_position, new_orientation) # XYZ and angles set to zero
+        joint_angles = list(self.calculate_ik(new_position, curr_p[1])) # XYZ and angles set to zero
+       
+        #if action is rotate, rotate only end effector
+        joint_angles[-2]+=delta_orient[1]
+        joint_angles[-3]+=delta_orient[2]
         self.set_joint_angles(joint_angles)
        
         # step simualator:
@@ -444,6 +449,7 @@ class ur5GymEnv(gym.Env):
 
     def compute_reward(self, achieved_goal, achieved_orient, desired_goal, achieved_previous_goal, info):
         reward = float(0)
+        self.collisions = 0
         self.target_reward = float(goal_reward(achieved_goal, achieved_previous_goal, desired_goal))
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
@@ -462,6 +468,7 @@ class ur5GymEnv(gym.Env):
         if self.check_collisions():
             reward += -0.1/self.maxSteps*scale
             collision = True
+            self.collisions+=1
             #print('Collision!')
         reward+= -0.1/self.maxSteps*scale
         
