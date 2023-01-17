@@ -77,7 +77,7 @@ policy_kwargs = {
         "critic_class":  Critic,
         "actor_kwargs": {"state_dim": 72+10*3, "emb_size":128, "action_dim":10, "action_std":1},
         "critic_kwargs": {"state_dim": 72+10*3, "emb_size":128, "action_dim":1, "action_std":1},
-        "features_extractor_class" : Encoder,
+        "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam
         }
 
