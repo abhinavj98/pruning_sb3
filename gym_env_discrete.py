@@ -19,8 +19,7 @@ from enum import Enum
 import glob
 
 ROBOT_URDF_PATH = "./ur_e_description/urdf/ur5e_with_camera.urdf"
-TREE_URDF_PATH = "./ur_e_description/urdf/trees/"
-TREE_OBJ_PATH = "./ur_e_description/meshes/trees/"
+
 
 # x,y,z distance
 def goal_distance(goal_a, goal_b):
@@ -41,7 +40,7 @@ def goal_distance2d(goal_a, goal_b):
     return np.linalg.norm(goal_a[0:2] - goal_b[0:2], axis=-1)
 
 class Tree():
-    def __init__(self, env, urdf_path, obj_path, pos = np.array([0,0,0]), orientation = np.array([0,0,0,1]), scale = 1) -> None:
+    def __init__(self, env, urdf_path, obj_path, pos = np.array([0,0,0]), orientation = np.array([0,0,0,1]), num_points = None, scale = 1) -> None:
         self.urdf_path = urdf_path
         self.env = env
         self.scale = scale
@@ -50,6 +49,7 @@ class Tree():
         self.tree_obj = pywavefront.Wavefront(obj_path, collect_faces=True)
         self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
         ur5_base_pos, _ = self.env.con.getBasePositionAndOrientation(self.env.ur5)
+        self.num_points = num_points
         self.get_reachable_points(ur5_base_pos)
 
     def active(self):
@@ -75,13 +75,16 @@ class Tree():
     def get_reachable_points(self, ur5_base_pos):
         self.reachable_points = list(filter(lambda x: self.is_reachable(x, ur5_base_pos), self.transformed_vertices))
         self.reachable_points = [np.array(i[0][0:3]) for i in self.reachable_points]
+        np.random.shuffle(self.reachable_points)
+        if self.num_points:
+            self.reachable_points = self.reachable_points[0:self.num_points]
         return 
 
     @staticmethod
-    def make_list_from_folder(env, trees_urdf_path, trees_obj_path, pos, orientation, scale):
+    def make_list_from_folder(env, trees_urdf_path, trees_obj_path, pos, orientation, scale, num_points):
         trees = []
         for urdf, obj in zip(sorted(glob.glob(trees_urdf_path+'/*.urdf')), sorted(glob.glob(trees_obj_path+'/*.obj'))):
-            trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation = orientation, scale=scale))
+            trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation = orientation, scale=scale, num_points=num_points))
 
         return trees
    
@@ -105,14 +108,21 @@ class ur5GymEnv(gym.Env):
                  renders=False,
                  maxSteps=100,
                  learning_param=0.05,
-                 complex_tree = 1,
+                 tree_urdf_path = None,
+                 tree_obj_path = None,
                  width = 224,
                  height = 224,
-                 eval = False, 
+                 eval = False,
+                 num_points = None, 
                  name = "ur5GymEnv"):
         super(ur5GymEnv, self).__init__()
         self.renders = renders
         self.eval = eval
+        assert tree_urdf_path != None
+        assert tree_obj_path != None
+
+        self.tree_urdf_path = tree_urdf_path
+        self.tree_obj_path = tree_obj_path
         # setup pybullet sim:
         if self.renders:
             self.con = bc.BulletClient(connection_mode=pybullet.GUI)
@@ -217,7 +227,7 @@ class ur5GymEnv(gym.Env):
         self.rev_actions = {v: k for k,v in self.actions.items()}
        
         #Init trees
-        self.trees = Tree.make_list_from_folder(self, TREE_URDF_PATH, TREE_OBJ_PATH, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.1)
+        self.trees = Tree.make_list_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.1, num_points = num_points)
         self.tree = random.sample(self.trees, 1)[0]
         self.tree.active()
        

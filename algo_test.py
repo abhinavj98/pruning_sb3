@@ -13,7 +13,12 @@ from stable_baselines3.common import utils
 import numpy as np
 import cv2
 from stable_baselines3.common.logger import configure
+from stable_baselines3.common.env_util import make_vec_env
 
+TREE_TRAIN_URDF_PATH = "./ur_e_description/urdf/trees/train"
+TREE_TRAIN_OBJ_PATH = "./ur_e_description/meshes/trees/train"
+TREE_TEST_URDF_PATH = "./ur_e_description/urdf/trees/test"
+TREE_TEST_OBJ_PATH = "./ur_e_description/meshes/trees/test"
 
 def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
     """
@@ -57,11 +62,13 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
 
         # Create eval callback if needed
 render = False
-env = ur5GymEnv(renders=render)
-
+n_envs = 2
+load_path = None
+env_kwargs = {"renders" : render, "tree_urdf_path" :  TREE_TRAIN_URDF_PATH, "tree_obj_path" :  TREE_TRAIN_OBJ_PATH}
+env = make_vec_env(ur5GymEnv, env_kwargs = env_kwargs, n_envs = n_envs)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
-eval_env = ur5GymEnv(renders=False, name = "evalenv")
+eval_env = ur5GymEnv(renders=False, tree_urdf_path= TREE_TEST_URDF_PATH, tree_obj_path=TREE_TEST_OBJ_PATH, name = "evalenv", num_points = 50)
 
 # Use deterministic actions for evaluation
 eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
@@ -82,11 +89,13 @@ policy_kwargs = {
         }
 
 model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(0.001), learning_rate_ae=exp_schedule(0.001))
+if load_path:
+    model.load(load_path)
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
 
 env.reset()
 for _ in range(100):
     env.render() 
-    env.step(env.action_space.sample()) # take a random action
-model.learn(1000000, callback=[custom_callback, eval_callback], progress_bar = False)
+    env.step([env.action_space.sample()]*n_envs) # take a random action
+model.learn(10000000, callback=[custom_callback, eval_callback], progress_bar = False)
