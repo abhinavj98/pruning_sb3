@@ -62,7 +62,7 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
 
         # Create eval callback if needed
 render = False
-n_envs = 2
+n_envs = 8
 load_path = None
 env_kwargs = {"renders" : render, "tree_urdf_path" :  TREE_TRAIN_URDF_PATH, "tree_obj_path" :  TREE_TRAIN_OBJ_PATH}
 env = make_vec_env(ur5GymEnv, env_kwargs = env_kwargs, n_envs = n_envs)
