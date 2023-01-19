@@ -476,7 +476,7 @@ class ur5GymEnv(gym.Env):
         # check collisions:
         collision = False
         if self.check_collisions():
-            reward += -0.1/self.maxSteps*scale
+            reward += -0.3/self.maxSteps*scale
             collision = True
             self.collisions+=1
             #print('Collision!')

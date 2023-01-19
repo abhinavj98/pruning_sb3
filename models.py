@@ -175,7 +175,8 @@ class Actor(nn.Module):
                     nn.ReLU(),
                     )
         self.dense =  nn.Sequential(
-                    nn.Linear(state_dim, emb_size),
+                    nn.Linear(state_dim, emb_size*2),
+                    nn.Linear(emb_size*2, emb_size),
                     nn.ReLU(),
                     )
     def forward(self, image_features, state):
