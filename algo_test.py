@@ -96,6 +96,6 @@ print("Using device: ", utils.get_device())
 
 env.reset()
 for _ in range(100):
-    env.render() 
+    #env.render() 
     env.step([env.action_space.sample()]*n_envs) # take a random action
 model.learn(10000000, callback=[custom_callback, eval_callback], progress_bar = False)
