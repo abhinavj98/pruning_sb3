@@ -15,10 +15,21 @@ import cv2
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.env_util import make_vec_env
 
-TREE_TRAIN_URDF_PATH = "./ur_e_description/urdf/trees/train"
-TREE_TRAIN_OBJ_PATH = "./ur_e_description/meshes/trees/train"
-TREE_TEST_URDF_PATH = "./ur_e_description/urdf/trees/test"
-TREE_TEST_OBJ_PATH = "./ur_e_description/meshes/trees/test"
+# PARSE ARGUMENTS
+import argparse
+from args import args_dict
+
+
+# Create the ArgumentParser object
+parser = argparse.ArgumentParser()
+
+# Add arguments to the parser based on the dictionary
+for arg_name, arg_params in args_dict.items():
+    parser.add_argument(f'--{arg_name}', **arg_params)
+
+# Parse arguments from the command line
+args = parser.parse_args()
+print(args)
 
 def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
     """
@@ -64,11 +75,11 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
 render = False
 n_envs = 8
 load_path = None
-env_kwargs = {"renders" : render, "tree_urdf_path" :  TREE_TRAIN_URDF_PATH, "tree_obj_path" :  TREE_TRAIN_OBJ_PATH}
-env = make_vec_env(ur5GymEnv, env_kwargs = env_kwargs, n_envs = n_envs)
+env_kwargs = {"renders" : render, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR}
+env = make_vec_env(ur5GymEnv, env_kwargs = env_kwargs, n_envs = args.N_ENVS)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
-eval_env = ur5GymEnv(renders=False, tree_urdf_path= TREE_TEST_URDF_PATH, tree_obj_path=TREE_TEST_OBJ_PATH, name = "evalenv", num_points = 50)
+eval_env = ur5GymEnv(renders=False, tree_urdf_path= args.TREE_TEST_URDF_PATH, tree_obj_path=args.TREE_TEST_OBJ_PATH, name = "evalenv", num_points = 50)
 
 # Use deterministic actions for evaluation
 eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
@@ -82,8 +93,8 @@ custom_callback = CustomCallback()
 policy_kwargs = {
         "actor_class":  Actor,
         "critic_class":  Critic,
-        "actor_kwargs": {"state_dim": 72+10*3, "emb_size":128, "action_dim":10, "action_std":1},
-        "critic_kwargs": {"state_dim": 72+10*3, "emb_size":128, "action_dim":1, "action_std":1},
+        "actor_kwargs": {"state_dim": args.STATE_DIM, "emb_size": args.EMB_SIZE},
+        "critic_kwargs": {"state_dim": args.STATE_DIM, "emb_size": args.EMB_SIZE},
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam
         }

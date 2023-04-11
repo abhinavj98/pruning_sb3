@@ -114,6 +114,7 @@ class ur5GymEnv(gym.Env):
                  height = 224,
                  eval = False,
                  num_points = None, 
+                 action_dim = 12,
                  name = "ur5GymEnv"):
         super(ur5GymEnv, self).__init__()
         self.renders = renders
@@ -200,7 +201,7 @@ class ur5GymEnv(gym.Env):
 
         self.name = name
        
-        self.action_dim = 10
+        self.action_dim = action_dim
         self.stepCounter = 0
         self.maxSteps = maxSteps
         self.terminated = False
