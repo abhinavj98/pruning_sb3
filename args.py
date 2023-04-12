@@ -26,12 +26,22 @@ args_dict = {
     },
     'ACTION_DIM_ACTOR': {
         'type': int,
-        'default': 10,
+        'default': 6,
         'help': 'dimension of the action space for the actor network'
     },
     'N_ENVS': {
         'type': int,
         'default': 8,
         'help': 'number of parallel environments to run'
-    }
+    },
+    'RENDER': {
+        'type': bool,
+        'default': False,
+        'help': 'whether to render the environment'
+    },
+    'STATE_DIM': {
+        'type': int,
+        'default': 72+10*3,
+        'help': 'dimension of the state space'
+    },
 }

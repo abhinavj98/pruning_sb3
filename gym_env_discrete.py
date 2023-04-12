@@ -89,19 +89,19 @@ class Tree():
         return trees
    
         
-class action(Enum):
-    up = 1
-    down = 2
-    left = 3
-    right = 4
-    forward = 5
-    backward = 6
-    roll_up = 7
-    roll_down = 8
-    pitch_up = 9
-    pitch_down = 10
-    yaw_up = 11
-    yaw_down = 12
+# class action(Enum):
+#     up = 1
+#     down = 2
+#     left = 3
+#     right = 4
+#     forward = 5
+#     backward = 6
+#     roll_up = 7
+#     roll_down = 8
+#     pitch_up = 9
+#     pitch_down = 10
+#     yaw_up = 11
+#     yaw_down = 12
 
 class ur5GymEnv(gym.Env):
     def __init__(self,
@@ -209,23 +209,24 @@ class ur5GymEnv(gym.Env):
         self.previous_pose = (np.array(0), np.array(0))
         self.learning_param = learning_param
         self.step_size = 0.05
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.action_dim,), dtype=np.float32)
+        self.joint_velocities = [0,0,0,0,0,0]
+        # self.action_space = spaces.Discrete(self.action_dim)
+        # self.actions = {'+x':0,
+        #                 '-x':1,
+        #                 '+y' : 2,
+        #                 '-y' : 3,
+        #                 '+z' : 4,
+        #                 '-z' : 5,
+        #                 'pitch_+y' : 6,
+        #                 'pitch_-y' : 7,
+        #                 'yaw_+z' : 8,
+        #                 'yaw_-z' : 9
+        #                 }
+        #                 # 'roll_+x' : 6,
+        #                 # 'roll_-x': 7,}
 
-        self.action_space = spaces.Discrete(self.action_dim)
-        self.actions = {'+x':0,
-                        '-x':1,
-                        '+y' : 2,
-                        '-y' : 3,
-                        '+z' : 4,
-                        '-z' : 5,
-                        'pitch_+y' : 6,
-                        'pitch_-y' : 7,
-                        'yaw_+z' : 8,
-                        'yaw_-z' : 9
-                        }
-                        # 'roll_+x' : 6,
-                        # 'roll_-x': 7,}
-
-        self.rev_actions = {v: k for k,v in self.actions.items()}
+        # self.rev_actions = {v: k for k,v in self.actions.items()}
        
         #Init trees
         self.trees = Tree.make_list_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.1, num_points = num_points)
@@ -253,6 +254,32 @@ class ur5GymEnv(gym.Env):
             positionGains=[0.05]*len(poses),
             forces=forces
         )
+    def set_joint_velocities(self, joint_velocities):
+       #Set joint velocities using pybullet motor control
+        velocities = []
+        indexes = []
+        forces = []
+
+        for i, name in enumerate(self.control_joints):
+            joint = self.joints[name]
+            velocities.append(joint_velocities[i])
+            indexes.append(joint.id)
+            forces.append(joint.maxForce)
+
+        maxForce = 500
+        self.con.setJointMotorControlArray(self.ur5, 
+        indexes, 
+        controlMode=self.con.VELOCITY_CONTROL,
+        targetVelocities = joint_velocities,
+       )
+
+    def calculate_joint_velocities_from_end_effector_velocity(self, end_effector_velocity):
+        #Calculate joint velocities from end effector velocity
+        jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
+        jacobian = np.vstack(jacobian)
+        inv_jacobian = np.linalg.pinv(jacobian)
+        joint_velocities = np.matmul(inv_jacobian, end_effector_velocity)
+        return joint_velocities
 
     def get_joint_angles(self):
         j = self.con.getJointStates(self.ur5, [1,2,3,4,5,6])
@@ -352,68 +379,22 @@ class ur5GymEnv(gym.Env):
 
 
     def step(self, action, debug = False):
-        #discrete action
-        delta_pos = np.array([0, 0, 0]).astype('float32')
-        delta_orient = np.array([0, 0, 0]).astype('float32')
-        angle_scale = 2*np.pi
-        step_size =  self.step_size
-
-        if action == self.actions['+x']:
-            delta_pos[0] = step_size
-
-        elif action == self.actions['-x']:
-            delta_pos[0] = -step_size
-
-        elif action == self.actions['+y']:
-            delta_pos[1] = step_size
-
-        elif action == self.actions['-y']:
-            delta_pos[1] = -step_size
-
-        elif action == self.actions['+z']:
-            delta_pos[2] = step_size
-
-        elif action == self.actions['-z']:
-            delta_pos[2] = -step_size
-
-        # elif action == self.actions['roll_+x']:
-        #     delta_orient[0] = step_size * angle_scale
-
-        # elif action == self.actions['roll_-x']:
-        #     delta_orient[0] = -step_size * angle_scale
-
-        elif action == self.actions['pitch_+y']:
-            delta_orient[1] = step_size * angle_scale
-
-        elif action == self.actions['pitch_-y']:
-            delta_orient[1] = -step_size * angle_scale
-
-        elif action == self.actions['yaw_+z']:
-            delta_orient[2] = step_size * angle_scale
-
-        elif action == self.actions['yaw_-z']:
-            delta_orient[2] = -step_size * angle_scale
-    
+       
         # get current position:
         curr_p = self.get_current_pose()
         self.previous_pose = curr_p
 
-        # add delta position:
-        # delta_orient = self.con.getQuaternionFromEuler(delta_orient)
-        new_position, new_orientation = self.con.multiplyTransforms(curr_p[0], curr_p[1], delta_pos, [0,0,0,1])
-        
-        # actuate:
-        joint_angles = list(self.calculate_ik(new_position, curr_p[1])) # XYZ and angles set to zero
-       
-        #if action is rotate, rotate only end effector
-        joint_angles[-2]+=delta_orient[1]
-        joint_angles[-3]+=delta_orient[2]
-        self.set_joint_angles(joint_angles)
+        # calculate joint velocities:
+        self.prev_joint_velocities = self.joint_velocities
+        self.joint_velocities = self.calculate_joint_velocities_from_end_effector_velocity(action)
+
+        # set joint velocities:
+        self.set_joint_velocities(self.joint_velocities)
        
         # step simualator:
-        for i in range(30):
+        for i in range(1):
             self.con.stepSimulation()
-            # if self.renders: time.sleep(5./240.)
+            # if self.renders: time.sleep(5./240.) 
 
         self.getExtendedObservation()
         reward = self.compute_reward(self.achieved_goal, self.achieved_orient, self.desired_goal, self.previous_goal, None)
@@ -428,9 +409,10 @@ class ur5GymEnv(gym.Env):
         return self.observation, reward, done, info
 
     def render(self, mode = "human"):
-        cam_prop = (1024, 768)
-        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1])
-        return img_rgbd[2]
+        pass
+        # cam_prop = (1024, 768)
+        # img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1])
+        # return img_rgbd[2]
      
     def close(self):
         self.con.disconnect()
