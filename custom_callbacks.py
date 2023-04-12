@@ -271,8 +271,8 @@ class CustomEvalCallback(EventCallback):
             #     1, (255,0,0), 2, cv2.LINE_AA)
             screen = cv2.putText(screen, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
                 1, (255,0,0), 2, cv2.LINE_AA)
-            screen = cv2.putText(screen, "Action: "+str(self.eval_env.get_attr("rev_actions", 0)[0][int(_locals['actions'])]), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
-                1, (255,0,0), 2, cv2.LINE_AA)
+            screen = cv2.putText(screen, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
+                0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             screen = cv2.putText(screen, "Current: "+str(self.eval_env.get_attr("achieved_goal", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
                 1, (255,0,0), 2, cv2.LINE_AA)
             screen = cv2.putText(screen, "Goal: "+str(self.eval_env.get_attr("desired_goal", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 

@@ -409,10 +409,10 @@ class ur5GymEnv(gym.Env):
         return self.observation, reward, done, info
 
     def render(self, mode = "human"):
-        pass
-        # cam_prop = (1024, 768)
-        # img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1])
-        # return img_rgbd[2]
+        
+        cam_prop = (1024, 768)
+        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1])
+        return img_rgbd[2]
      
     def close(self):
         self.con.disconnect()
