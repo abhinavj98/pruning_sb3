@@ -347,6 +347,7 @@ class ur5GymEnv(gym.Env):
         return rgb, depth
 
     def reset(self):
+        # print("RESET")
         self.stepCounter = 0
         self.terminated = False
         self.ur5_or = [0.0, 1/2*math.pi, 0.0]
@@ -365,9 +366,10 @@ class ur5GymEnv(gym.Env):
         colSphereId = -1   
         visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=.02,rgbaColor =[1,0,0,1])
         self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId, [self.tree_point_pos[0],self.tree_point_pos[1],self.tree_point_pos[2]], [0,0,0,1])
-        self.set_joint_angles(self.init_joint_angles)
+        
         self.set_joint_velocities([0]*6)
-
+        self.set_joint_angles(self.init_joint_angles)
+        
         # step simualator:
         for i in range(1000):
             self.con.stepSimulation()

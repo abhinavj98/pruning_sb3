@@ -1,4 +1,5 @@
 args_dict = {
+    #File paths
     'TREE_TRAIN_URDF_PATH': {
         'type': str,
         'default': './ur_e_description/urdf/trees/train',
@@ -19,6 +20,7 @@ args_dict = {
         'default': './ur_e_description/meshes/trees/test',
         'help': 'path to the test OBJ file for the tree environment'
     },
+    #PPO parameters
     'EMB_SIZE': {
         'type': int,
         'default': 128,
@@ -29,6 +31,12 @@ args_dict = {
         'default': 6,
         'help': 'dimension of the action space for the actor network'
     },
+    'STATE_DIM': {
+        'type': int,
+        'default': 72+10*3,
+        'help': 'dimension of the state space'
+    },
+    #Gym envirionment parameters
     'N_ENVS': {
         'type': int,
         'default': 8,
@@ -39,9 +47,46 @@ args_dict = {
         'default': False,
         'help': 'whether to render the environment'
     },
-    'STATE_DIM': {
+    #Training parameters
+    'TOTAL_TIMESTEPS': {
         'type': int,
-        'default': 72+10*3,
-        'help': 'dimension of the state space'
+        'default': 1000000,
+        'help': 'total number of timesteps to train for'
+    },
+    'STEPS_PER_EPOCH': {
+        'type': int,
+        'default': 1000,
+        'help': 'number of timesteps per epoch'
+    },
+    'EPOCHS': {
+        'type': int,
+        'default': 10,
+        'help': 'number of epochs to train for'
+    },
+    'BATCH_SIZE': {
+        'type': int,
+        'default': 100,
+        'help': 'batch size'
+    },
+    'LEARNING_RATE': {
+        'type': float,
+        'default': 0.001,
+        'help': 'learning rate'
+    },
+    #Evaluation parameters
+    'EVAL_FREQ': {
+        'type': int,
+        'default': 500,
+        'help': 'frequency of evaluation'
+    },
+    'EVAL_EPISODES': {
+        'type': int,
+        'default': 50,
+        'help': 'number of episodes to run during evaluation'
+    },
+    'EVAL_POINTS': {
+        'type': int,
+        'default': 50,
+        'help': 'number of points to sample in a tree during evaluation'
     },
 }
