@@ -366,6 +366,7 @@ class ur5GymEnv(gym.Env):
         visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=.02,rgbaColor =[1,0,0,1])
         self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId, [self.tree_point_pos[0],self.tree_point_pos[1],self.tree_point_pos[2]], [0,0,0,1])
         self.set_joint_angles(self.init_joint_angles)
+        self.set_joint_velocities([0]*6)
 
         # step simualator:
         for i in range(1000):
@@ -447,7 +448,7 @@ class ur5GymEnv(gym.Env):
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
         scale = 10.
-        reward += self.target_reward/(self.maxSteps*self.step_size)*scale #Mean around 0 -> Change in distance
+        reward += self.target_reward/(self.maxSteps*np.sqrt(3)*(5./240.))*scale #Mean around 0 -> Change in distance 0.036
         dist_reward = self.target_reward/(self.maxSteps*self.step_size)*scale
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
