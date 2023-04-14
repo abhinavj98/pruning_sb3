@@ -79,7 +79,7 @@ env = make_vec_env(ur5GymEnv, env_kwargs = env_kwargs, n_envs = args.N_ENVS)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
 eval_env = ur5GymEnv(renders=False, tree_urdf_path= args.TREE_TEST_URDF_PATH, tree_obj_path=args.TREE_TEST_OBJ_PATH, name = "evalenv", num_points = args.EVAL_POINTS)
-
+eval_env.logger = new_logger
 # Use deterministic actions for evaluation
 eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
                              log_path="./logs/", eval_freq=args.EVAL_FREQ,

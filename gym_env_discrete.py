@@ -179,6 +179,10 @@ class ur5GymEnv(gym.Env):
                 self.con.setJointMotorControl2(self.ur5, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0, force=0)
             self.joints[info.name] = info
         
+
+        # collisionFilterGroup = 0
+        # collisionFilterMask = 0
+        # self.con.setCollisionFilterGroupMask(self.ur5, -1, collisionFilterGroup, collisionFilterMask)
         # object:
         self.init_joint_angles = (-1.57, -1.57,1.80,-3.14,-1.57, -1.57)
         self.set_joint_angles(self.init_joint_angles)
@@ -288,10 +292,11 @@ class ur5GymEnv(gym.Env):
 
 
     def check_collisions(self):
-        collisions = self.con.getContactPoints(bodyA = self.ur5, bodyB = self.tree.tree_urdf, linkIndexA=self.end_effector_index)
+        collisions = self.con.getContactPoints(bodyA = self.ur5, bodyB = self.tree.tree_urdf)#, linkIndexA=self.end_effector_index)
         for i in range(len(collisions)):
+            # print("collision")
             if collisions[i][-6] < 0 :
-                #print("[Collision detected!] {}, {}".format(datetime.now(), collisions[i]))
+                # print("[Collision detected!] {}, {}".format(datetime.now(), collisions[i]))
                 return True
         return False
 
@@ -366,10 +371,16 @@ class ur5GymEnv(gym.Env):
         colSphereId = -1   
         visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=.02,rgbaColor =[1,0,0,1])
         self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId, [self.tree_point_pos[0],self.tree_point_pos[1],self.tree_point_pos[2]], [0,0,0,1])
-        
+        #Remove and add tree
+        self.tree.inactive()
+        #Remove ur5 arm body
+        self.con.removeBody(self.ur5)
+        #Create new ur5 arm body
+        flags = self.con.URDF_USE_SELF_COLLISION
+        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 0], [0, 0, 0, 1], flags=flags)
         self.set_joint_velocities([0]*6)
         self.set_joint_angles(self.init_joint_angles)
-        
+        self.tree.active()
         # step simualator:
         for i in range(1000):
             self.con.stepSimulation()
@@ -445,28 +456,46 @@ class ur5GymEnv(gym.Env):
 
     def compute_reward(self, achieved_goal, achieved_orient, desired_goal, achieved_previous_goal, info):
         reward = float(0)
+        # Give rewards better names, and appropriate scales
+
         self.collisions = 0
-        self.target_reward = float(goal_reward(achieved_goal, achieved_previous_goal, desired_goal))
+        self.delta_movement = float(goal_reward(achieved_goal, achieved_previous_goal, desired_goal))
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
         scale = 10.
-        reward += self.target_reward/(self.maxSteps*np.sqrt(3)*(5./240.))*scale #Mean around 0 -> Change in distance 0.036
-        dist_reward = self.target_reward/(self.maxSteps*self.step_size)*scale
+        movement_reward = self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.))*scale #Mean around 0 -> Change in distance 0.036
+        distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))
+        reward += movement_reward
+        reward += distance_reward
+ 
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
             self.terminated = True
             terminate_reward = 1
-            reward += 1.
+            reward += terminate_reward
             print('Successful!')
         
         # check collisions:
         collision = False
+        collision_reward = 0
         if self.check_collisions():
-            reward += -0.3/self.maxSteps*scale
+            collision_reward = -0.3/self.maxSteps*scale
+            reward += collision_reward
             collision = True
             self.collisions+=1
             #print('Collision!')
-        reward+= -0.1/self.maxSteps*scale
+        slack_reward = -0.1/self.maxSteps*scale
+        reward+= slack_reward
         
+        
+        #if eval env use logger to plot all rewards seperately
+        if self.name == "evalenv":
+            self.logger.record("eval/movement_reward", movement_reward)
+            self.logger.record("eval/distance_reward", distance_reward)
+            self.logger.record("eval/terminate_reward", terminate_reward)
+            self.logger.record("eval/collision_reward", collision_reward)
+            self.logger.record("eval/slack_reward", slack_reward)
+            self.logger.record("eval/total_reward", reward)
+
         return reward
 
