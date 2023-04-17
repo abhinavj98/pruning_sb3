@@ -464,7 +464,7 @@ class ur5GymEnv(gym.Env):
 
         scale = 10.
         movement_reward = self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.))*scale #Mean around 0 -> Change in distance 0.036
-        distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))
+        distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))*1/30
         reward += movement_reward
         reward += distance_reward
  
