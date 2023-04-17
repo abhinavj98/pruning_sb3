@@ -467,7 +467,13 @@ class ur5GymEnv(gym.Env):
         distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))*1/30
         reward += movement_reward
         reward += distance_reward
- 
+
+        jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
+        jacobian = np.vstack(jacobian)
+        condition_number = np.linalg.cond(jacobian)
+        condition_number_reward = condition_number/(self.maxSteps)
+        reward += condition_number_reward
+        
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
             self.terminated = True
@@ -496,6 +502,7 @@ class ur5GymEnv(gym.Env):
             self.logger.record("eval/collision_reward", collision_reward)
             self.logger.record("eval/slack_reward", slack_reward)
             self.logger.record("eval/total_reward", reward)
+            self.logger.record("eval/condition_number_reward", condition_number_reward)
 
         return reward
 
