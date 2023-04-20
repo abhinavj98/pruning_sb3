@@ -402,9 +402,9 @@ class ur5GymEnv(gym.Env):
         self.prev_joint_velocities = self.joint_velocities
         self.joint_velocities = self.calculate_joint_velocities_from_end_effector_velocity(action)
         self.max_joint_velocities = np.array([6,6,6,6,6,6])
-        # if (self.joint_velocities > self.max_joint_velocities).any():
-        #     print("Joint velocity too high ", self.joint_velocities)
-        #     self.joint_velocities = np.array([0,0,0,0,0,0])
+        if (self.joint_velocities > self.max_joint_velocities).any():
+            print("Joint velocity too high ", self.joint_velocities)
+            self.joint_velocities = np.array([0,0,0,0,0,0])
 
         # set joint velocities:
         self.set_joint_velocities(self.joint_velocities)
