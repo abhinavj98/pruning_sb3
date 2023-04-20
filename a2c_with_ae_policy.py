@@ -253,9 +253,10 @@ class ActorCriticWithAePolicy(BasePolicy):
         #         module.apply(partial(self.init_weights, gain=gain))
 
         # Setup optimizer with initial learning rate
-        self.optimizer = self.optimizer_class([*self.actor.parameters(), *self.critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.optimizer = self.optimizer_class([*self.actor.parameters(), *self.critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters(), self.log_std], lr=lr_schedule(1), **self.optimizer_kwargs)
         self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
-
+        #print all nets in optimizer
+        print(self.optimizer, self.optimizer_ae)
        
         
     def forward(self, obs: Dict, deterministic: bool = False, *args, **kwargs) -> Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]:
