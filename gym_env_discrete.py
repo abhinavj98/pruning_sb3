@@ -213,7 +213,7 @@ class ur5GymEnv(gym.Env):
         self.previous_pose = (np.array(0), np.array(0))
         self.learning_param = learning_param
         self.step_size = 0.05
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.action_dim,), dtype=np.float32)
+        self.action_space = spaces.Box(low=-100.0, high=100.0, shape=(self.action_dim,), dtype=np.float32)
         self.joint_velocities = [0,0,0,0,0,0]
         # self.action_space = spaces.Discrete(self.action_dim)
         # self.actions = {'+x':0,
@@ -292,11 +292,11 @@ class ur5GymEnv(gym.Env):
 
 
     def check_collisions(self):
-        collisions = self.con.getContactPoints(bodyA = self.ur5, bodyB = self.tree.tree_urdf)#, linkIndexA=self.end_effector_index)
+        collisions = self.con.getContactPoints(bodyA = self.ur5)#, linkIndexA=self.end_effector_index)
         for i in range(len(collisions)):
             # print("collision")
             if collisions[i][-6] < 0 :
-                # print("[Collision detected!] {}, {}".format(datetime.now(), collisions[i]))
+                # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
                 return True
         return False
 
@@ -401,6 +401,10 @@ class ur5GymEnv(gym.Env):
         # calculate joint velocities:
         self.prev_joint_velocities = self.joint_velocities
         self.joint_velocities = self.calculate_joint_velocities_from_end_effector_velocity(action)
+        self.max_joint_velocities = np.array([6,6,6,6,6,6])
+        # if (self.joint_velocities > self.max_joint_velocities).any():
+        #     print("Joint velocity too high ", self.joint_velocities)
+        #     self.joint_velocities = np.array([0,0,0,0,0,0])
 
         # set joint velocities:
         self.set_joint_velocities(self.joint_velocities)
@@ -471,7 +475,7 @@ class ur5GymEnv(gym.Env):
         jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
         jacobian = np.vstack(jacobian)
         condition_number = np.linalg.cond(jacobian)
-        condition_number_reward = condition_number/(self.maxSteps)
+        condition_number_reward = -condition_number/(self.maxSteps)
         reward += condition_number_reward
         
         terminate_reward = 0
@@ -489,7 +493,7 @@ class ur5GymEnv(gym.Env):
             reward += collision_reward
             collision = True
             self.collisions+=1
-            #print('Collision!')
+            # print('Collision!')
         slack_reward = -0.1/self.maxSteps*scale
         reward+= slack_reward
         
