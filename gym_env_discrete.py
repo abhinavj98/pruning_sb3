@@ -402,9 +402,9 @@ class ur5GymEnv(gym.Env):
         self.prev_joint_velocities = self.joint_velocities
         self.joint_velocities = self.calculate_joint_velocities_from_end_effector_velocity(action)
         self.max_joint_velocities = np.array([6,6,6,6,6,6])
-        if (self.joint_velocities > self.max_joint_velocities).any():
-            print("Joint velocity too high ", self.joint_velocities)
-            self.joint_velocities = np.array([0,0,0,0,0,0])
+        #if (self.joint_velocities > self.max_joint_velocities).any():
+         #   #print("Joint velocity too high ", self.joint_velocities)
+          #  self.joint_velocities = np.array([0,0,0,0,0,0])
 
         # set joint velocities:
         self.set_joint_velocities(self.joint_velocities)
@@ -475,7 +475,7 @@ class ur5GymEnv(gym.Env):
         jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
         jacobian = np.vstack(jacobian)
         condition_number = np.linalg.cond(jacobian)
-        condition_number_reward = -condition_number/(self.maxSteps)
+        condition_number_reward = -np.abs(condition_number/(self.maxSteps))
         reward += condition_number_reward
         
         terminate_reward = 0

@@ -74,7 +74,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         activation_fn: Type[nn.Module] = nn.Tanh,
         ortho_init: bool = True,
         use_sde: bool = False,
-        log_std_init: float = 0.0,
+        log_std_init: float = 0.1,
         full_std: bool = True,
         use_expln: bool = False,
         squash_output: bool = False,

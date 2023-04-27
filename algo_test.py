@@ -95,11 +95,12 @@ policy_kwargs = {
         "actor_kwargs": {"state_dim": args.STATE_DIM, "emb_size": args.EMB_SIZE},
         "critic_kwargs": {"state_dim": args.STATE_DIM, "emb_size": args.EMB_SIZE},
         "features_extractor_class" : AutoEncoder,
-        "optimizer_class" : th.optim.Adam
+        "optimizer_class" : th.optim.Adam,
+	"log_std_init" : 0.1,
         }
 
 model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE),\
-              n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS, )
+              n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS )
 if load_path:
     model.load(load_path)
 model.set_logger(new_logger)
