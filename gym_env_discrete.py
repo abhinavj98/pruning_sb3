@@ -467,7 +467,7 @@ class ur5GymEnv(gym.Env):
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
         scale = 10.
-        movement_reward = self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.))*scale #Mean around 0 -> Change in distance 0.036
+        movement_reward = np.clamp(self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.)*scale) , -0.1, 0.1)#Mean around 0 -> Change in distance 0.036
         distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))*1/30
         reward += movement_reward
         reward += distance_reward
@@ -475,7 +475,7 @@ class ur5GymEnv(gym.Env):
         jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
         jacobian = np.vstack(jacobian)
         condition_number = np.linalg.cond(jacobian)
-        condition_number_reward = -np.abs(condition_number/(self.maxSteps))
+        condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
         reward += condition_number_reward
         
         terminate_reward = 0
@@ -496,6 +496,11 @@ class ur5GymEnv(gym.Env):
             # print('Collision!')
         slack_reward = -0.1/self.maxSteps*scale
         reward+= slack_reward
+
+        #Minimize joint velocities
+        velocity_mag = np.linalg.norm(self.joint_velocities)/self.maxSteps
+        velocity_reward = -np.clamp(velocity_mag, -0.1, 0.1)
+        reward += velocity_reward
         
         
         #if eval env use logger to plot all rewards seperately
@@ -507,6 +512,7 @@ class ur5GymEnv(gym.Env):
             self.logger.record("eval/slack_reward", slack_reward)
             self.logger.record("eval/total_reward", reward)
             self.logger.record("eval/condition_number_reward", condition_number_reward)
+            self.logger.record("eval/velocity_reward", velocity_reward)
 
         return reward
 
