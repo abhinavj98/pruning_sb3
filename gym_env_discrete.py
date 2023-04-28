@@ -475,9 +475,15 @@ class ur5GymEnv(gym.Env):
         jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
         jacobian = np.vstack(jacobian)
         condition_number = np.linalg.cond(jacobian)
+        if condition_number > 35:
+            self.terminated = True
+            terminate_reward = -1
+            reward += terminate_reward
+            print('Too high condition number!')
         #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
-        condition_number_reward = np.abs(1/condition_number)/self.maxSteps
-        reward += condition_number_reward
+        else:
+            condition_number_reward = np.abs(1/condition_number)/self.maxSteps
+            reward += condition_number_reward
         
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
