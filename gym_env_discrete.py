@@ -187,7 +187,7 @@ class ur5GymEnv(gym.Env):
         self.init_joint_angles = (-1.57, -1.57,1.80,-3.14,-1.57, -1.57)
         self.set_joint_angles(self.init_joint_angles)
         self.collisions = 0
-        
+        self.joint_velocities = [0,0,0,0,0,0]
         self.near_val = 0.01
         self.far_val = 3
         self.height = height
@@ -467,10 +467,10 @@ class ur5GymEnv(gym.Env):
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
         scale = 10.
-        movement_reward = np.clamp(self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.)*scale) , -0.1, 0.1)#Mean around 0 -> Change in distance 0.036
+        movement_reward = np.clip(self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.)*scale) , -0.1, 0.1)#Mean around 0 -> Change in distance 0.036
         distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))*1/30
         reward += movement_reward
-        reward += distance_reward
+       # reward += distance_reward
 
         jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
         jacobian = np.vstack(jacobian)
@@ -500,7 +500,7 @@ class ur5GymEnv(gym.Env):
 
         #Minimize joint velocities
         velocity_mag = np.linalg.norm(self.joint_velocities)/self.maxSteps
-        velocity_reward = -np.clamp(velocity_mag, -0.1, 0.1)
+        velocity_reward = -np.clip(velocity_mag, -0.1, 0.1)
         reward += velocity_reward
         
         
