@@ -55,12 +55,12 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 1000,
+        'default': 5,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
         'type': int,
-        'default': 10,
+        'default': 1,
         'help': 'number of epochs to train for'
     },
     'BATCH_SIZE': {
@@ -76,7 +76,7 @@ args_dict = {
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 1000,
+        'default': 10,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {

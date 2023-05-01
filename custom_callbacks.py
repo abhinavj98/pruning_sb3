@@ -10,37 +10,36 @@ import cv2
 import torch as th
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
 
-class CustomCallback(BaseCallback):
+class CustomTrainCallback(BaseCallback):
     """
     A custom callback that derives from ``BaseCallback``.
 
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
     def __init__(self, verbose=0):
-        super(CustomCallback, self).__init__(verbose)
+        super(CustomTrainCallback, self).__init__(verbose)
         # Those variables will be accessible in the callback
         # (they are defined in the base class)
         # The RL model
-        # self.model = None  # type: BaseAlgorithm
+        self.model = None  # type: BaseAlgorithm
         # An alias for self.model.get_env(), the environment used for training
-        # self.training_env = None  # type: Union[gym.Env, VecEnv, None]
+        self.training_env = None  # type: Union[gym.Env, VecEnv, None]
         # Number of time the callback was called
-        # self.n_calls = 0  # type: int
-        # self.num_timesteps = 0  # type: int
+        self.n_calls = 0  # type: int
+        self.num_timesteps = 0  # type: int
         # local and global variables
-        # self.locals = None  # type: Dict[str, Any]
-        # self.globals = None  # type: Dict[str, Any]
+        self.locals = None  # type: Dict[str, Any]
+        self.globals = None  # type: Dict[str, Any]
         # The logger object, used to report things in the terminal
-        # self.logger = None  # stable_baselines3.common.logger
-        # # Sometimes, for event callback, it is useful
-        # # to have access to the parent object
-        # self.parent = None  # type: Optional[BaseCallback]
+        self.logger = None  # stable_baselines3.common.logger
+        # Sometimes, for event callback, it is useful
+        # to have access to the parent object
+        self.parent = None  # type: Optional[BaseCallback]
 
     def _on_training_start(self) -> None:
         """
         This method is called before the first rollout starts.
         """
-        self.model.get_env().logger = self.logger
         return True
 
     def _on_rollout_start(self) -> None:
@@ -67,7 +66,15 @@ class CustomCallback(BaseCallback):
         """
         This event is triggered before updating the policy.
         """
-        pass
+        infos = self.locals["infos"]
+        self.logger.record("rollout/movement_reward", infos[0]["movement_reward"])
+        self.logger.record("rollout/distance_reward", infos[0]["distance_reward"])
+        self.logger.record("rollout/terminate_reward", infos[0]["terminate_reward"])
+        self.logger.record("rollout/collision_reward", infos[0]["collision_reward"])
+        self.logger.record("rollout/slack_reward", infos[0]["slack_reward"])
+        self.logger.record("rollout/condition_number_reward", infos[0]["condition_number_reward"])
+        self.logger.record("rollout/velocity_reward", infos[0]["velocity_reward"])
+        # self.logger.record("train/singularit_terminated", info["total_reward"])
 
     def _on_training_end(self) -> None:
         """
@@ -77,77 +84,77 @@ class CustomCallback(BaseCallback):
         pass
 
 
-class VideoRecorderCallback(BaseCallback):
-    def __init__(self, eval_env: gym.Env, render_freq: int, n_eval_episodes: int = 1, deterministic: bool = True):
-        """
-        Records a video of an agent's trajectory traversing ``eval_env`` and logs it to TensorBoard
+# class VideoRecorderCallback(BaseCallback):
+#     def __init__(self, eval_env: gym.Env, render_freq: int, n_eval_episodes: int = 1, deterministic: bool = True):
+#         """
+#         Records a video of an agent's trajectory traversing ``eval_env`` and logs it to TensorBoard
 
-        :param eval_env: A gym environment from which the trajectory is recorded
-        :param render_freq: Render the agent's trajectory every eval_freq call of the callback.
-        :param n_eval_episodes: Number of episodes to render
-        :param deterministic: Whether to use deterministic or stochastic policy
-        """
-        super().__init__()
-        self.sum_collisions = 0
-        self._eval_env = eval_env
-        self._render_freq = render_freq
-        self._n_eval_episodes = n_eval_episodes
-        self._deterministic = deterministic
+#         :param eval_env: A gym environment from which the trajectory is recorded
+#         :param render_freq: Render the agent's trajectory every eval_freq call of the callback.
+#         :param n_eval_episodes: Number of episodes to render
+#         :param deterministic: Whether to use deterministic or stochastic policy
+#         """
+#         super().__init__()
+#         self.sum_collisions = 0
+#         self._eval_env = eval_env
+#         self._render_freq = render_freq
+#         self._n_eval_episodes = n_eval_episodes
+#         self._deterministic = deterministic
 
-    def _on_step(self) -> bool:
-        if self.n_calls % self._render_freq == 0:
-            screens = []
+#     def _on_step(self) -> bool:
+#         if self.n_calls % self._render_freq == 0:
+#             screens = []
 
-            # def get_action_critic(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-            #     print(_locals)
+#             # def get_action_critic(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
+#             #     print(_locals)
                 
-            def grab_screens(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-                """
-                Renders the environment in its current state, recording the screen in the captured `screens` list
+#             def grab_screens(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
+#                 """
+#                 Renders the environment in its current state, recording the screen in the captured `screens` list
 
-                :param _locals: A dictionary containing all local variables of the callback's scope
-                :param _globals: A dictionary containing all global variables of the callback's scope
-                """
-                screen = self._eval_env.render()
-                # PyTorch uses CxHxW vs HxWxC gym (and tensorflow) image convention
+#                 :param _locals: A dictionary containing all local variables of the callback's scope
+#                 :param _globals: A dictionary containing all global variables of the callback's scope
+#                 """
+#                 screen = self._eval_env.render()
+#                 # PyTorch uses CxHxW vs HxWxC gym (and tensorflow) image convention
                 
-                # critic_value = ppo.policy.critic(memory.depth_features[-1].unsqueeze(0), memory.states[-1])
-                # debug_img = cv2.putText(debug_img, "Critic: "+str(critic_value.item()), (0,50), cv2.FONT_HERSHEY_SIMPLEX, 
-                #     1, (255,0,0), 2, cv2.LINE_AA)
-                screen = cv2.putText(screen, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
-                    1, (255,0,0), 2, cv2.LINE_AA)
-                screen = cv2.putText(screen, "Action: "+str(self._eval_env.rev_actions[int(_locals['actions'])]), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
-                    1, (255,0,0), 2, cv2.LINE_AA)
-                screen = cv2.putText(screen, "Current: "+str(self._eval_env.achieved_goal), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
-                    1, (255,0,0), 2, cv2.LINE_AA)
-                screen = cv2.putText(screen, "Goal: "+str(self._eval_env.desired_goal), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
-                    1, (255,0,0), 2, cv2.LINE_AA)
-                screens.append(screen.transpose(2, 0, 1))
+#                 # critic_value = ppo.policy.critic(memory.depth_features[-1].unsqueeze(0), memory.states[-1])
+#                 # debug_img = cv2.putText(debug_img, "Critic: "+str(critic_value.item()), (0,50), cv2.FONT_HERSHEY_SIMPLEX, 
+#                 #     1, (255,0,0), 2, cv2.LINE_AA)
+#                 screen = cv2.putText(screen, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
+#                     1, (255,0,0), 2, cv2.LINE_AA)
+#                 screen = cv2.putText(screen, "Action: "+str(self._eval_env.rev_actions[int(_locals['actions'])]), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
+#                     1, (255,0,0), 2, cv2.LINE_AA)
+#                 screen = cv2.putText(screen, "Current: "+str(self._eval_env.achieved_goal), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
+#                     1, (255,0,0), 2, cv2.LINE_AA)
+#                 screen = cv2.putText(screen, "Goal: "+str(self._eval_env.desired_goal), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
+#                     1, (255,0,0), 2, cv2.LINE_AA)
+#                 screens.append(screen.transpose(2, 0, 1))
 
-                def log_collisions(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-                    if _locals['done']:
-                        self.sum_collisions += self._eval_env.collisions
-                        print(self.sum_collisions)
+#                 def log_collisions(_locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
+#                     if _locals['done']:
+#                         self.sum_collisions += self._eval_env.collisions
+#                         print(self.sum_collisions)
 
-                mean_reward, std_reward = evaluate_policy(
-                    self.model,
-                    self._eval_env,
-                    callback=[grab_screens, log_collisions],
-                    n_eval_episodes=self._n_eval_episodes,
-                    deterministic=self._deterministic,
-                )
+#                 mean_reward, std_reward = evaluate_policy(
+#                     self.model,
+#                     self._eval_env,
+#                     callback=[grab_screens, log_collisions],
+#                     n_eval_episodes=self._n_eval_episodes,
+#                     deterministic=self._deterministic,
+#                 )
 
-                self.logger.record(
-                    "eval/video",
-                    Video(th.ByteTensor(np.array([screens])), fps=10),
-                    exclude=("stdout", "log", "json", "csv"),
-                )
-                self.logger.record(
-                    "eval/collisions",
-                    self.sum_collisions
-                )
+#                 self.logger.record(
+#                     "eval/video",
+#                     Video(th.ByteTensor(np.array([screens])), fps=10),
+#                     exclude=("stdout", "log", "json", "csv"),
+#                 )
+#                 self.logger.record(
+#                     "eval/collisions",
+#                     self.sum_collisions
+#                 )
                 
-        return True
+#         return True
 
 
 class CustomEvalCallback(EventCallback):
@@ -254,6 +261,16 @@ class CustomEvalCallback(EventCallback):
             if maybe_is_success is not None:
                 self._is_success_buffer.append(maybe_is_success)
 
+    def _log_rewards_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]):
+        infos = locals_["info"]
+        self.logger.record("eval/movement_reward", infos["movement_reward"])
+        self.logger.record("eval/distance_reward", infos["distance_reward"])
+        self.logger.record("eval/terminate_reward", infos["terminate_reward"])
+        self.logger.record("eval/collision_reward", infos["collision_reward"])
+        self.logger.record("eval/slack_reward", infos["slack_reward"])
+        self.logger.record("eval/condition_number_reward", infos["condition_number_reward"])
+        self.logger.record("eval/velocity_reward", infos["velocity_reward"])
+
     def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         """
         Renders the environment in its current state, recording the screen in the captured `screens` list
@@ -288,6 +305,7 @@ class CustomEvalCallback(EventCallback):
         self._grab_screen_callback(_locals, _globals)
         self._log_collisions(_locals, _globals)
         self._log_success_callback(_locals, _globals)
+        self._log_rewards_callback(_locals, _globals)
 
     def _on_step(self) -> bool:
 
@@ -383,10 +401,10 @@ class CustomEvalCallback(EventCallback):
 
         return continue_training
 
-    def update_child_locals(self, locals_: Dict[str, Any]) -> None:
-        """
-        Update the references to the local variables.
-        :param locals_: the local variables during rollout collection
-        """
-        if self.callback:
-            self.callback.update_locals(locals_)
+    # def update_child_locals(self, locals_: Dict[str, Any]) -> None:
+    #     """
+    #     Update the references to the local variables.
+    #     :param locals_: the local variables during rollout collection
+    #     """
+    #     if self.callback:
+    #         self.callback.update_locals(locals_)

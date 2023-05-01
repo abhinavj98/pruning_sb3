@@ -209,6 +209,7 @@ class ur5GymEnv(gym.Env):
         self.stepCounter = 0
         self.maxSteps = maxSteps
         self.terminated = False
+        self.singularity_terminated = False
         self.observation = {}
         self.previous_pose = (np.array(0), np.array(0))
         self.learning_param = learning_param
@@ -392,8 +393,10 @@ class ur5GymEnv(gym.Env):
         return self.observation
 
 
-    def step(self, action, debug = False):
-       
+    def step(self, action):
+        #Add info for all rewards
+        #Time aware PPO
+        # callback.on_rollout_end() to log training info -> Same with eval
         # get current position:
         curr_p = self.get_current_pose()
         self.previous_pose = curr_p
@@ -415,16 +418,16 @@ class ur5GymEnv(gym.Env):
             # if self.renders: time.sleep(5./240.) 
 
         self.getExtendedObservation()
-        reward = self.compute_reward(self.achieved_goal, self.achieved_orient, self.desired_goal, self.previous_goal, None)
+        reward, reward_infos = self.compute_reward(self.achieved_goal, self.achieved_orient, self.desired_goal, self.previous_goal, None)
         done = self.my_task_done()
         
-        info = {'is_success': False}
+        infos = {'is_success': False}
         if self.terminated == True:
-            info['is_success'] = True
+            infos['is_success'] = True
         self.stepCounter += 1
-        info['episode'] = {"l": self.stepCounter,  "r": reward}
-
-        return self.observation, reward, done, info
+        infos['episode'] = {"l": self.stepCounter,  "r": reward}
+        infos.update(reward_infos)
+        return self.observation, reward, done, infos
 
     def render(self, mode = "human"):
         
@@ -454,12 +457,13 @@ class ur5GymEnv(gym.Env):
 
     def my_task_done(self):
         # NOTE: need to call compute_reward before this to check termination!
-        c = (self.terminated == True or self.stepCounter > self.maxSteps)
+        c = (self.singularity_terminated == True or self.terminated == True or self.stepCounter > self.maxSteps)
         return c
 
 
     def compute_reward(self, achieved_goal, achieved_orient, desired_goal, achieved_previous_goal, info):
         reward = float(0)
+        reward_info = {}
         # Give rewards better names, and appropriate scales
 
         self.collisions = 0
@@ -468,7 +472,9 @@ class ur5GymEnv(gym.Env):
 
         scale = 20.
         movement_reward = np.clip(self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.))*scale , -0.1, 0.1)#Mean around 0 -> Change in distance 0.036
+        reward_info['movement_reward'] = movement_reward
         distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))*1/30
+        reward_info['distance_reward'] = distance_reward
         reward += movement_reward
        # reward += distance_reward
 
@@ -477,21 +483,23 @@ class ur5GymEnv(gym.Env):
         condition_number = np.linalg.cond(jacobian)
         condition_number_reward = -1
         if condition_number > 100:
-            self.terminated = True
-            terminate_reward = -1
-            reward += terminate_reward
+            self.singularity_terminated = True
+            condition_number_reward = -1
+            reward += condition_number_reward
             print('Too high condition number!')
         #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
         else:
             condition_number_reward = np.abs(1/condition_number)/self.maxSteps
             reward += condition_number_reward
-        
+        reward_info['condition_number_reward'] = condition_number_reward
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
             self.terminated = True
             terminate_reward = 1
+            
             reward += terminate_reward
             print('Successful!')
+        reward_info['terminate_reward'] = terminate_reward
         
         # check collisions:
         collision = False
@@ -502,25 +510,29 @@ class ur5GymEnv(gym.Env):
             collision = True
             self.collisions+=1
             # print('Collision!')
+        reward_info['collision_reward'] = collision_reward
+        
         slack_reward = -0.1/self.maxSteps*scale
+        reward_info['slack_reward'] = slack_reward
         reward+= slack_reward
 
         #Minimize joint velocities
         velocity_mag = np.linalg.norm(self.joint_velocities)/self.maxSteps
         velocity_reward = -np.clip(velocity_mag, -0.1, 0.1)
         reward += velocity_reward
+        reward_info['velocity_reward'] = velocity_reward
         
         
         #if eval env use logger to plot all rewards seperately
-        if self.name == "evalenv":
-            self.logger.record("eval/movement_reward", movement_reward)
-            self.logger.record("eval/distance_reward", distance_reward)
-            self.logger.record("eval/terminate_reward", terminate_reward)
-            self.logger.record("eval/collision_reward", collision_reward)
-            self.logger.record("eval/slack_reward", slack_reward)
-            self.logger.record("eval/total_reward", reward)
-            self.logger.record("eval/condition_number_reward", condition_number_reward)
-            self.logger.record("eval/velocity_reward", velocity_reward)
+        # if self.name == "evalenv":
+        #     self.logger.record("eval/movement_reward", movement_reward)
+        #     self.logger.record("eval/distance_reward", distance_reward)
+        #     self.logger.record("eval/terminate_reward", terminate_reward)
+        #     self.logger.record("eval/collision_reward", collision_reward)
+        #     self.logger.record("eval/slack_reward", slack_reward)
+        #     self.logger.record("eval/total_reward", reward)
+        #     self.logger.record("eval/condition_number_reward", condition_number_reward)
+        #     self.logger.record("eval/velocity_reward", velocity_reward)
 
-        return reward
+        return reward, reward_info
 

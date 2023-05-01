@@ -2,7 +2,7 @@ from tabnanny import verbose
 
 from a2c import A2CWithAE
 from a2c_with_ae_policy import ActorCriticWithAePolicy
-from custom_callbacks import CustomEvalCallback, CustomCallback
+from custom_callbacks import CustomEvalCallback, CustomTrainCallback
 from ppo_ae import PPOAE
 from gym_env_discrete import ur5GymEnv
 from models import *
@@ -18,6 +18,7 @@ from stable_baselines3.common.env_util import make_vec_env
 # PARSE ARGUMENTS
 import argparse
 from args import args_dict
+# from args_copy import args_dict
 
 
 # Create the ArgumentParser object
@@ -88,7 +89,7 @@ eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
 # check_env(env)
 
 # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
-custom_callback = CustomCallback()
+custom_callback = CustomTrainCallback()
 policy_kwargs = {
         "actor_class":  Actor,
         "critic_class":  Critic,
