@@ -466,8 +466,8 @@ class ur5GymEnv(gym.Env):
         self.delta_movement = float(goal_reward(achieved_goal, achieved_previous_goal, desired_goal))
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
-        scale = 10.
-        movement_reward = np.clip(self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.)*scale) , -0.1, 0.1)#Mean around 0 -> Change in distance 0.036
+        scale = 20.
+        movement_reward = np.clip(self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.))*scale , -0.1, 0.1)#Mean around 0 -> Change in distance 0.036
         distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))*1/30
         reward += movement_reward
        # reward += distance_reward
@@ -475,7 +475,8 @@ class ur5GymEnv(gym.Env):
         jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
         jacobian = np.vstack(jacobian)
         condition_number = np.linalg.cond(jacobian)
-        if condition_number > 35:
+        condition_number_reward = -1
+        if condition_number > 100:
             self.terminated = True
             terminate_reward = -1
             reward += terminate_reward
