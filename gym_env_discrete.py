@@ -485,7 +485,7 @@ class ur5GymEnv(gym.Env):
         condition_number_reward = -1
         if condition_number > 100:
             self.singularity_terminated = True
-            condition_number_reward = -1
+            condition_number_reward = -5
             reward += condition_number_reward
             print('Too high condition number!')
         #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))

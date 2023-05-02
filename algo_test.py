@@ -17,8 +17,8 @@ from stable_baselines3.common.env_util import make_vec_env
 
 # PARSE ARGUMENTS
 import argparse
-# from args import args_dict
-from args_copy import args_dict
+from args import args_dict
+# from args_copy import args_dict
 
 
 # Create the ArgumentParser object
