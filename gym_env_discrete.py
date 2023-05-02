@@ -356,6 +356,7 @@ class ur5GymEnv(gym.Env):
         # print("RESET")
         self.stepCounter = 0
         self.terminated = False
+        self.singularity_terminated = False
         self.ur5_or = [0.0, 1/2*math.pi, 0.0]
         self.reset_counter+=1
         self.collisions = 0
