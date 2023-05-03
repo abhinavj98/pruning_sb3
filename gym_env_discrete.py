@@ -50,7 +50,7 @@ class Tree():
         self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
         ur5_base_pos, _ = self.env.con.getBasePositionAndOrientation(self.env.ur5)
         self.num_points = num_points
-        self.get_reachable_points(ur5_base_pos)
+        self.get_reachable_points(self.env.ur5)
 
     def active(self):
         self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
@@ -64,20 +64,34 @@ class Tree():
         vertex_w_transform = np.array(self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation))
         return vertex_w_transform
 
-    def is_reachable(self, vertice, ur5_base_pos):
-        ur5_base_pos = np.array(ur5_base_pos)
+    def is_reachable(self, vertice, ur5):
+        ur5_base_pos = np.array(self.env.con.getBasePositionAndOrientation(ur5)[0])
         vertice = vertice[0]
         dist=np.linalg.norm(ur5_base_pos - vertice, axis=-1)
-        if dist <= 1. and vertice[2]>0.2: #Make it hyperparameter
+        if dist >= 1:
+            return False
+        #if check ik, and condition number is less than 1000, then it is reachable
+        j_angles = self.env.calculate_ik(vertice, None)
+        self.env.set_joint_angles(j_angles)
+        #get end effector pose
+        ee_pos, _ = self.env.get_current_pose()
+        # print(ee_pos)
+        dist=np.linalg.norm(np.array(ee_pos) - vertice, axis=-1)
+        condition_number = self.env.get_condition_number()
+        self.env.con.stepSimulation()
+        if dist <= 0.05 and condition_number < 80: #Make it hyperparameter
+            # condition_number = self.env.get_condition_number()
+            # print(vertice, dist, condition_number)
             return True
         return False
 
-    def get_reachable_points(self, ur5_base_pos):
-        self.reachable_points = list(filter(lambda x: self.is_reachable(x, ur5_base_pos), self.transformed_vertices))
+    def get_reachable_points(self, ur5):
+        self.reachable_points = list(filter(lambda x: self.is_reachable(x, ur5), self.transformed_vertices))
         self.reachable_points = [np.array(i[0][0:3]) for i in self.reachable_points]
         np.random.shuffle(self.reachable_points)
         if self.num_points:
             self.reachable_points = self.reachable_points[0:self.num_points]
+        print("Number of reachable points: ", len(self.reachable_points))
         return 
 
     @staticmethod
@@ -461,7 +475,13 @@ class ur5GymEnv(gym.Env):
         c = (self.singularity_terminated == True or self.terminated == True or self.stepCounter > self.maxSteps)
         return c
 
-
+    def get_condition_number(self):
+        #get jacobian
+        jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
+        jacobian = np.vstack(jacobian)
+        condition_number = np.linalg.cond(jacobian)
+        return condition_number
+    
     def compute_reward(self, achieved_goal, achieved_orient, desired_goal, achieved_previous_goal, info):
         reward = float(0)
         reward_info = {}
@@ -479,13 +499,11 @@ class ur5GymEnv(gym.Env):
         reward += movement_reward
        # reward += distance_reward
 
-        jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
-        jacobian = np.vstack(jacobian)
-        condition_number = np.linalg.cond(jacobian)
+        condition_number = self.get_condition_number()
         condition_number_reward = -1
         if condition_number > 100:
             self.singularity_terminated = True
-            condition_number_reward = -5
+            condition_number_reward = -1.5
             reward += condition_number_reward
             print('Too high condition number!')
         #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
