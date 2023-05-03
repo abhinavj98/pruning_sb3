@@ -74,12 +74,13 @@ class Tree():
         j_angles = self.env.calculate_ik(vertice, None)
         self.env.set_joint_angles(j_angles)
         #get end effector pose
+        
+        self.env.con.stepSimulation()
         ee_pos, _ = self.env.get_current_pose()
         # print(ee_pos)
         dist=np.linalg.norm(np.array(ee_pos) - vertice, axis=-1)
         condition_number = self.env.get_condition_number()
-        self.env.con.stepSimulation()
-        if dist <= 0.05 and condition_number < 80: #Make it hyperparameter
+        if dist <= 0.05 and condition_number < 15: #Make it hyperparameter
             # condition_number = self.env.get_condition_number()
             # print(vertice, dist, condition_number)
             return True
@@ -492,7 +493,7 @@ class ur5GymEnv(gym.Env):
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
         scale = 20.
-        movement_reward = np.clip(self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.))*scale , -0.1, 0.1)#Mean around 0 -> Change in distance 0.036
+        movement_reward = np.clip(self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.))*scale , -0.3, 0.3)#Mean around 0 -> Change in distance 0.036
         reward_info['movement_reward'] = movement_reward
         distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))*1/30
         reward_info['distance_reward'] = distance_reward
@@ -503,7 +504,7 @@ class ur5GymEnv(gym.Env):
         condition_number_reward = -1
         if condition_number > 100:
             self.singularity_terminated = True
-            condition_number_reward = -1.5
+            condition_number_reward = -2
             reward += condition_number_reward
             print('Too high condition number!')
         #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
@@ -514,7 +515,7 @@ class ur5GymEnv(gym.Env):
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
             self.terminated = True
-            terminate_reward = 1
+            terminate_reward = 2
             
             reward += terminate_reward
             print('Successful!')
@@ -538,7 +539,7 @@ class ur5GymEnv(gym.Env):
         #Minimize joint velocities
         velocity_mag = np.linalg.norm(self.joint_velocities)/self.maxSteps
         velocity_reward = -np.clip(velocity_mag, -0.1, 0.1)
-        reward += velocity_reward
+        #reward += velocity_rewarid
         reward_info['velocity_reward'] = velocity_reward
         
         
