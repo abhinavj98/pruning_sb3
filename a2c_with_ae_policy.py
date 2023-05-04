@@ -231,6 +231,10 @@ class ActorCriticWithAePolicy(BasePolicy):
         else:
             raise NotImplementedError(f"Unsupported distribution '{self.action_dist}'.")
         self.value_net = nn.Linear(self.latent_dim_vf, 1)
+        self.value_net.apply(self.init_kaiming)
+        self.action_net.apply(self.init_kaiming)
+        self.action_net.bias.data.fill_(0)
+        self.action_net.weight.data =self.action_net.weight.data/10
         self.value_net.weight.data.fill_(0)
         self.value_net.bias.data.fill_(-0.35)
 

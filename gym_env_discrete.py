@@ -100,6 +100,7 @@ class Tree():
         trees = []
         for urdf, obj in zip(sorted(glob.glob(trees_urdf_path+'/*.urdf')), sorted(glob.glob(trees_obj_path+'/*.obj'))):
             trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation = orientation, scale=scale, num_points=num_points))
+            
 
         return trees
    
@@ -426,6 +427,7 @@ class ur5GymEnv(gym.Env):
           #  self.joint_velocities = np.array([0,0,0,0,0,0])
 
         # set joint velocities:
+        # print(self.joint_velocities, action, np.mean(action), np.std(action))
         self.set_joint_velocities(self.joint_velocities)
        
         # step simualator:
@@ -492,7 +494,7 @@ class ur5GymEnv(gym.Env):
         self.delta_movement = float(goal_reward(achieved_goal, achieved_previous_goal, desired_goal))
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
-        scale = 20.
+        scale = 10.
         movement_reward = np.clip(self.delta_movement/(self.maxSteps*np.sqrt(3)*(5./240.))*scale , -0.3, 0.3)#Mean around 0 -> Change in distance 0.036
         reward_info['movement_reward'] = movement_reward
         distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))*1/30
@@ -502,9 +504,9 @@ class ur5GymEnv(gym.Env):
 
         condition_number = self.get_condition_number()
         condition_number_reward = -1
-        if condition_number > 100:
+        if condition_number > 30:
             self.singularity_terminated = True
-            condition_number_reward = -2
+            condition_number_reward = -1
             reward += condition_number_reward
             print('Too high condition number!')
         #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
@@ -515,7 +517,7 @@ class ur5GymEnv(gym.Env):
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
             self.terminated = True
-            terminate_reward = 2
+            terminate_reward = 1
             
             reward += terminate_reward
             print('Successful!')
