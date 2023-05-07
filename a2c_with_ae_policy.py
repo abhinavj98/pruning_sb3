@@ -234,7 +234,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.value_net.apply(self.init_kaiming)
         self.action_net.apply(self.init_kaiming)
         self.action_net.bias.data.fill_(0)
-        self.action_net.weight.data =self.action_net.weight.data/10
+        self.action_net.weight.data = self.action_net.weight.data/10
         self.value_net.weight.data.fill_(0)
         self.value_net.bias.data.fill_(-0.35)
 
@@ -261,7 +261,12 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
         #print all nets in optimizer
         print(self.optimizer, self.optimizer_ae)
-       
+    
+    def make_state_from_obs(self, obs):
+        depth_features = self.extract_features(obs['depth'])
+        #TODO: Normalize inputs
+        robot_features = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos'], obs['joint_angles'], obs['joint_velocities']], dim = 1)
+        return depth_features, robot_features
         
     def forward(self, obs: Dict, deterministic: bool = False, *args, **kwargs) -> Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]:
         """
@@ -274,10 +279,10 @@ class ActorCriticWithAePolicy(BasePolicy):
     
         # Evaluate the values for the given observations
       
-        features = self.extract_features(obs['depth'])
-        state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
-        latent_pi = self.actor(features[0], state)
-        latent_vf = self.critic(features[0], state)
+        depth_features, robot_features = self.make_state_from_obs(obs)
+        # print(depth_features[0].shape, robot_features.shape)
+        latent_pi = self.actor(depth_features[0], robot_features)
+        latent_vf = self.critic(depth_features[0], robot_features)
         values = self.value_net(latent_vf)
         distribution = self._get_action_dist_from_latent(latent_pi)
         actions = distribution.get_actions(deterministic=deterministic)
@@ -328,9 +333,8 @@ class ActorCriticWithAePolicy(BasePolicy):
         :return: Taken action according to the policy
         """
         with th.no_grad():
-            features = self.extract_features(observation['depth'])
-            state = th.cat([observation['cur_pos'], observation['cur_or'], observation['goal_pos']], dim = 1)
-            latent_pi = self.actor(features[0], state)
+            depth_features, robot_features = self.make_state_from_obs(observation)
+            latent_pi = self.actor(depth_features[0], robot_features)
             # latent_vf = self.critic(features[0].detach(), state)
             # values = self.value_net(latent_vf)
             distribution = self._get_action_dist_from_latent(latent_pi)
@@ -338,6 +342,8 @@ class ActorCriticWithAePolicy(BasePolicy):
             # log_prob = distribution.log_prob(actions)
             # return self.get_distribution(observation).get_actions(deterministic=deterministic)
             return distribution.get_actions(deterministic = deterministic)
+    
+
 
     def evaluate_actions(self, obs: th.Tensor, actions: th.Tensor) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
         """
@@ -349,15 +355,14 @@ class ActorCriticWithAePolicy(BasePolicy):
             and entropy of the action distribution.
         """
         # Preprocess the observation if needed
-        features = self.extract_features(obs['depth'])
-        state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
-        latent_pi = self.actor(features[0], state)
-        latent_vf = self.critic(features[0], state)
+        depth_features, robot_features = self.make_state_from_obs(obs)
+        latent_pi = self.actor(depth_features[0], robot_features)
+        latent_vf = self.critic(depth_features[0], robot_features)
         values = self.value_net(latent_vf)
         distribution = self._get_action_dist_from_latent(latent_pi)
         #actions = distribution.get_actions(deterministic=deterministic)
         log_prob = distribution.log_prob(actions)
-        return values, features, log_prob, distribution.entropy()
+        return values, depth_features, log_prob, distribution.entropy()
 
     def get_distribution(self, obs: th.Tensor) -> Distribution:
         """
@@ -365,9 +370,8 @@ class ActorCriticWithAePolicy(BasePolicy):
         :param obs:
         :return: the action distribution.
         """
-        features = self.extract_features(obs['depth'])
-        state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
-        latent_pi = self.actor(features[0], state)
+        depth_features, robot_features = self.make_state_from_obs(obs)
+        latent_pi = self.actor(depth_features[0], robot_features)
         return self._get_action_dist_from_latent(latent_pi)
 
     def predict_values(self, obs: th.Tensor) -> th.Tensor:
@@ -377,9 +381,8 @@ class ActorCriticWithAePolicy(BasePolicy):
         :return: the estimated values.
         """
         with th.no_grad():
-            features = self.extract_features(obs['depth'])
-            state = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos']], dim = 1)
-            latent_vf = self.critic(features[0], state)
+            depth_features, robot_features = self.make_state_from_obs(obs)
+            latent_vf = self.critic(depth_features[0], robot_features)
             return self.value_net(latent_vf)
 
 

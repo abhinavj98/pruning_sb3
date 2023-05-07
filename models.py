@@ -168,19 +168,14 @@ class AutoEncoderSmall(BaseFeaturesExtractor):
 class Actor(nn.Module):
     def __init__(self, state_dim, emb_size):
         super(Actor, self).__init__()
-        emb_ds = int(emb_size/4)
         self.output_dim = emb_size
-        self.conv = nn.Sequential(
-                    nn.Conv2d(128, 16, 1, padding='same'),
-                    nn.ReLU(),
-                    )
         self.dense =  nn.Sequential(
                     nn.Linear(state_dim, emb_size*2),
                     nn.Linear(emb_size*2, emb_size),
                     nn.ReLU(),
                     )
     def forward(self, image_features, state):
-        state = torch.cat((state, state, state),-1)
+        state = torch.cat((state, state),-1)
         dense_input = torch.cat((state, image_features),-1)
         action = self.dense(dense_input)
         return action
@@ -193,8 +188,9 @@ class Critic(nn.Module):
                 nn.Linear(state_dim, emb_size),
                 nn.ReLU(),
                 )
+        
     def forward(self, image_features, state):
-        state = torch.cat((state, state, state),-1)
+        state = torch.cat((state, state),-1)
         dense_input = torch.cat((state, image_features),-1)
         value = self.dense(dense_input)
         return value

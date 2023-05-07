@@ -357,6 +357,7 @@ class PPOAE(OnPolicyAlgorithm):
                 # Clip grad norm
                 th.nn.utils.clip_grad_value_(self.policy.parameters(), self.max_grad_norm)
                 #Replace clip grad_norm with clip by value
+                #TODO: Check if value_net and action_net and log_std are being clipped
                 if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
                     self.policy.optimizer.step()
                 if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:

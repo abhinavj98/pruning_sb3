@@ -164,7 +164,13 @@ class ur5GymEnv(gym.Env):
                         shape = (3,), dtype=np.float32),
             'cur_or': spaces.Box(low = -2,
                         high = 2,
-                        shape = (4,), dtype=np.float32)
+                        shape = (4,), dtype=np.float32),
+            'joint_angles' : spaces.Box(low = -2*np.pi,
+                        high = 2*np.pi,
+                        shape = (6,), dtype=np.float32),
+            'joint_velocities' : spaces.Box(low = -6,
+                        high = 6,
+                        shape = (6,), dtype=np.float32),
                         })
         
         self.reset_counter = 0
@@ -203,7 +209,7 @@ class ur5GymEnv(gym.Env):
         self.init_joint_angles = (-1.57, -1.57,1.80,-3.14,-1.57, -1.57)
         self.set_joint_angles(self.init_joint_angles)
         self.collisions = 0
-        self.joint_velocities = [0,0,0,0,0,0]
+        
         self.near_val = 0.01
         self.far_val = 3
         self.height = height
@@ -230,8 +236,9 @@ class ur5GymEnv(gym.Env):
         self.previous_pose = (np.array(0), np.array(0))
         self.learning_param = learning_param
         self.step_size = 0.05
-        self.action_space = spaces.Box(low=-100.0, high=100.0, shape=(self.action_dim,), dtype=np.float32)
+        self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
         self.joint_velocities = [0,0,0,0,0,0]
+        self.joint_angles = self.init_joint_angles
         # self.action_space = spaces.Discrete(self.action_dim)
         # self.actions = {'+x':0,
         #                 '-x':1,
@@ -437,9 +444,12 @@ class ur5GymEnv(gym.Env):
 
         self.getExtendedObservation()
         reward, reward_infos = self.compute_reward(self.achieved_goal, self.achieved_orient, self.desired_goal, self.previous_goal, None)
-        done = self.my_task_done()
-        
+        done, terminate_info = self.my_task_done()
         infos = {'is_success': False}
+        if terminate_info['time_limit_exceeded']:
+            infos["TimeLimit.truncated"] = True
+            infos["terminal_observation"] = self.observation
+        
         if self.terminated == True:
             infos['is_success'] = True
         self.stepCounter += 1
@@ -472,11 +482,17 @@ class ur5GymEnv(gym.Env):
         self.achieved_orient = self.observation['cur_or'] = np.array(tool_orient).astype(np.float32)
         self.rgb, self.depth = self.get_rgbd_at_cur_pose()
         self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis = 0)
+        self.observation['joint_angles'] = np.array(self.get_joint_angles()).astype(np.float32) - self.init_joint_angles
+        self.observation['joint_velocities'] = np.array(self.joint_velocities).astype(np.float32)
 
     def my_task_done(self):
         # NOTE: need to call compute_reward before this to check termination!
+        time_limit_exceeded = self.stepCounter > self.maxSteps
+        singularity_achieved = self.singularity_terminated
+        goal_achieved = self.terminated
         c = (self.singularity_terminated == True or self.terminated == True or self.stepCounter > self.maxSteps)
-        return c
+        terminate_info = {"time_limit_exceeded": time_limit_exceeded, "singularity_achieved": singularity_achieved, "goal_achieved": goal_achieved}
+        return c, terminate_info
 
     def get_condition_number(self):
         #get jacobian
