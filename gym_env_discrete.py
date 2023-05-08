@@ -511,7 +511,7 @@ class ur5GymEnv(gym.Env):
         self.target_dist = float(goal_distance(achieved_goal, desired_goal))
 
         scale = 10.
-        movement_reward = np.clip(self.delta_movement/(self.maxSteps)*scale , -0.3, 0.3)#Mean around 0 -> Change in distance 0.036
+        movement_reward = np.clip(self.delta_movement*10/(self.maxSteps)*scale , -0.3, 0.3)#Mean around 0 -> Change in distance 0.036
         reward_info['movement_reward'] = movement_reward
         distance_reward = -self.target_dist/(self.maxSteps*np.sqrt(3)*(5./240.))*1/30
         reward_info['distance_reward'] = distance_reward
@@ -520,14 +520,15 @@ class ur5GymEnv(gym.Env):
 
         condition_number = self.get_condition_number()
         condition_number_reward = -1
-        if condition_number > 30:
+        if condition_number > 100:
             self.singularity_terminated = True
+            #self.set_joint_angles(self.init_joint_angles)
             condition_number_reward = -3
             reward += condition_number_reward
             print('Too high condition number!')
         #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
         else:
-            condition_number_reward = np.abs(1/condition_number)/self.maxSteps
+            condition_number_reward = 20*np.abs(1/condition_number)/self.maxSteps
             reward += condition_number_reward
         reward_info['condition_number_reward'] = condition_number_reward
         terminate_reward = 0
@@ -552,7 +553,7 @@ class ur5GymEnv(gym.Env):
         
         slack_reward = -0.1/self.maxSteps*scale
         reward_info['slack_reward'] = slack_reward
-        reward+= slack_reward
+        #reward+= slack_reward
 
         #Minimize joint velocities
         velocity_mag = np.linalg.norm(self.joint_velocities)/self.maxSteps
