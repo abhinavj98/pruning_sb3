@@ -14,6 +14,7 @@ from stable_baselines3.common.distributions import (
     BernoulliDistribution,
     CategoricalDistribution,
     DiagGaussianDistribution,
+    SquashedDiagGaussianDistribution,
     Distribution,
     MultiCategoricalDistribution,
     StateDependentNoiseDistribution,
@@ -216,20 +217,23 @@ class ActorCriticWithAePolicy(BasePolicy):
         #Initialize value_net and action_net with kaiming
         self.latent_dim_pi = self.actor.output_dim
         self.latent_dim_vf = self.critic.output_dim
-        self.action_dist = make_proba_distribution(self.action_space, use_sde=False, dist_kwargs=self.dist_kwargs)
-        
-        if isinstance(self.action_dist, DiagGaussianDistribution):
-            self.action_net, self.log_std = self.action_dist.proba_distribution_net(
+        self.action_dist = SquashedDiagGaussianDistribution(get_action_dim(self.action_space))#make_proba_distribution(self.action_space, use_sde=False, dist_kwargs=self.dist_kwargs)
+        self.action_net, self.log_std = self.action_dist.proba_distribution_net(
                 latent_dim=self.latent_dim_pi, log_std_init=self.log_std_init
             )
-        elif isinstance(self.action_dist, StateDependentNoiseDistribution):
-            self.action_net, self.log_std = self.action_dist.proba_distribution_net(
-                latent_dim=self.latent_dim_pi, latent_sde_dim=latent_dim_pi, log_std_init=self.log_std_init
-            )
-        elif isinstance(self.action_dist, (CategoricalDistribution, MultiCategoricalDistribution, BernoulliDistribution)):
-            self.action_net = self.action_dist.proba_distribution_net(latent_dim=self.latent_dim_pi)
-        else:
-            raise NotImplementedError(f"Unsupported distribution '{self.action_dist}'.")
+        #TODO: Use squashed gaussian for continuous action space
+        # if isinstance(self.action_dist, DiagGaussianDistribution):
+        #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
+        #         latent_dim=self.latent_dim_pi, log_std_init=self.log_std_init
+        #     )
+        # elif isinstance(self.action_dist, StateDependentNoiseDistribution):
+        #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
+        #         latent_dim=self.latent_dim_pi, latent_sde_dim=latent_dim_pi, log_std_init=self.log_std_init
+        #     )
+        # elif isinstance(self.action_dist, (CategoricalDistribution, MultiCategoricalDistribution, BernoulliDistribution)):
+        #     self.action_net = self.action_dist.proba_distribution_net(latent_dim=self.latent_dim_pi)
+        # else:
+        #     raise NotImplementedError(f"Unsupported distribution '{self.action_dist}'.")
         self.value_net = nn.Linear(self.latent_dim_vf, 1)
         self.value_net.apply(self.init_kaiming)
         self.action_net.apply(self.init_kaiming)
@@ -382,7 +386,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         """
         with th.no_grad():
             depth_features, robot_features = self.make_state_from_obs(obs)
-            latent_vf = self.critic(depth_features[0], robot_features)
+            latent_vf = self.critic(depth_features[0], robot_features.float())
             return self.value_net(latent_vf)
 
 

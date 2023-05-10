@@ -171,6 +171,7 @@ class Actor(nn.Module):
         self.output_dim = emb_size
         self.dense =  nn.Sequential(
                     nn.Linear(state_dim, emb_size*2),
+                    nn.ReLU(),
                     nn.Linear(emb_size*2, emb_size),
                     nn.ReLU(),
                     )

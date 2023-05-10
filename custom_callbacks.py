@@ -3,6 +3,8 @@ from stable_baselines3.common.callbacks import BaseCallback, EventCallback, Call
 import gym
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.logger import Video
+
+from stable_baselines3.common.running_mean_std import RunningMeanStd
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import os
@@ -17,6 +19,7 @@ class CustomTrainCallback(BaseCallback):
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
     def __init__(self, verbose=0):
+     
         super(CustomTrainCallback, self).__init__(verbose)
         # Those variables will be accessible in the callback
         # (they are defined in the base class)
@@ -35,6 +38,13 @@ class CustomTrainCallback(BaseCallback):
         # Sometimes, for event callback, it is useful
         # to have access to the parent object
         self.parent = None  # type: Optional[BaseCallback]
+        self.running_mean_std_joint_velocities = RunningMeanStd(shape=(6,))
+        self.running_mean_std_cur_pos = RunningMeanStd(shape=(3,))
+        self.running_mean_std_cur_or = RunningMeanStd(shape=(4,))
+        self.running_mean_std_goal_pos = RunningMeanStd(shape=(3,))
+        self.running_mean_std_joint_angles = RunningMeanStd(shape=(6,))
+        self.running_mean_std_depth = RunningMeanStd(shape=(1,))
+
 
     def _on_training_start(self) -> None:
         """
@@ -75,6 +85,28 @@ class CustomTrainCallback(BaseCallback):
         self.logger.record("rollout/condition_number_reward", infos[0]["condition_number_reward"])
         self.logger.record("rollout/velocity_reward", infos[0]["velocity_reward"])
         # self.logger.record("train/singularit_terminated", info["total_reward"])
+        # Get rollout buffer
+        rollout_buffer = self.locals["rollout_buffer"]
+        observation = rollout_buffer.get()
+        for obs in observation:
+            self.running_mean_std_joint_velocities.update(np.array(obs[0]["joint_velocities"]))
+            self.running_mean_std_cur_pos.update(np.array(obs[0]["cur_pos"]))
+            self.running_mean_std_cur_or.update(np.array(obs[0]["cur_or"]))
+            self.running_mean_std_goal_pos.update(np.array(obs[0]["goal_pos"]))
+            self.running_mean_std_joint_angles.update(np.array(obs[0]["joint_angles"]))
+            self.running_mean_std_depth.update(np.array(obs[0]["depth"].reshape(-1)))
+       
+        #Make a string of all the means and vars
+        str_log = str("joint_velocitites"+ str(self.running_mean_std_joint_velocities.mean) + " " + str(self.running_mean_std_joint_velocities.var) + "\n" + \
+                        "cur_pos" + str(self.running_mean_std_cur_pos.mean) + " " + str(self.running_mean_std_cur_pos.var) + "\n" +\
+                        "cur_or" + str(self.running_mean_std_cur_or.mean) + " " + str(self.running_mean_std_cur_or.var) + "\n" +\
+                        "goal_pos" + str(self.running_mean_std_goal_pos.mean) + " " + str(self.running_mean_std_goal_pos.var) + "\n" +\
+                        "joint_angles" + str(self.running_mean_std_joint_angles.mean) + " " + str(self.running_mean_std_joint_angles.var) + "\n" +\
+                        "depth" + str(self.running_mean_std_depth.mean) + " " + str(self.running_mean_std_depth.var) + "\n")
+        #Add text to tensorboard
+        self.logger.record("Means_and_vars", str_log)
+
+
 
     def _on_training_end(self) -> None:
         """
