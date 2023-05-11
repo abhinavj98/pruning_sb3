@@ -33,7 +33,7 @@ args_dict = {
     },
     'STATE_DIM': {
         'type': int,
-        'default': 72+22*2,
+        'default': 72+16*2,
         'help': 'dimension of the state space'
     },
     #Gym envirionment parameters
@@ -70,7 +70,7 @@ args_dict = {
     },
     'LEARNING_RATE': {
         'type': float,
-        'default': 0.001,
+        'default': 0.00001,
         'help': 'learning rate'
     },
     #Evaluation parameters

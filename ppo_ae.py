@@ -110,7 +110,7 @@ class PPOAE(OnPolicyAlgorithm):
         ae_coef: float = 1,
         train_iterations_ae: int = 1,
         train_iterations_a2c: int = 1,
-        max_grad_norm: float = 1,
+        max_grad_norm: float = 0.5,
         use_sde: bool = False,
         sde_sample_freq: int = -1,
         target_kl: Optional[float] = None,
@@ -294,6 +294,7 @@ class PPOAE(OnPolicyAlgorithm):
                 # ratio between old and new policy, should be one at the first iteration
                 if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
                     ratio = th.exp(log_prob - rollout_data.old_log_prob)
+                    # print("RATIO", ratio)
 
                     # clipped surrogate loss
                     policy_loss_1 = advantages * ratio

@@ -236,9 +236,9 @@ class ActorCriticWithAePolicy(BasePolicy):
         #     raise NotImplementedError(f"Unsupported distribution '{self.action_dist}'.")
         self.value_net = nn.Linear(self.latent_dim_vf, 1)
         self.value_net.apply(self.init_kaiming)
-        self.action_net.apply(self.init_kaiming)
+        # self.action_net.apply(self.init_kaiming)
         self.action_net.bias.data.fill_(0)
-        self.action_net.weight.data = self.action_net.weight.data/10
+        # self.action_net.weight.data = self.action_net.weight.data/10
         self.value_net.weight.data.fill_(0)
         self.value_net.bias.data.fill_(-0.35)
 
@@ -269,7 +269,7 @@ class ActorCriticWithAePolicy(BasePolicy):
     def make_state_from_obs(self, obs):
         depth_features = self.extract_features(obs['depth'])
         #TODO: Normalize inputs
-        robot_features = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos'], obs['joint_angles'], obs['joint_velocities']], dim = 1)
+        robot_features = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos'], obs['joint_angles']], dim = 1)
         return depth_features, robot_features
         
     def forward(self, obs: Dict, deterministic: bool = False, *args, **kwargs) -> Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]:

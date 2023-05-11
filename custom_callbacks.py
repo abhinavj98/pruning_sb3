@@ -86,25 +86,26 @@ class CustomTrainCallback(BaseCallback):
         self.logger.record("rollout/velocity_reward", infos[0]["velocity_reward"])
         # self.logger.record("train/singularit_terminated", info["total_reward"])
         # Get rollout buffer
-        rollout_buffer = self.locals["rollout_buffer"]
-        observation = rollout_buffer.get()
-        for obs in observation:
-            self.running_mean_std_joint_velocities.update(np.array(obs[0]["joint_velocities"]))
-            self.running_mean_std_cur_pos.update(np.array(obs[0]["cur_pos"]))
-            self.running_mean_std_cur_or.update(np.array(obs[0]["cur_or"]))
-            self.running_mean_std_goal_pos.update(np.array(obs[0]["goal_pos"]))
-            self.running_mean_std_joint_angles.update(np.array(obs[0]["joint_angles"]))
-            self.running_mean_std_depth.update(np.array(obs[0]["depth"].reshape(-1)))
+        # rollout_buffer = self.locals["rollout_buffer"]
+        # observation = rollout_buffer.get()
+        # for obs in observation:
+        #     self.running_mean_std_joint_velocities.update(np.array(obs[0]["joint_velocities"]))
+        #     self.running_mean_std_cur_pos.update(np.array(obs[0]["cur_pos"]))
+        #     self.running_mean_std_cur_or.update(np.array(obs[0]["cur_or"]))
+        #     self.running_mean_std_goal_pos.update(np.array(obs[0]["goal_pos"]))
+        #     self.running_mean_std_joint_angles.update(np.array(obs[0]["joint_angles"]))
+        #     self.running_mean_std_depth.update(np.array(obs[0]["depth"].reshape(-1)))
        
-        #Make a string of all the means and vars
-        str_log = str("joint_velocitites"+ str(self.running_mean_std_joint_velocities.mean) + " " + str(self.running_mean_std_joint_velocities.var) + "\n" + \
-                        "cur_pos" + str(self.running_mean_std_cur_pos.mean) + " " + str(self.running_mean_std_cur_pos.var) + "\n" +\
-                        "cur_or" + str(self.running_mean_std_cur_or.mean) + " " + str(self.running_mean_std_cur_or.var) + "\n" +\
-                        "goal_pos" + str(self.running_mean_std_goal_pos.mean) + " " + str(self.running_mean_std_goal_pos.var) + "\n" +\
-                        "joint_angles" + str(self.running_mean_std_joint_angles.mean) + " " + str(self.running_mean_std_joint_angles.var) + "\n" +\
-                        "depth" + str(self.running_mean_std_depth.mean) + " " + str(self.running_mean_std_depth.var) + "\n")
-        #Add text to tensorboard
-        self.logger.record("Means_and_vars", str_log)
+        # #Make a string of all the means and vars
+        # str_log = str("joint_velocitites"+ str(self.running_mean_std_joint_velocities.mean) + " " + str(self.running_mean_std_joint_velocities.var) + "\n" + \
+        #                 "cur_pos" + str(self.running_mean_std_cur_pos.mean) + " " + str(self.running_mean_std_cur_pos.var) + "\n" +\
+        #                 "cur_or" + str(self.running_mean_std_cur_or.mean) + " " + str(self.running_mean_std_cur_or.var) + "\n" +\
+        #                 "goal_pos" + str(self.running_mean_std_goal_pos.mean) + " " + str(self.running_mean_std_goal_pos.var) + "\n" +\
+        #                 "joint_angles" + str(self.running_mean_std_joint_angles.mean) + " " + str(self.running_mean_std_joint_angles.var) + "\n" +\
+        #                 "depth" + str(self.running_mean_std_depth.mean) + " " + str(self.running_mean_std_depth.var) + "\n")
+        # #Add text to tensorboard
+        # print(str_log)
+        # self.logger.record("Means_and_vars", str_log)
 
 
 

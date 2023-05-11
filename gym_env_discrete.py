@@ -100,6 +100,7 @@ class Tree():
         trees = []
         for urdf, obj in zip(sorted(glob.glob(trees_urdf_path+'/*.urdf')), sorted(glob.glob(trees_obj_path+'/*.obj'))):
             trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation = orientation, scale=scale, num_points=num_points))
+            
         return trees
    
         
@@ -206,6 +207,9 @@ class ur5GymEnv(gym.Env):
         # object:
         self.init_joint_angles = (-1.57, -1.57,1.80,-3.14,-1.57, -1.57)
         self.set_joint_angles(self.init_joint_angles)
+        for i in range(1000):
+            self.con.stepSimulation()
+        self.init_pos = self.con.getLinkState(self.ur5, self.end_effector_index)
         self.collisions = 0
         
         self.near_val = 0.01
@@ -425,37 +429,37 @@ class ur5GymEnv(gym.Env):
         # get current position:
         curr_p = self.get_current_pose()
         self.previous_pose = curr_p
-        dt = 1/240
+        dt = 25/240
         action_scale = 0.5
         action = action*action_scale
         # calculate joint velocities:
         self.prev_joint_velocities = self.joint_velocities
         self.joint_velocities = self.calculate_joint_velocities_from_end_effector_velocity(action)
         self.max_joint_velocities = np.array([6,6,6,6,6,6])
-      
-        #check if delta movement in action norm will cause singualrity by calculating IK solution
-        if self.follow_ik_constraints:
-            self.tree.inactive()
-            prev_joint_angles = self.get_joint_angles()
-            joint_angles = self.calculate_ik(self.achieved_goal +action[0:3]*dt, None)
-            self.set_joint_angles(joint_angles)
-            for i in range(100):
-                self.con.stepSimulation()
-            if (abs(self.achieved_goal + action[0:3]*dt - self.get_current_pose()[0])>1e-3).any():
-                #singularity detected, dont move
-                print("SINGULARITY")
-                self.set_joint_angles(prev_joint_angles)
-                for i in range(100):
-                    self.con.stepSimulation()
-                self.set_joint_velocities(np.zeros(6))
-            else:
-                self.set_joint_angles(prev_joint_angles)
-                for i in range(100):
-                    self.con.stepSimulation()  
-                self.set_joint_velocities(self.joint_velocities)
-            self.tree.active()
-        else:
-            self.set_joint_velocities(self.joint_velocities)
+        # print(self.get_current_pose()[0], self.achieved_goal + 100*action[0:3]*dt)
+        # #check if delta movement in action norm will cause singualrity by calculating IK solution
+        # if self.follow_ik_constraints:
+        #     self.tree.inactive()
+        #     prev_joint_angles = self.get_joint_angles()
+        #     joint_angles = self.calculate_ik(self.achieved_goal + action[0:3]*dt, None)
+        #     self.set_joint_angles(joint_angles)
+        #     for i in range(1000):
+        #         self.con.stepSimulation()
+        #     if (abs(self.achieved_goal + action[0:3]*dt - self.get_current_pose()[0])>1e-3).any():
+        #         #singularity detected, dont move
+        #         print("SINGULARITY")
+        #         self.set_joint_angles(prev_joint_angles)
+        #         for i in range(1000):
+        #             self.con.stepSimulation()
+        #         self.set_joint_velocities(np.zeros(6))
+        #     else:
+        #         self.set_joint_angles(prev_joint_angles)
+        #         for i in range(100):
+        #             self.con.stepSimulation()  
+        #         self.set_joint_velocities(self.joint_velocities)
+        #     self.tree.active()
+        # else:
+        self.set_joint_velocities(self.joint_velocities)
         # step simualator:
         # self.set_joint_velocities(self.joint_velocities)
         for i in range(5):
@@ -495,8 +499,8 @@ class ur5GymEnv(gym.Env):
         tool_pos, tool_orient = self.get_current_pose()
         goal_pos = self.tree_point_pos
 
-        self.achieved_goal = self.observation['cur_pos'] = np.array(tool_pos).astype(np.float32)
-        self.desired_goal = self.observation['goal_pos'] = np.array(goal_pos).astype(np.float32)
+        self.achieved_goal = self.observation['cur_pos'] = np.array(tool_pos).astype(np.float32) - np.array(self.init_pos[0]).astype(np.float32)
+        self.desired_goal = self.observation['goal_pos'] = np.array(goal_pos).astype(np.float32) - np.array(self.init_pos[0]).astype(np.float32)
         self.previous_goal = np.array(self.previous_pose[0])
         self.previous_orient = np.array(self.previous_pose[1])
         self.achieved_orient = self.observation['cur_or'] = np.array(tool_orient).astype(np.float32)
@@ -521,14 +525,14 @@ class ur5GymEnv(gym.Env):
         condition_number = np.linalg.cond(jacobian)
         return condition_number
     
-    def compute_reward(self, achieved_goal, achieved_orient, desired_goal, achieved_previous_goal, info):
+    def compute_reward(self, achieved_pos, achieved_orient, desired_pos, achieved_previous_pos, info):
         reward = float(0)
         reward_info = {}
         # Give rewards better names, and appropriate scales
 
         self.collisions = 0
-        self.delta_movement = float(goal_reward(achieved_goal, achieved_previous_goal, desired_goal))
-        self.target_dist = float(goal_distance(achieved_goal, desired_goal))
+        self.delta_movement = float(goal_reward(achieved_pos, achieved_previous_pos, desired_pos))
+        self.target_dist = float(goal_distance(achieved_pos, desired_pos))
 
         scale = 10.
         movement_reward = np.clip(self.delta_movement/(self.maxSteps)*scale , -0.3, 0.3)#Mean around 0 -> Change in distance 0.036
@@ -538,8 +542,23 @@ class ur5GymEnv(gym.Env):
         reward += movement_reward
        # reward += distance_reward
 
+       
         condition_number = self.get_condition_number()
         condition_number_reward = -1
+        if condition_number > 70:
+            # self.singularity_terminated = True
+            print(self.init_joint_angles)
+            self.tree.inactive()
+            self.set_joint_velocities(np.zeros(6))
+            self.set_joint_angles(self.init_joint_angles)
+            
+            condition_number_reward = -0.25
+            reward += condition_number_reward
+            for i in range(100):
+                self.con.stepSimulation()
+            self.tree.active()
+            self.previous_pose = self.get_current_pose()
+            print('Too high condition number!')
         # if condition_number > 100:
         #     self.singularity_terminated = True
         #     #self.set_joint_angles(self.init_joint_angles)
@@ -592,6 +611,6 @@ class ur5GymEnv(gym.Env):
         #     self.logger.record("eval/total_reward", reward)
         #     self.logger.record("eval/condition_number_reward", condition_number_reward)
         #     self.logger.record("eval/velocity_reward", velocity_reward)
-
+        # print(reward)
         return reward, reward_info
 

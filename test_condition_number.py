@@ -35,29 +35,29 @@ while True:
     action = get_key_pressed(env)
     #if action is wasd, then move the robot
     if ord('a') in action:
-        val = np.array([0.1,0,0,0,0,0])
+        val = np.array([1,0,0,0,0,0])
     elif ord('d') in action:
-        val = np.array([-0.1,0,0,0,0,0])
+        val = np.array([-1,0,0,0,0,0])
     elif ord('s') in action:
-        val = np.array([0,0.1,0,0,0,0])
+        val = np.array([0,1,0,0,0,0])
     elif ord('w') in action:
-        val = np.array([0,-0.1,0,0,0,0])
+        val = np.array([0,-1,0,0,0,0])
     elif ord('q') in action:
-        val = np.array([0,0,0.1,0,0,0])
+        val = np.array([0,0,1,0,0,0])
     elif ord('e') in action:
-        val = np.array([0,0,-0.1,0,0,0])
+        val = np.array([0,0,-1,0,0,0])
     elif ord('z') in action:
-        val = np.array([0,0,0,0.1,0,0])
+        val = np.array([0,0,0,1,0,0])
     elif ord('c') in action:
-        val = np.array([0,0,0,-0.1,0,0])
+        val = np.array([0,0,0,-1,0,0])
     elif ord('x') in action:
-        val = np.array([0,0,0,0,0.1,0])
+        val = np.array([0,0,0,0,1,0])
     elif ord('v') in action:
-        val = np.array([0,0,0,0,-0.1,0])
+        val = np.array([0,0,0,0,-1,0])
     elif ord('r') in action:
-        val = np.array([0,0,0,0,0,0.1])
+        val = np.array([0,0,0,0,0,1])
     elif ord('f') in action:
-        val = np.array([0,0,0,0,0,-0.1])
+        val = np.array([0,0,0,0,0,-1])
     elif ord('t') in action:
         env.reset()
     else:
