@@ -136,7 +136,7 @@ class ur5GymEnv(gym.Env):
         self.eval = eval
         assert tree_urdf_path != None
         assert tree_obj_path != None
-
+        self.terminate_on_singularity = True
         self.tree_urdf_path = tree_urdf_path
         self.tree_obj_path = tree_obj_path
         # setup pybullet sim:
@@ -546,29 +546,27 @@ class ur5GymEnv(gym.Env):
         condition_number = self.get_condition_number()
         condition_number_reward = -1
         if condition_number > 70:
-            # self.singularity_terminated = True
-            print(self.init_joint_angles)
-            self.tree.inactive()
-            self.set_joint_velocities(np.zeros(6))
-            self.set_joint_angles(self.init_joint_angles)
-            
-            condition_number_reward = -0.25
-            reward += condition_number_reward
-            for i in range(100):
-                self.con.stepSimulation()
-            self.tree.active()
-            self.previous_pose = self.get_current_pose()
             print('Too high condition number!')
-        # if condition_number > 100:
-        #     self.singularity_terminated = True
-        #     #self.set_joint_angles(self.init_joint_angles)
-        #     condition_number_reward = -3
-        #     reward += condition_number_reward
-        #     print('Too high condition number!')
-        # #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
-        # else:
-        #     condition_number_reward = 20*np.abs(1/condition_number)/self.maxSteps
-        #     reward += condition_number_reward
+            if not self.terminate_on_singularity:
+                self.tree.inactive()
+                self.set_joint_velocities(np.zeros(6))
+                self.set_joint_angles(self.init_joint_angles)
+                
+                condition_number_reward = -0.25
+                reward += condition_number_reward
+                for i in range(100):
+                    self.con.stepSimulation()
+                self.tree.active()
+                self.previous_pose = self.get_current_pose()
+            else:    
+                self.singularity_terminated = True
+                #self.set_joint_angles(self.init_joint_angles)
+                condition_number_reward = -3
+                reward += condition_number_reward
+        #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
+        elif self.terminate_on_singularity:
+            condition_number_reward = np.abs(1/condition_number)/self.maxSteps
+            reward += condition_number_reward
         reward_info['condition_number_reward'] = condition_number_reward
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
