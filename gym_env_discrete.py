@@ -70,7 +70,7 @@ class Tree():
         dist=np.linalg.norm(ur5_base_pos - vertice, axis=-1)
         if dist >= 1:
             return False
-        #if check ik, and condition number is less than 1000, then it is reachable
+        #if check ik, and condition number is less than 70, then it is reachable
         j_angles = self.env.calculate_ik(vertice, None)
         self.env.set_joint_angles(j_angles)
         #get end effector pose
@@ -80,7 +80,7 @@ class Tree():
         # print(ee_pos)
         dist=np.linalg.norm(np.array(ee_pos) - vertice, axis=-1)
         condition_number = self.env.get_condition_number()
-        if dist <= 0.05 and condition_number < 15: #Make it hyperparameter
+        if dist <= 0.05 and condition_number < 50: #Make it hyperparameter
             # condition_number = self.env.get_condition_number()
             # print(vertice, dist, condition_number)
             return True
@@ -537,7 +537,7 @@ class ur5GymEnv(gym.Env):
         scale = 5.
         movement_reward = np.clip(self.delta_movement/(self.maxSteps)*scale , -0.3, 0.3)#Mean around 0 -> Change in distance 0.036
         reward_info['movement_reward'] = movement_reward
-        distance_reward = np.exp(-self.target_dist*5)/10
+        distance_reward = np.exp(-self.target_dist*5)/30
         reward_info['distance_reward'] = distance_reward
         reward += movement_reward
         reward += distance_reward
@@ -588,7 +588,7 @@ class ur5GymEnv(gym.Env):
             # print('Collision!')
         reward_info['collision_reward'] = collision_reward
         
-        slack_reward = -0.3/self.maxSteps*scale
+        slack_reward = -0.6/self.maxSteps*scale
         reward_info['slack_reward'] = slack_reward
         reward+= slack_reward
 
