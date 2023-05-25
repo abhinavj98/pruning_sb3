@@ -194,8 +194,8 @@ class ActorCriticWithAePolicy(BasePolicy):
     def _build_actor_critic(self) -> None:
         self.actor = self.actor_class(**self.actor_kwargs).to(self.device)
         self.critic = self.critic_class(**self.critic_kwargs).to(self.device)
-        self.actor.apply(self.init_kaiming)
-        self.critic.apply(self.init_kaiming)
+        #self.actor.apply(self.init_kaiming)
+        #self.critic.apply(self.init_kaiming)
         
     @staticmethod    
     def init_kaiming(m):
@@ -212,7 +212,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         #Make Actor Critic using actro critic class and kwargs, update get constructor parameters as welll
         self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
         self.features_dim = self.features_extractor.features_dim
-        self.features_extractor.apply(self.init_kaiming)
+        #self.features_extractor.apply(self.init_kaiming)
         self._build_actor_critic()
         #Initialize value_net and action_net with kaiming
         self.latent_dim_pi = self.actor.output_dim
@@ -235,30 +235,30 @@ class ActorCriticWithAePolicy(BasePolicy):
         # else:
         #     raise NotImplementedError(f"Unsupported distribution '{self.action_dist}'.")
         self.value_net = nn.Linear(self.latent_dim_vf, 1)
-        self.value_net.apply(self.init_kaiming)
-        # self.action_net.apply(self.init_kaiming)
-        self.action_net.bias.data.fill_(0)
-        # self.action_net.weight.data = self.action_net.weight.data/10
-        self.value_net.weight.data.fill_(0)
-        self.value_net.bias.data.fill_(-0.35)
+        #self.value_net.apply(self.init_kaiming)
+        #self.action_net.apply(self.init_kaiming)
+        #self.action_net.bias.data.fill_(0)
+        #self.action_net.weight.data = self.action_net.weight.data*2
+        #self.value_net.weight.data.fill_(0)
+        #self.value_net.bias.data.fill_(-0.35)
 
         # Init weights: use orthogonal initialization
         # with small initial weight for the output
-        # if self.ortho_init:
-        #     # TODO: check for features_extractor
-        #     # Values from stable-baselines.
-        #     # features_extractor/mlp values are
-        #     # originally from openai/baselines (default gains/init_scales).
-        #     module_gains = {
-        #         self.features_extractor: np.sqrt(2),
-        #         self.actor: np.sqrt(2),
-        #         self.critic: np.sqrt(2),
-        #         #self.mlp_extractor: np.sqrt(2),
-        #         self.action_net: 0.01,
-        #         self.value_net: 1,
-        #     }
-        #     for module, gain in module_gains.items():
-        #         module.apply(partial(self.init_weights, gain=gain))
+        if self.ortho_init:
+             # TODO: check for features_extractor
+             # Values from stable-baselines.
+             # features_extractor/mlp values are
+             # originally from openai/baselines (default gains/init_scales).
+             module_gains = {
+                 self.features_extractor: np.sqrt(2),
+                 self.actor: np.sqrt(2),
+                 self.critic: np.sqrt(2),
+                 #self.mlp_extractor: np.sqrt(2),
+                 self.action_net: 0.1,
+                 self.value_net: 1,
+             }
+             for module, gain in module_gains.items():
+                 module.apply(partial(self.init_weights, gain=gain))
 
         # Setup optimizer with initial learning rate
         self.optimizer = self.optimizer_class([*self.actor.parameters(), *self.critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters(), self.log_std], lr=lr_schedule(1), **self.optimizer_kwargs)

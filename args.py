@@ -65,7 +65,7 @@ args_dict = {
     },
     'BATCH_SIZE': {
         'type': int,
-        'default': 100,
+        'default': 128,
         'help': 'batch size'
     },
     'LEARNING_RATE': {
@@ -76,7 +76,7 @@ args_dict = {
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 500,
+        'default': 1001,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {

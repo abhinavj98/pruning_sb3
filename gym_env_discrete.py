@@ -121,7 +121,7 @@ class Tree():
 class ur5GymEnv(gym.Env):
     def __init__(self,
                  renders=False,
-                 maxSteps=100,
+                 maxSteps=1000,
                  learning_param=0.05,
                  tree_urdf_path = None,
                  tree_obj_path = None,
@@ -430,7 +430,7 @@ class ur5GymEnv(gym.Env):
         curr_p = self.get_current_pose()
         self.previous_pose = curr_p
         dt = 25/240
-        action_scale = 0.5
+        action_scale = 1
         action = action*action_scale
         # calculate joint velocities:
         self.prev_joint_velocities = self.joint_velocities
@@ -462,7 +462,7 @@ class ur5GymEnv(gym.Env):
         self.set_joint_velocities(self.joint_velocities)
         # step simualator:
         # self.set_joint_velocities(self.joint_velocities)
-        for i in range(5):
+        for i in range(1):
             self.con.stepSimulation()
             # if self.renders: time.sleep(5./240.) 
         # self.tree.active()
@@ -499,14 +499,22 @@ class ur5GymEnv(gym.Env):
         tool_pos, tool_orient = self.get_current_pose()
         goal_pos = self.tree_point_pos
 
-        self.achieved_goal = self.observation['cur_pos'] = np.array(tool_pos).astype(np.float32) - np.array(self.init_pos[0]).astype(np.float32)
-        self.desired_goal = self.observation['goal_pos'] = np.array(goal_pos).astype(np.float32) - np.array(self.init_pos[0]).astype(np.float32)
+        self.achieved_goal = np.array(tool_pos).astype(np.float32) 
+        self.observation['cur_pos'] = np.array(tool_pos).astype(np.float32) - np.array(self.init_pos[0]).astype(np.float32)
+
+        self.desired_goal = np.array(goal_pos).astype(np.float32)
+        self.observation['goal_pos'] = np.array(goal_pos).astype(np.float32) - np.array(self.init_pos[0]).astype(np.float32)
+
         self.previous_goal = np.array(self.previous_pose[0])
         self.previous_orient = np.array(self.previous_pose[1])
+
         self.achieved_orient = self.observation['cur_or'] = np.array(tool_orient).astype(np.float32)
+
         self.rgb, self.depth = self.get_rgbd_at_cur_pose()
         self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis = 0)
-        self.joint_angles = self.observation['joint_angles'] = np.array(self.get_joint_angles()).astype(np.float32) - self.init_joint_angles
+
+        self.joint_angles = np.array(self.get_joint_angles()).astype(np.float32)
+        self.observation['joint_angles'] = np.array(self.get_joint_angles()).astype(np.float32) - self.init_joint_angles
         self.observation['joint_velocities'] = np.array(self.joint_velocities).astype(np.float32)
 
     def my_task_done(self):
@@ -534,18 +542,18 @@ class ur5GymEnv(gym.Env):
         self.delta_movement = float(goal_reward(achieved_pos, achieved_previous_pos, desired_pos))
         self.target_dist = float(goal_distance(achieved_pos, desired_pos))
 
-        scale = 5.
+        scale = 10.
         movement_reward = np.clip(self.delta_movement/(self.maxSteps)*scale , -0.3, 0.3)#Mean around 0 -> Change in distance 0.036
         reward_info['movement_reward'] = movement_reward
-        distance_reward = np.exp(-self.target_dist*5)/30
+        distance_reward = np.exp(-self.target_dist*5)/70
         reward_info['distance_reward'] = distance_reward
         reward += movement_reward
-        reward += distance_reward
+        #reward += distance_reward
 
        
         condition_number = self.get_condition_number()
         condition_number_reward = -1
-        if condition_number > 70:
+        if condition_number > 50 or (self.joint_velocities > 5).any():
             print('Too high condition number!')
             if not self.terminate_on_singularity:
                 self.tree.inactive()
@@ -561,17 +569,17 @@ class ur5GymEnv(gym.Env):
             else:    
                 self.singularity_terminated = True
                 #self.set_joint_angles(self.init_joint_angles)
-                condition_number_reward = -1
+                condition_number_reward = -3
                 reward += condition_number_reward
         #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
         elif self.terminate_on_singularity:
-            condition_number_reward = np.abs(1/condition_number)/(10*self.maxSteps)
-            reward += condition_number_reward
+            condition_number_reward = np.abs(1/condition_number)/(30*self.maxSteps)
+            #reward += condition_number_reward
         reward_info['condition_number_reward'] = condition_number_reward
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
             self.terminated = True
-            terminate_reward = 1
+            terminate_reward = 5
             
             reward += terminate_reward
             print('Successful!')
@@ -582,15 +590,15 @@ class ur5GymEnv(gym.Env):
         collision_reward = 0
         if self.check_collisions():
             collision_reward = -0.3/self.maxSteps*scale
-            reward += collision_reward
+            #reward += collision_reward
             collision = True
             self.collisions+=1
             # print('Collision!')
         reward_info['collision_reward'] = collision_reward
         
-        slack_reward = -0.6/self.maxSteps*scale
+        slack_reward = -0.0035/self.maxSteps*scale
         reward_info['slack_reward'] = slack_reward
-        reward+= slack_reward
+        #reward+= slack_reward
 
         #Minimize joint velocities
         velocity_mag = np.linalg.norm(self.joint_velocities)/self.maxSteps

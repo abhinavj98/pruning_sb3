@@ -79,7 +79,7 @@ env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_
 env = make_vec_env(ur5GymEnv, env_kwargs = env_kwargs, n_envs = args.N_ENVS)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
-eval_env = ur5GymEnv(renders=False, tree_urdf_path= args.TREE_TEST_URDF_PATH, tree_obj_path=args.TREE_TEST_OBJ_PATH, name = "evalenv", num_points = args.EVAL_POINTS)
+eval_env = ur5GymEnv(renders=False, tree_urdf_path= args.TREE_TEST_URDF_PATH, tree_obj_path=args.TREE_TEST_OBJ_PATH, name = "evalenv", num_points = args.EVAL_POINTS, maxSteps = 200)
 eval_env.logger = new_logger
 # Use deterministic actions for evaluation
 eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
@@ -97,10 +97,10 @@ policy_kwargs = {
         "critic_kwargs": {"state_dim": args.STATE_DIM, "emb_size": args.EMB_SIZE},
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam,
-	    "log_std_init" : -0.5,
+	    "log_std_init" : -1.8,
         }
 
-model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE),\
+model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE*100),\
               n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS )
 print(model.policy.parameters)
 if load_path:
