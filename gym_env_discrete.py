@@ -2,9 +2,7 @@
 import pywavefront
 import numpy as np
 import random
-import time
 import numpy as np
-import sys
 from gym import spaces
 import gym
 from pybullet_utils import bullet_client as bc
@@ -12,116 +10,17 @@ import os
 import math
 import pybullet
 import pybullet_data
-from datetime import datetime
-import pybullet_data
 from collections import namedtuple
-from enum import Enum
 import glob
 
 ROBOT_URDF_PATH = "./ur_e_description/urdf/ur5e_with_camera.urdf"
 
 
-# x,y,z distance
-def goal_distance(goal_a, goal_b):
-    assert goal_a.shape == goal_b.shape
-    return np.linalg.norm(goal_a - goal_b, axis=-1)
-
-def goal_reward(current, previous, target):
-    assert current.shape == previous.shape
-    assert current.shape == target.shape
-    diff_prev = goal_distance(previous, target)
-    diff_curr = goal_distance(current, target)
-    reward = diff_prev - diff_curr
-    return reward
-
-# x,y distance
-def goal_distance2d(goal_a, goal_b):
-    assert goal_a.shape == goal_b.shape
-    return np.linalg.norm(goal_a[0:2] - goal_b[0:2], axis=-1)
-
-class Tree():
-    def __init__(self, env, urdf_path, obj_path, pos = np.array([0,0,0]), orientation = np.array([0,0,0,1]), num_points = None, scale = 1) -> None:
-        self.urdf_path = urdf_path
-        self.env = env
-        self.scale = scale
-        self.pos = pos
-        self.orientation = orientation
-        self.tree_obj = pywavefront.Wavefront(obj_path, collect_faces=True)
-        self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
-        ur5_base_pos, _ = self.env.con.getBasePositionAndOrientation(self.env.ur5)
-        self.num_points = num_points
-        self.get_reachable_points(self.env.ur5)
-
-    def active(self):
-        self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
-
-    def inactive(self):
-        self.env.con.removeBody(self.tree_urdf)
-
-    def transform_obj_vertex(self, vertex):
-        vertex_pos = np.array(vertex[0:3])*self.scale
-        vertex_orientation = [0,0,0,1] #Dont care about orientation
-        vertex_w_transform = np.array(self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation))
-        return vertex_w_transform
-
-    def is_reachable(self, vertice, ur5):
-        ur5_base_pos = np.array(self.env.con.getBasePositionAndOrientation(ur5)[0])
-        vertice = vertice[0]
-        dist=np.linalg.norm(ur5_base_pos - vertice, axis=-1)
-        if dist >= 1:
-            return False
-        #if check ik, and condition number is less than 70, then it is reachable
-        j_angles = self.env.calculate_ik(vertice, None)
-        self.env.set_joint_angles(j_angles)
-        #get end effector pose
-        
-        self.env.con.stepSimulation()
-        ee_pos, _ = self.env.get_current_pose()
-        # print(ee_pos)
-        dist=np.linalg.norm(np.array(ee_pos) - vertice, axis=-1)
-        condition_number = self.env.get_condition_number()
-        if dist <= 0.05 and condition_number < 50: #Make it hyperparameter
-            # condition_number = self.env.get_condition_number()
-            # print(vertice, dist, condition_number)
-            return True
-        return False
-
-    def get_reachable_points(self, ur5):
-        self.reachable_points = list(filter(lambda x: self.is_reachable(x, ur5), self.transformed_vertices))
-        self.reachable_points = [np.array(i[0][0:3]) for i in self.reachable_points]
-        np.random.shuffle(self.reachable_points)
-        if self.num_points:
-            self.reachable_points = self.reachable_points[0:self.num_points]
-        print("Number of reachable points: ", len(self.reachable_points))
-        return 
-
-    @staticmethod
-    def make_list_from_folder(env, trees_urdf_path, trees_obj_path, pos, orientation, scale, num_points):
-        trees = []
-        for urdf, obj in zip(sorted(glob.glob(trees_urdf_path+'/*.urdf')), sorted(glob.glob(trees_obj_path+'/*.obj'))):
-            trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation = orientation, scale=scale, num_points=num_points))
-            
-        return trees
-   
-        
-# class action(Enum):
-#     up = 1
-#     down = 2
-#     left = 3
-#     right = 4
-#     forward = 5
-#     backward = 6
-#     roll_up = 7
-#     roll_down = 8
-#     pitch_up = 9
-#     pitch_down = 10
-#     yaw_up = 11
-#     yaw_down = 12
 
 class ur5GymEnv(gym.Env):
     def __init__(self,
                  renders=False,
-                 maxSteps=1000,
+                 maxSteps=500,
                  learning_param=0.05,
                  tree_urdf_path = None,
                  tree_obj_path = None,
@@ -130,20 +29,45 @@ class ur5GymEnv(gym.Env):
                  eval = False,
                  num_points = None, 
                  action_dim = 12,
-                 name = "ur5GymEnv"):
+                 name = "ur5GymEnv",
+                 terminate_on_singularity = True,
+                 action_scale = 1,
+                 movement_reward_scale = 1,
+                 distance_reward_scale = 1,
+                 condition_reward_scale = 1,
+                 terminate_reward_scale = 1,
+                 collision_reward_scale = 1,
+                 slack_reward_scale = 1,
+                 ):
         super(ur5GymEnv, self).__init__()
-        self.renders = renders
-        self.eval = eval
         assert tree_urdf_path != None
         assert tree_obj_path != None
-        self.terminate_on_singularity = True
+        
+
+        self.renders = renders
+        self.eval = eval
+        self.terminate_on_singularity = terminate_on_singularity
         self.tree_urdf_path = tree_urdf_path
         self.tree_obj_path = tree_obj_path
+        self.name = name
+        self.action_dim = action_dim
+        self.stepCounter = 0
+        self.maxSteps = maxSteps
+
+        self.action_scale = action_scale
+        self.movement_reward_scale = movement_reward_scale
+        self.distance_reward_scale = distance_reward_scale
+        self.condition_reward_scale = condition_reward_scale
+        self.terminate_reward_scale = terminate_reward_scale
+        self.collision_reward_scale = collision_reward_scale
+        self.slack_reward_scale = slack_reward_scale
+
         # setup pybullet sim:
         if self.renders:
             self.con = bc.BulletClient(connection_mode=pybullet.GUI)
         else:
             self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
+
         self.con.setTimeStep(5./240.)
         self.con.setGravity(0,0,-10)
         self.con.setRealTimeSimulation(False)
@@ -174,8 +98,40 @@ class ur5GymEnv(gym.Env):
         
         self.reset_counter = 0
         self.randomize_tree_count = 5
-
+        self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
+        self.learning_param = learning_param
+ 
         # setup robot arm:
+        self.setup_ur5_arm()
+        self.reset_env_variables()
+        #Camera parameters
+        self.near_val = 0.01
+        self.far_val = 3
+        self.height = height
+        self.width = width
+        self.proj_mat = self.con.computeProjectionMatrixFOV(
+            fov=42, aspect = width / height, nearVal=self.near_val,
+            farVal=self.far_val)
+
+        
+        #Tree parameters
+        self.tree_goal_pos = [1, 0, 0] # initial object pos
+        self.sphereUid = -1
+        self.trees = Tree.make_list_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.1, num_points = num_points)
+        self.tree = random.sample(self.trees, 1)[0]
+        self.tree.active()
+       
+    def reset_env_variables(self):
+        # Env variables that will change
+        self.observation = {}
+        self.stepCounter = 0
+        self.terminated = False
+        self.singularity_terminated = False
+        self.collisions = 0
+        
+
+
+    def setup_ur5_arm(self):
         self.end_effector_index = 7
         flags = self.con.URDF_USE_SELF_COLLISION
         self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 0], [0, 0, 0, 1], flags=flags)
@@ -199,75 +155,16 @@ class ur5GymEnv(gym.Env):
             if info.type == "REVOLUTE":
                 self.con.setJointMotorControl2(self.ur5, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0, force=0)
             self.joints[info.name] = info
-        
-
-        # collisionFilterGroup = 0
-        # collisionFilterMask = 0
-        # self.con.setCollisionFilterGroupMask(self.ur5, -1, collisionFilterGroup, collisionFilterMask)
-        # object:
+    
         self.init_joint_angles = (-1.57, -1.57,1.80,-3.14,-1.57, -1.57)
         self.set_joint_angles(self.init_joint_angles)
         for i in range(1000):
             self.con.stepSimulation()
         self.init_pos = self.con.getLinkState(self.ur5, self.end_effector_index)
-        self.collisions = 0
-        
-        self.near_val = 0.01
-        self.far_val = 3
-        self.height = height
-        self.width = width
-        self.proj_mat = self.con.computeProjectionMatrixFOV(
-            fov=42, aspect = width / height, nearVal=self.near_val,
-            farVal=self.far_val)
-        
-        # step simualator:
-        for i in range(1000):
-            self.con.stepSimulation()
-
-        self.tree_point_pos = [1, 0, 0] # initial object pos
-        self.sphereUid = -1
-
-        self.name = name
-       
-        self.action_dim = action_dim
-        self.stepCounter = 0
-        self.maxSteps = maxSteps
-        self.terminated = False
-        self.singularity_terminated = False
-        self.observation = {}
-        self.previous_pose = (np.array(0), np.array(0))
-        self.learning_param = learning_param
-        self.step_size = 0.05
-        self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
         self.joint_velocities = [0,0,0,0,0,0]
         self.joint_angles = self.init_joint_angles
-        for i in range(1000):
-            self.con.stepSimulation()
-        self.achieved_goal = self.get_current_pose()[0]
-        self.follow_ik_constraints = True
-        # self.action_space = spaces.Discrete(self.action_dim)
-        # self.actions = {'+x':0,
-        #                 '-x':1,
-        #                 '+y' : 2,
-        #                 '-y' : 3,
-        #                 '+z' : 4,
-        #                 '-z' : 5,
-        #                 'pitch_+y' : 6,
-        #                 'pitch_-y' : 7,
-        #                 'yaw_+z' : 8,
-        #                 'yaw_-z' : 9
-        #                 }
-        #                 # 'roll_+x' : 6,
-        #                 # 'roll_-x': 7,}
-
-        # self.rev_actions = {v: k for k,v in self.actions.items()}
-       
-        #Init trees
-        self.trees = Tree.make_list_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.1, num_points = num_points)
-        self.tree = random.sample(self.trees, 1)[0]
-        self.tree.active()
-       
-
+        self.achieved_pos = self.get_current_pose()[0]
+        self.previous_pose = (np.array(0), np.array(0))
 
     def set_joint_angles(self, joint_angles):
         poses = []
@@ -288,6 +185,7 @@ class ur5GymEnv(gym.Env):
             positionGains=[0.05]*len(poses),
             forces=forces
         )
+
     def set_joint_velocities(self, joint_velocities):
        #Set joint velocities using pybullet motor control
         velocities = []
@@ -382,93 +280,50 @@ class ur5GymEnv(gym.Env):
         return rgb, depth
 
     def reset(self):
-        # print("RESET")
-        self.stepCounter = 0
-        self.terminated = False
-        self.singularity_terminated = False
-        self.ur5_or = [0.0, 1/2*math.pi, 0.0]
+        self.reset_env_variables()
         self.reset_counter+=1
-        self.collisions = 0
-        if self.reset_counter%self.randomize_tree_count == 0:
-            print("RANDOM TREE")
-            print(self.tree.urdf_path)
-            self.tree.inactive()
-            self.tree = random.sample(self.trees, 1)[0]
-            self.tree.active()
-
-        # Sample new point
-        self.tree_point_pos = random.sample(self.tree.reachable_points,1)[0]
+        #Remove and add tree to avoid collisions with tree while resetting
+        self.tree.inactive()
+        self.con.removeBody(self.ur5)
         self.con.removeBody(self.sphereUid)
+
+        #Sample new tree if reset_counter is a multiple of randomize_tree_count
+        if self.reset_counter%self.randomize_tree_count == 0:
+            self.tree = random.sample(self.trees, 1)[0]
+
+        #Create new ur5 arm body
+        self.setup_ur5_arm()
+        self.tree.active()
+        
+        # Sample new point
+        self.tree_goal_pos = random.sample(self.tree.reachable_points,1)[0]
+
+        #Display new point
         colSphereId = -1   
         visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=.02,rgbaColor =[1,0,0,1])
-        self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId, [self.tree_point_pos[0],self.tree_point_pos[1],self.tree_point_pos[2]], [0,0,0,1])
-        #Remove and add tree
-        self.tree.inactive()
-        #Remove ur5 arm body
-        self.con.removeBody(self.ur5)
-        #Create new ur5 arm body
-        flags = self.con.URDF_USE_SELF_COLLISION
-        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 0], [0, 0, 0, 1], flags=flags)
-        self.set_joint_velocities([0]*6)
-        self.set_joint_angles(self.init_joint_angles)
-        self.tree.active()
-        # step simualator:
-        for i in range(1000):
-            self.con.stepSimulation()
+        self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId, [self.tree_goal_pos[0],self.tree_goal_pos[1],self.tree_goal_pos[2]], [0,0,0,1])
 
-        # get obs and return:
+        self.tree.active()
         self.getExtendedObservation()
-        # print("resetting")
       
         return self.observation
 
     def step(self, action):
-        #Add info for all rewards
-        #Time aware PPO
-        # callback.on_rollout_end() to log training info -> Same with eval
-        # get current position:
-        curr_p = self.get_current_pose()
-        self.previous_pose = curr_p
-        dt = 25/240
-        action_scale = 1
-        action = action*action_scale
-        # calculate joint velocities:
+        self.previous_pose = self.get_current_pose()
         self.prev_joint_velocities = self.joint_velocities
+
+        action = action*self.action_scale
         self.joint_velocities = self.calculate_joint_velocities_from_end_effector_velocity(action)
-        self.max_joint_velocities = np.array([6,6,6,6,6,6])
-        # print(self.get_current_pose()[0], self.achieved_goal + 100*action[0:3]*dt)
-        # #check if delta movement in action norm will cause singualrity by calculating IK solution
-        # if self.follow_ik_constraints:
-        #     self.tree.inactive()
-        #     prev_joint_angles = self.get_joint_angles()
-        #     joint_angles = self.calculate_ik(self.achieved_goal + action[0:3]*dt, None)
-        #     self.set_joint_angles(joint_angles)
-        #     for i in range(1000):
-        #         self.con.stepSimulation()
-        #     if (abs(self.achieved_goal + action[0:3]*dt - self.get_current_pose()[0])>1e-3).any():
-        #         #singularity detected, dont move
-        #         print("SINGULARITY")
-        #         self.set_joint_angles(prev_joint_angles)
-        #         for i in range(1000):
-        #             self.con.stepSimulation()
-        #         self.set_joint_velocities(np.zeros(6))
-        #     else:
-        #         self.set_joint_angles(prev_joint_angles)
-        #         for i in range(100):
-        #             self.con.stepSimulation()  
-        #         self.set_joint_velocities(self.joint_velocities)
-        #     self.tree.active()
-        # else:
         self.set_joint_velocities(self.joint_velocities)
-        # step simualator:
-        # self.set_joint_velocities(self.joint_velocities)
+        
         for i in range(1):
             self.con.stepSimulation()
             # if self.renders: time.sleep(5./240.) 
-        # self.tree.active()
         self.getExtendedObservation()
-        reward, reward_infos = self.compute_reward(self.achieved_goal, self.achieved_orient, self.desired_goal, self.previous_goal, None)
-        done, terminate_info = self.my_task_done()
+        reward, reward_infos = self.compute_reward(self.achieved_pos, self.achieved_or, self.desired_pos, self.previous_pos, None)
+        
+        done, terminate_info = self.is_task_done()
+        
         infos = {'is_success': False}
         if terminate_info['time_limit_exceeded']:
             infos["TimeLimit.truncated"] = True
@@ -476,13 +331,13 @@ class ur5GymEnv(gym.Env):
         
         if self.terminated == True:
             infos['is_success'] = True
+        
         self.stepCounter += 1
         infos['episode'] = {"l": self.stepCounter,  "r": reward}
         infos.update(reward_infos)
         return self.observation, reward, done, infos
 
     def render(self, mode = "human"):
-        
         cam_prop = (1024, 768)
         img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1])
         return img_rgbd[2]
@@ -491,33 +346,33 @@ class ur5GymEnv(gym.Env):
         self.con.disconnect()
 
 
-    # observations are: arm (tip/tool) position, arm acceleration, ...
     def getExtendedObservation(self):
-        # sensor values:
-        # js = self.get_joint_angles()
-
+        """
+        The observations are the current position, the goal position, the current orientation, the current depth image, the current joint angles and the current joint velocities    
+        """   
         tool_pos, tool_orient = self.get_current_pose()
-        goal_pos = self.tree_point_pos
+        goal_pos = self.tree_goal_pos
 
-        self.achieved_goal = np.array(tool_pos).astype(np.float32) 
+        self.achieved_pos = np.array(tool_pos).astype(np.float32) 
         self.observation['cur_pos'] = np.array(tool_pos).astype(np.float32) - np.array(self.init_pos[0]).astype(np.float32)
 
-        self.desired_goal = np.array(goal_pos).astype(np.float32)
+        self.desired_pos = np.array(goal_pos).astype(np.float32)
         self.observation['goal_pos'] = np.array(goal_pos).astype(np.float32) - np.array(self.init_pos[0]).astype(np.float32)
 
-        self.previous_goal = np.array(self.previous_pose[0])
-        self.previous_orient = np.array(self.previous_pose[1])
+        self.previous_pos = np.array(self.previous_pose[0])
+        self.previous_or = np.array(self.previous_pose[1])
 
-        self.achieved_orient = self.observation['cur_or'] = np.array(tool_orient).astype(np.float32)
+        self.achieved_or = np.array(tool_orient).astype(np.float32)
+        self.observation['cur_or'] = self.achieved_or
 
         self.rgb, self.depth = self.get_rgbd_at_cur_pose()
         self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis = 0)
 
         self.joint_angles = np.array(self.get_joint_angles()).astype(np.float32)
-        self.observation['joint_angles'] = np.array(self.get_joint_angles()).astype(np.float32) - self.init_joint_angles
+        self.observation['joint_angles'] = np.array(self.joint_angles).astype(np.float32) - self.init_joint_angles
         self.observation['joint_velocities'] = np.array(self.joint_velocities).astype(np.float32)
 
-    def my_task_done(self):
+    def is_task_done(self):
         # NOTE: need to call compute_reward before this to check termination!
         time_limit_exceeded = self.stepCounter > self.maxSteps
         singularity_achieved = self.singularity_terminated
@@ -533,90 +388,139 @@ class ur5GymEnv(gym.Env):
         condition_number = np.linalg.cond(jacobian)
         return condition_number
     
-    def compute_reward(self, achieved_pos, achieved_orient, desired_pos, achieved_previous_pos, info):
+    def compute_reward(self, achieved_pos, achieved_or, desired_pos, previous_pos, info):
         reward = float(0)
         reward_info = {}
         # Give rewards better names, and appropriate scales
 
         self.collisions = 0
-        self.delta_movement = float(goal_reward(achieved_pos, achieved_previous_pos, desired_pos))
+
+        self.delta_movement = float(goal_reward(achieved_pos, previous_pos, desired_pos))
         self.target_dist = float(goal_distance(achieved_pos, desired_pos))
 
-        scale = 10.
-        movement_reward = np.clip(self.delta_movement/(self.maxSteps)*scale , -0.3, 0.3)#Mean around 0 -> Change in distance 0.036
+        movement_reward = self.delta_movement*self.movement_reward_scale/self.maxSteps
         reward_info['movement_reward'] = movement_reward
-        distance_reward = np.exp(-self.target_dist*5)/70
-        reward_info['distance_reward'] = distance_reward
         reward += movement_reward
-        #reward += distance_reward
+
+        distance_reward = (np.exp(-self.target_dist*5)*self.distance_reward_scale)/self.maxSteps
+        reward_info['distance_reward'] = distance_reward
+        reward += distance_reward
 
        
         condition_number = self.get_condition_number()
-        condition_number_reward = -1
+        condition_number_reward = 0
         if condition_number > 50 or (self.joint_velocities > 5).any():
             print('Too high condition number!')
-            if not self.terminate_on_singularity:
-                self.tree.inactive()
-                self.set_joint_velocities(np.zeros(6))
-                self.set_joint_angles(self.init_joint_angles)
-                
-                condition_number_reward = -0.25
-                reward += condition_number_reward
-                for i in range(100):
-                    self.con.stepSimulation()
-                self.tree.active()
-                self.previous_pose = self.get_current_pose()
-            else:    
-                self.singularity_terminated = True
-                #self.set_joint_angles(self.init_joint_angles)
-                condition_number_reward = -3
-                reward += condition_number_reward
-        #condition_number_reward = -np.abs(np.clamp(condition_number/(self.maxSteps),-0.1, 0.1))
+            self.singularity_terminated = True
+            condition_number_reward = -3
         elif self.terminate_on_singularity:
-            condition_number_reward = np.abs(1/condition_number)/(30*self.maxSteps)
-            #reward += condition_number_reward
+            condition_number_reward = np.abs(1/condition_number)*self.condition_reward_scale/self.maxSteps
+        reward += condition_number_reward
         reward_info['condition_number_reward'] = condition_number_reward
+
         terminate_reward = 0
         if self.target_dist < self.learning_param:  # and approach_velocity < 0.05:
             self.terminated = True
-            terminate_reward = 5
-            
+            terminate_reward = 1*self.terminate_reward_scale
             reward += terminate_reward
             print('Successful!')
         reward_info['terminate_reward'] = terminate_reward
         
         # check collisions:
-        collision = False
         collision_reward = 0
         if self.check_collisions():
-            collision_reward = -0.3/self.maxSteps*scale
-            #reward += collision_reward
-            collision = True
+            collision_reward = -1*self.collision_reward_scale/self.maxSteps
             self.collisions+=1
-            # print('Collision!')
+
+        reward += collision_reward
         reward_info['collision_reward'] = collision_reward
         
-        slack_reward = -0.0035/self.maxSteps*scale
+        slack_reward = -1*self.slack_reward_scale/self.maxSteps
         reward_info['slack_reward'] = slack_reward
-        #reward+= slack_reward
+        reward+= slack_reward
 
         #Minimize joint velocities
         velocity_mag = np.linalg.norm(self.joint_velocities)/self.maxSteps
         velocity_reward = -np.clip(velocity_mag, -0.1, 0.1)
         #reward += velocity_rewarid
         reward_info['velocity_reward'] = velocity_reward
-        
-        
-        #if eval env use logger to plot all rewards seperately
-        # if self.name == "evalenv":
-        #     self.logger.record("eval/movement_reward", movement_reward)
-        #     self.logger.record("eval/distance_reward", distance_reward)
-        #     self.logger.record("eval/terminate_reward", terminate_reward)
-        #     self.logger.record("eval/collision_reward", collision_reward)
-        #     self.logger.record("eval/slack_reward", slack_reward)
-        #     self.logger.record("eval/total_reward", reward)
-        #     self.logger.record("eval/condition_number_reward", condition_number_reward)
-        #     self.logger.record("eval/velocity_reward", velocity_reward)
-        # print(reward)
         return reward, reward_info
 
+
+
+def goal_distance(goal_a, goal_b):
+    # Compute the distance between the goal and the achieved goal.
+    assert goal_a.shape == goal_b.shape
+    return np.linalg.norm(goal_a - goal_b, axis=-1)
+
+def goal_reward(current, previous, target):
+    # Compute the reward between the previous and current goal.
+    assert current.shape == previous.shape
+    assert current.shape == target.shape
+    diff_prev = goal_distance(previous, target)
+    diff_curr = goal_distance(current, target)
+    reward = diff_prev - diff_curr
+    return reward
+
+# x,y distance
+def goal_distance2d(goal_a, goal_b):
+    # Compute the distance between the goal and the achieved goal.
+    assert goal_a.shape == goal_b.shape
+    return np.linalg.norm(goal_a[0:2] - goal_b[0:2], axis=-1)
+
+class Tree():
+    def __init__(self, env, urdf_path, obj_path, pos = np.array([0,0,0]), orientation = np.array([0,0,0,1]), num_points = None, scale = 1) -> None:
+        self.urdf_path = urdf_path
+        self.env = env
+        self.scale = scale
+        self.pos = pos
+        self.orientation = orientation
+        self.tree_obj = pywavefront.Wavefront(obj_path, collect_faces=True)
+        self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
+        self.num_points = num_points
+        self.get_reachable_points(self.env.ur5)
+
+    def active(self):
+        self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
+
+    def inactive(self):
+        self.env.con.removeBody(self.tree_urdf)
+
+    def transform_obj_vertex(self, vertex):
+        vertex_pos = np.array(vertex[0:3])*self.scale
+        vertex_orientation = [0,0,0,1] #Dont care about orientation
+        vertex_w_transform = np.array(self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation))
+        return vertex_w_transform
+
+    def is_reachable(self, vertice, ur5):
+        ur5_base_pos = np.array(self.env.con.getBasePositionAndOrientation(ur5)[0])
+        vertice = vertice[0]
+        dist=np.linalg.norm(ur5_base_pos - vertice, axis=-1)
+        if dist >= 1:
+            return False
+        j_angles = self.env.calculate_ik(vertice, None)
+        self.env.set_joint_angles(j_angles)
+        self.env.con.stepSimulation()
+        ee_pos, _ = self.env.get_current_pose()
+        dist=np.linalg.norm(np.array(ee_pos) - vertice, axis=-1)
+        condition_number = self.env.get_condition_number()
+        if dist <= 0.05 and condition_number < 20: 
+            return True
+        return False
+
+    def get_reachable_points(self, ur5):
+        self.reachable_points = list(filter(lambda x: self.is_reachable(x, ur5), self.transformed_vertices))
+        self.reachable_points = [np.array(i[0][0:3]) for i in self.reachable_points]
+        np.random.shuffle(self.reachable_points)
+        if self.num_points:
+            self.reachable_points = self.reachable_points[0:self.num_points]
+        print("Number of reachable points: ", len(self.reachable_points))
+        return 
+
+    @staticmethod
+    def make_list_from_folder(env, trees_urdf_path, trees_obj_path, pos, orientation, scale, num_points):
+        trees = []
+        for urdf, obj in zip(sorted(glob.glob(trees_urdf_path+'/*.urdf')), sorted(glob.glob(trees_obj_path+'/*.obj'))):
+            trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation = orientation, scale=scale, num_points=num_points))
+        return trees
+ 

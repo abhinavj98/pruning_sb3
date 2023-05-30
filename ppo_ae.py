@@ -248,7 +248,6 @@ class PPOAE(OnPolicyAlgorithm):
         global mean
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
-        print(self.lr_schedule_ae(self._current_progress_remaining))
         # Update optimizer learning rate
         self._custom_update_learning_rate([self.policy.optimizer, self.policy.optimizer_ae])
         # self._update_learning_rate(self.policy.optimizer_ae) #Make this work with 2 different netweorks

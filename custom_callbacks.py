@@ -59,6 +59,7 @@ class CustomTrainCallback(BaseCallback):
         This event is triggered before collecting new samples.
         """
         #log episode
+        pass
 
 
     def _on_step(self) -> bool:
@@ -70,12 +71,6 @@ class CustomTrainCallback(BaseCallback):
 
         :return: (bool) If the callback returns False, training is aborted early.
         """
-        return True
-
-    def _on_rollout_end(self) -> None:
-        """
-        This event is triggered before updating the policy.
-        """
         infos = self.locals["infos"]
         self.logger.record("rollout/movement_reward", infos[0]["movement_reward"])
         self.logger.record("rollout/distance_reward", infos[0]["distance_reward"])
@@ -84,6 +79,13 @@ class CustomTrainCallback(BaseCallback):
         self.logger.record("rollout/slack_reward", infos[0]["slack_reward"])
         self.logger.record("rollout/condition_number_reward", infos[0]["condition_number_reward"])
         self.logger.record("rollout/velocity_reward", infos[0]["velocity_reward"])
+        return True
+
+    def _on_rollout_end(self) -> None:
+        """
+        This event is triggered before updating the policy.
+        """
+        pass
         # self.logger.record("train/singularit_terminated", info["total_reward"])
         # Get rollout buffer
         # rollout_buffer = self.locals["rollout_buffer"]
@@ -323,11 +325,13 @@ class CustomEvalCallback(EventCallback):
                 1, (255,0,0), 2, cv2.LINE_AA)
             screen = cv2.putText(screen, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-            screen = cv2.putText(screen, "Current: "+str(self.eval_env.get_attr("achieved_goal", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen = cv2.putText(screen, "Current: "+str(self.eval_env.get_attr("achieved_pos", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
                 1, (255,0,0), 2, cv2.LINE_AA)
-            screen = cv2.putText(screen, "Goal: "+str(self.eval_env.get_attr("desired_goal", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen = cv2.putText(screen, "Goal: "+str(self.eval_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
                 1, (255,0,0), 2, cv2.LINE_AA)
             screen = cv2.putText(screen, "J_velocity: "+" ".join(str(x) for x in self.eval_env.get_attr("joint_velocities", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX, 
+                0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+            screen = cv2.putText(screen, "Distance: "+" ".join(str(self.eval_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             self._screens_buffer.append(screen.transpose(2, 0, 1))
 
