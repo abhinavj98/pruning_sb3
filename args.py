@@ -49,7 +49,7 @@ args_dict = {
     },
     'MAX_STEPS': {
         'type': int,
-        'default': 200,
+        'default': 500,
         'help': 'maximum number of steps per episode'
     },
     'ACTION_SCALE': {
@@ -59,12 +59,12 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': 0,#2
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
         'type': float,
-        'default': 0,
+        'default': 1/70,
         'help': 'scaling factor for the distance reward'
     },
     'CONDITION_REWARD_SCALE': {
@@ -74,17 +74,17 @@ args_dict = {
     },
     'TERMINATE_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': 3,
         'help': 'scaling factor for the terminate reward'
     },
     'COLLISION_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': -0.01,
         'help': 'scaling factor for the collision reward'
     },
     'SLACK_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': -0.0005,
         'help': 'scaling factor for the slack reward'
     },
     #Training parameters
@@ -120,7 +120,7 @@ args_dict = {
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -1.8,
+        'default': -4,
         'help': 'initial value for the log standard deviation'
     },
 

@@ -398,11 +398,11 @@ class ur5GymEnv(gym.Env):
         self.delta_movement = float(goal_reward(achieved_pos, previous_pos, desired_pos))
         self.target_dist = float(goal_distance(achieved_pos, desired_pos))
 
-        movement_reward = self.delta_movement*self.movement_reward_scale/self.maxSteps
+        movement_reward = self.delta_movement*self.movement_reward_scale
         reward_info['movement_reward'] = movement_reward
         reward += movement_reward
 
-        distance_reward = (np.exp(-self.target_dist*5)*self.distance_reward_scale)/self.maxSteps
+        distance_reward = (np.exp(-self.target_dist*5)*self.distance_reward_scale)
         reward_info['distance_reward'] = distance_reward
         reward += distance_reward
 
@@ -414,7 +414,7 @@ class ur5GymEnv(gym.Env):
             self.singularity_terminated = True
             condition_number_reward = -3
         elif self.terminate_on_singularity:
-            condition_number_reward = np.abs(1/condition_number)*self.condition_reward_scale/self.maxSteps
+            condition_number_reward = np.abs(1/condition_number)*self.condition_reward_scale
         reward += condition_number_reward
         reward_info['condition_number_reward'] = condition_number_reward
 
@@ -429,18 +429,18 @@ class ur5GymEnv(gym.Env):
         # check collisions:
         collision_reward = 0
         if self.check_collisions():
-            collision_reward = -1*self.collision_reward_scale/self.maxSteps
+            collision_reward = 1*self.collision_reward_scale
             self.collisions+=1
 
         reward += collision_reward
         reward_info['collision_reward'] = collision_reward
         
-        slack_reward = -1*self.slack_reward_scale/self.maxSteps
+        slack_reward = 1*self.slack_reward_scale
         reward_info['slack_reward'] = slack_reward
         reward+= slack_reward
 
         #Minimize joint velocities
-        velocity_mag = np.linalg.norm(self.joint_velocities)/self.maxSteps
+        velocity_mag = np.linalg.norm(self.joint_velocities)
         velocity_reward = -np.clip(velocity_mag, -0.1, 0.1)
         #reward += velocity_rewarid
         reward_info['velocity_reward'] = velocity_reward
