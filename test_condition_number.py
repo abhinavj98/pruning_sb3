@@ -66,10 +66,10 @@ while True:
     env.step(val)
 
     # env.render()
-    jacobian = env.con.calculateJacobian(env.ur5, env.end_effector_index, [0,0,0], env.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
-    jacobian = np.vstack(jacobian)
-    condition_number = np.linalg.cond(jacobian)
-    print(condition_number, 1/condition_number)
+    # jacobian = env.con.calculateJacobian(env.ur5, env.end_effector_index, [0,0,0], env.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
+    # jacobian = np.vstack(jacobian)
+    # condition_number = np.linalg.cond(jacobian)
+    # print(condition_number, 1/condition_number)
     
         
 """

@@ -221,27 +221,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.action_net, self.log_std = self.action_dist.proba_distribution_net(
                 latent_dim=self.latent_dim_pi, log_std_init=self.log_std_init
             )
-        #TODO: Use squashed gaussian for continuous action space
-        # if isinstance(self.action_dist, DiagGaussianDistribution):
-        #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
-        #         latent_dim=self.latent_dim_pi, log_std_init=self.log_std_init
-        #     )
-        # elif isinstance(self.action_dist, StateDependentNoiseDistribution):
-        #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
-        #         latent_dim=self.latent_dim_pi, latent_sde_dim=latent_dim_pi, log_std_init=self.log_std_init
-        #     )
-        # elif isinstance(self.action_dist, (CategoricalDistribution, MultiCategoricalDistribution, BernoulliDistribution)):
-        #     self.action_net = self.action_dist.proba_distribution_net(latent_dim=self.latent_dim_pi)
-        # else:
-        #     raise NotImplementedError(f"Unsupported distribution '{self.action_dist}'.")
         self.value_net = nn.Linear(self.latent_dim_vf, 1)
-        #self.value_net.apply(self.init_kaiming)
-        #self.action_net.apply(self.init_kaiming)
-        #self.action_net.bias.data.fill_(0)
-        #self.action_net.weight.data = self.action_net.weight.data*2
-        #self.value_net.weight.data.fill_(0)
-        #self.value_net.bias.data.fill_(-0.35)
-
         # Init weights: use orthogonal initialization
         # with small initial weight for the output
         if self.ortho_init:

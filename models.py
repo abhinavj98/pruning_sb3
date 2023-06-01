@@ -171,9 +171,9 @@ class Actor(nn.Module):
         self.output_dim = emb_size
         self.dense =  nn.Sequential(
                     nn.Linear(state_dim, emb_size*2),
-                    nn.Tanh(),
+                    nn.ReLU(),
                     nn.Linear(emb_size*2, emb_size),
-                    nn.Tanh(),
+                    nn.ReLU(),
                     )
     def forward(self, image_features, state):
         state = torch.cat((state, state),-1)
@@ -187,7 +187,7 @@ class Critic(nn.Module):
         self.output_dim = emb_size
         self.dense = nn.Sequential(
                 nn.Linear(state_dim, emb_size),
-                nn.Tanh(),
+                nn.ReLU(),
                 )
         
     def forward(self, image_features, state):
