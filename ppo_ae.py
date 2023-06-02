@@ -100,7 +100,7 @@ class PPOAE(OnPolicyAlgorithm):
         batch_size: int = 100,
         n_epochs: int = 10,
         gamma: float = 0.99,
-        latent_coef: float = 0.1,
+        latent_coef: float = 0,
         gae_lambda: float = 0.95,
         clip_range: Union[float, Schedule] = 0.2,
         clip_range_vf: Union[None, float, Schedule] = None,

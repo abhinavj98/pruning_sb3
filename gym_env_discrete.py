@@ -489,7 +489,7 @@ class Tree():
     def transform_obj_vertex(self, vertex):
         vertex_pos = np.array(vertex[0:3])*self.scale
         vertex_orientation = [0,0,0,1] #Dont care about orientation
-        vertex_w_transform = np.array(self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation))
+        vertex_w_transform = self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation)
         return vertex_w_transform
 
     def is_reachable(self, vertice, ur5):

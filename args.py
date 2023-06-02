@@ -52,6 +52,11 @@ args_dict = {
         'default': 500,
         'help': 'maximum number of steps per episode'
     },
+    'EVAL_MAX_STEPS': {
+        'type': int,
+        'default': 200,
+        'help': 'maximum number of steps per episode during evaluation'
+    },
     'ACTION_SCALE': {
         'type': float,
         'default': 1,
@@ -79,7 +84,7 @@ args_dict = {
     },
     'COLLISION_REWARD_SCALE': {
         'type': float,
-        'default': -0.01,
+        'default': -0.001,
         'help': 'scaling factor for the collision reward'
     },
     'SLACK_REWARD_SCALE': {

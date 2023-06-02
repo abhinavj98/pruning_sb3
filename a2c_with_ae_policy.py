@@ -103,14 +103,7 @@ class ActorCriticWithAePolicy(BasePolicy):
             squash_output=squash_output,
         )
 
-        # Default network architecture, from stable-baselines
-        # if net_arch is None:
-        #     if features_extractor_class == NatureCNN:
-        #         net_arch = []
-        #     else:
-        #         net_arch = [dict(pi=[64, 64], vf=[64, 64])]
-
-        # self.net_arch = net_arch
+  
         self.activation_fn = activation_fn
         self.ortho_init = ortho_init
 
@@ -138,10 +131,6 @@ class ActorCriticWithAePolicy(BasePolicy):
 
         self.use_sde = use_sde
         self.dist_kwargs = dist_kwargs
-
-        # Action distribution
-        # print("Buildinf")
-        # self.lr_schedule_ae = lr_schedule_ae
         self._build(lr_schedule, lr_schedule_ae)
         
 
@@ -194,8 +183,6 @@ class ActorCriticWithAePolicy(BasePolicy):
     def _build_actor_critic(self) -> None:
         self.actor = self.actor_class(**self.actor_kwargs).to(self.device)
         self.critic = self.critic_class(**self.critic_kwargs).to(self.device)
-        #self.actor.apply(self.init_kaiming)
-        #self.critic.apply(self.init_kaiming)
         
     @staticmethod    
     def init_kaiming(m):
@@ -212,36 +199,15 @@ class ActorCriticWithAePolicy(BasePolicy):
         #Make Actor Critic using actro critic class and kwargs, update get constructor parameters as welll
         self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
         self.features_dim = self.features_extractor.features_dim
-        #self.features_extractor.apply(self.init_kaiming)
         self._build_actor_critic()
-        #Initialize value_net and action_net with kaiming
         self.latent_dim_pi = self.actor.output_dim
         self.latent_dim_vf = self.critic.output_dim
         self.action_dist = SquashedDiagGaussianDistribution(get_action_dim(self.action_space))#make_proba_distribution(self.action_space, use_sde=False, dist_kwargs=self.dist_kwargs)
         self.action_net, self.log_std = self.action_dist.proba_distribution_net(
                 latent_dim=self.latent_dim_pi, log_std_init=self.log_std_init
             )
-        #TODO: Use squashed gaussian for continuous action space
-        # if isinstance(self.action_dist, DiagGaussianDistribution):
-        #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
-        #         latent_dim=self.latent_dim_pi, log_std_init=self.log_std_init
-        #     )
-        # elif isinstance(self.action_dist, StateDependentNoiseDistribution):
-        #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
-        #         latent_dim=self.latent_dim_pi, latent_sde_dim=latent_dim_pi, log_std_init=self.log_std_init
-        #     )
-        # elif isinstance(self.action_dist, (CategoricalDistribution, MultiCategoricalDistribution, BernoulliDistribution)):
-        #     self.action_net = self.action_dist.proba_distribution_net(latent_dim=self.latent_dim_pi)
-        # else:
-        #     raise NotImplementedError(f"Unsupported distribution '{self.action_dist}'.")
+    
         self.value_net = nn.Linear(self.latent_dim_vf, 1)
-        #self.value_net.apply(self.init_kaiming)
-        #self.action_net.apply(self.init_kaiming)
-        #self.action_net.bias.data.fill_(0)
-        #self.action_net.weight.data = self.action_net.weight.data*2
-        #self.value_net.weight.data.fill_(0)
-        #self.value_net.bias.data.fill_(-0.35)
-
         # Init weights: use orthogonal initialization
         # with small initial weight for the output
         if self.ortho_init:
@@ -253,7 +219,6 @@ class ActorCriticWithAePolicy(BasePolicy):
                  self.features_extractor: np.sqrt(2),
                  self.actor: np.sqrt(2),
                  self.critic: np.sqrt(2),
-                 #self.mlp_extractor: np.sqrt(2),
                  self.action_net: 0.1,
                  self.value_net: 1,
              }
