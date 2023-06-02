@@ -52,6 +52,11 @@ args_dict = {
         'default': 200,
         'help': 'maximum number of steps per episode'
     },
+    'EVAL_MAX_STEPS': {
+        'type': int,
+        'default': 200,
+        'help': 'maximum number of steps per episode during evaluation'
+    },
     'ACTION_SCALE': {
         'type': float,
         'default': 1,
@@ -59,12 +64,12 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': 0,#2
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
         'type': float,
-        'default': 0,
+        'default': 1/70,
         'help': 'scaling factor for the distance reward'
     },
     'CONDITION_REWARD_SCALE': {
@@ -74,17 +79,17 @@ args_dict = {
     },
     'TERMINATE_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': 3,
         'help': 'scaling factor for the terminate reward'
     },
     'COLLISION_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': -0.001,
         'help': 'scaling factor for the collision reward'
     },
     'SLACK_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': -0.0005,
         'help': 'scaling factor for the slack reward'
     },
     #Training parameters
@@ -100,7 +105,7 @@ args_dict = {
     },
     'EPOCHS': {
         'type': int,
-        'default': 10,
+        'default': 1,
         'help': 'number of epochs to train for'
     },
     'BATCH_SIZE': {

@@ -52,6 +52,11 @@ args_dict = {
         'default': 500,
         'help': 'maximum number of steps per episode'
     },
+    'EVAL_MAX_STEPS': {
+        'type': int,
+        'default': 200,
+        'help': 'maximum number of steps per episode during evaluation'
+    },
     'ACTION_SCALE': {
         'type': float,
         'default': 1,
