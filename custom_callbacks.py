@@ -79,6 +79,7 @@ class CustomTrainCallback(BaseCallback):
         self.logger.record("rollout/slack_reward", infos[0]["slack_reward"])
         self.logger.record("rollout/condition_number_reward", infos[0]["condition_number_reward"])
         self.logger.record("rollout/velocity_reward", infos[0]["velocity_reward"])
+        self.logger.record("rollout/orientation_reward", infos[0]["orientation_reward"])
         return True
 
     def _on_rollout_end(self) -> None:
@@ -305,6 +306,7 @@ class CustomEvalCallback(EventCallback):
         self.logger.record("eval/slack_reward", infos["slack_reward"])
         self.logger.record("eval/condition_number_reward", infos["condition_number_reward"])
         self.logger.record("eval/velocity_reward", infos["velocity_reward"])
+        self.logger.record("eval/orientation_reward", infos["orientation_reward"])
 
     def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         """

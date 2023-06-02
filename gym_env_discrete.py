@@ -447,7 +447,7 @@ class ur5GymEnv(gym.Env):
 
         reward_info['orientation_reward'] = orientation_reward
         reward += orientation_reward
-        print('Orientation reward: ', orientation_reward)
+        # print('Orientation reward: ', orientation_reward)
         # camera_vector = camera_vector/np.linalg.norm(camera_vector)
         # perpendicular_vector = perpendicular_vector/np.linalg.norm(perpendicular_vector)
        
@@ -578,7 +578,7 @@ class Tree():
         vertex_pos = np.array(vertex[0:3])*self.scale
         vertex_orientation = [0,0,0,1] #Dont care about orientation
         vertex_w_transform = self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation)
-        return vertex_w_transform[0]
+        return np.array(vertex_w_transform[0])
 
     def is_reachable(self, vertice, ur5):
         ur5_base_pos = np.array(self.env.con.getBasePositionAndOrientation(ur5)[0])

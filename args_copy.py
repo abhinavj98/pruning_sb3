@@ -49,12 +49,12 @@ args_dict = {
     },
     'MAX_STEPS': {
         'type': int,
-        'default': 200,
+        'default': 20,
         'help': 'maximum number of steps per episode'
     },
     'EVAL_MAX_STEPS': {
         'type': int,
-        'default': 200,
+        'default': 20,
         'help': 'maximum number of steps per episode during evaluation'
     },
     'ACTION_SCALE': {
@@ -92,7 +92,7 @@ args_dict = {
         'default': -0.0005,
         'help': 'scaling factor for the slack reward'
     },
-     'ORIENTATION_REWARD_SCALE': {
+    'ORIENTATION_REWARD_SCALE': {
         'type': float,
         'default': 0.001,
         'help': 'scaling factor for the orientation reward'
@@ -105,7 +105,7 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 2000,
+        'default': 20,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
@@ -136,7 +136,7 @@ args_dict = {
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 1000,
+        'default': 21,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {
