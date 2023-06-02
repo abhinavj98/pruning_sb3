@@ -92,6 +92,11 @@ args_dict = {
         'default': -0.0005,
         'help': 'scaling factor for the slack reward'
     },
+     'ORIENTATION_REWARD_SCALE': {
+        'type': float,
+        'default': 0.001,
+        'help': 'scaling factor for the orientation reward'
+    },
     #Training parameters
     'TOTAL_TIMESTEPS': {
         'type': int,
