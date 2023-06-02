@@ -38,6 +38,7 @@ class ur5GymEnv(gym.Env):
                  terminate_reward_scale = 1,
                  collision_reward_scale = 1,
                  slack_reward_scale = 1,
+                 orientation_reward_scale = 1,
                  ):
         super(ur5GymEnv, self).__init__()
         assert tree_urdf_path != None
@@ -61,6 +62,7 @@ class ur5GymEnv(gym.Env):
         self.terminate_reward_scale = terminate_reward_scale
         self.collision_reward_scale = collision_reward_scale
         self.slack_reward_scale = slack_reward_scale
+        self.orientation_reward_scale = orientation_reward_scale
 
         # setup pybullet sim:
         if self.renders:
@@ -117,12 +119,16 @@ class ur5GymEnv(gym.Env):
         #Tree parameters
         self.tree_goal_pos = [1, 0, 0] # initial object pos
         self.tree_goal_branch = [0, 0, 0]
-        self.debug_branch = -1
-        self.debug_line = -1
-        self.camDebug = -1
+
         self.trees = Tree.make_list_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.1, num_points = num_points)
         self.tree = random.sample(self.trees, 1)[0]
         self.tree.active()
+
+        #Debug parameters
+        self.debug_line = -1
+        self.debug_cur_or = -1
+        self.debug_des_or = -1
+        self.debug_branch = -1
        
     def reset_env_variables(self):
         # Env variables that will change
@@ -283,38 +289,33 @@ class ur5GymEnv(gym.Env):
         return rgb, depth
 
     def reset(self):
+
         self.reset_env_variables()
         self.reset_counter+=1
         #Remove and add tree to avoid collisions with tree while resetting
         self.tree.inactive()
         self.con.removeBody(self.ur5)
+        #Remove debug items
         self.con.removeUserDebugItem(self.debug_branch)
-        # self.con.removeUserDebugAll()
-        # self.con.removeBody(self.sphereUid)
-
+        self.con.removeUserDebugItem(self.debug_line)
+        self.con.removeUserDebugItem(self.debug_cur_or)
+        self.con.removeUserDebugItem(self.debug_des_or)
         #Sample new tree if reset_counter is a multiple of randomize_tree_count
         if self.reset_counter%self.randomize_tree_count == 0:
             self.tree = random.sample(self.trees, 1)[0]
 
         #Create new ur5 arm body
         self.setup_ur5_arm()
-        # self.tree.active()
         
         # Sample new point
         random_point = random.sample(self.tree.reachable_points,1)[0]
         self.tree_goal_pos = random_point[0]
         self.tree_goal_branch = random_point[1]
+        self.tree.active()
 
-        #Display new point
-        # colSphereId = -1   
-        # visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=.02,rgbaColor =[1,0,0,1])
-        # self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId, [self.tree_goal_pos[0],self.tree_goal_pos[1],self.tree_goal_pos[2]], [0,0,0,1])
-        #Add user debug point to visualize goal
-        
-        # self.tree.active()
+        #Add debug branch
         self.debug_branch = self.con.addUserDebugLine(self.tree_goal_pos - 50*self.tree_goal_branch,self.tree_goal_pos+ 50*self.tree_goal_branch, [1,0,0], 200)
-        # self.debug_branch = self.con.addUserDebugLine(self.tree_goal_pos - 0*self.tree_goal_branch,self.tree_goal_pos+ 1*self.tree_goal_branch, [1,0,0], 200)
-        # print("Goal point: {}".format(self.tree_goal_pos), self.debug_branch)
+      
         self.getExtendedObservation()
       
         return self.observation
@@ -334,7 +335,7 @@ class ur5GymEnv(gym.Env):
             # if self.renders: time.sleep(5./240.) 
         self.getExtendedObservation()
         reward, reward_infos = self.compute_reward(self.achieved_pos, self.achieved_or, self.desired_pos, self.previous_pos, None)
-        self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [1,0,0], 20)
+        self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0,0,1], 20)
         done, terminate_info = self.is_task_done()
         
         infos = {'is_success': False}
@@ -401,6 +402,27 @@ class ur5GymEnv(gym.Env):
         condition_number = np.linalg.cond(jacobian)
         return condition_number
     
+    def compute_orientation_reward(self, achieved_pos, desired_pos, achieved_or, branch_vector):
+        # Orientation reward is computed as the dot product between the current orientation and the perpedicular vector to the end effector and goal pos vector
+        # This is to encourage the end effector to be perpendicular to the branch
+
+        #Perpendicular vector to branch vector
+        perpendicular_vector = compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector+desired_pos)
+
+        #Get vector for current orientation of end effector
+        rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3,3)
+		#Initial vectors
+        init_vector = np.array([1, 0, 0])
+        camera_vector = rot_mat.dot(init_vector)
+        self.con.removeUserDebugItem(self.debug_cur_or)
+        self.con.removeUserDebugItem(self.debug_des_or)
+        self.debug_des_or = self.con.addUserDebugLine(achieved_pos, achieved_pos + perpendicular_vector, [1,0,0], 2)
+        self.debug_cur_or = self.con.addUserDebugLine(self.achieved_pos, self.achieved_pos + 0.1 * camera_vector, [0, 1, 0], 1)
+       
+        orientation_reward = np.dot(camera_vector, perpendicular_vector)/(np.linalg.norm(camera_vector)*np.linalg.norm(perpendicular_vector))*self.orientation_reward_scale
+        return orientation_reward
+       
+    
     def compute_reward(self, achieved_pos, achieved_or, desired_pos, previous_pos, info):
         reward = float(0)
         reward_info = {}
@@ -418,36 +440,21 @@ class ur5GymEnv(gym.Env):
         distance_reward = (np.exp(-self.target_dist*5)*self.distance_reward_scale)
         reward_info['distance_reward'] = distance_reward
         reward += distance_reward
-        # Orientation reward is computed as the dot product between the current orientation and the perpedicular vector to the end effector and goal pos vector
-        # This is to encourage the end effector to be perpendicular to the goal pos vector
-        #End effector to goal vector
-        end_effector_to_goal = np.array(desired_pos) - np.array(achieved_pos)
-        #Branch vector os goal vector + projection
-        branch_vector = self.tree_goal_branch
-        #Perpendicular vector to branch vector
-        perpendicular_vector = compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector+desired_pos)
-        #Convert achieved orientation to a rotation matrix
 
-        # orientation_reward = np.dot(perpendicular_vector, achieved_or)*self.orientation_reward_scale
-        rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3,3)
-		#Initial vectors
-        init_camera_vector = np.array([1, 0, 0])#
+        orientation_reward = np.exp(self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, self.tree_goal_branch)*3)/np.exp(3)*self.orientation_reward_scale
+        #Mostly within 0.8 to 1
+        #Compress to increase range
 
-        self.con.removeUserDebugItem(self.camDebug)
-        self.camDebug = self.con.addUserDebugLine(achieved_pos, achieved_pos + perpendicular_vector, [1,0,0], 2)
-        # init_up_vector = np.array([0, 0,1]) #
-        #Rotated vectors
-        camera_vector = rot_mat.dot(init_camera_vector)
-        orientation_reward = np.dot(camera_vector, perpendicular_vector)/(np.linalg.norm(camera_vector)*np.linalg.norm(perpendicular_vector))
+        reward_info['orientation_reward'] = orientation_reward
+        reward += orientation_reward
         print('Orientation reward: ', orientation_reward)
-        # up_vector = rot_mat.dot(init_up_vector)
-        # view_matrix = self.con.computeViewMatrix(pose, pose + 0.1 * camera_vector, up_vector)
+        # camera_vector = camera_vector/np.linalg.norm(camera_vector)
+        # perpendicular_vector = perpendicular_vector/np.linalg.norm(perpendicular_vector)
        
-        # return self.con.getCameraImage(self.width, self.height, viewMatrix = view_matrix, projectionMatrix = self.proj_mat, renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
-        #display camera as debug line
+        # print('Orientation reward: ', orientation_reward, np.arccos(camera_vector[0])*180/np.pi - np.arccos(perpendicular_vector[0])*180/np.pi, np.arccos(camera_vector[1])*180/np.pi - np.arccos(perpendicular_vector[1])*180/np.pi, np.arccos(camera_vector[2])*180/np.pi - np.arccos(perpendicular_vector[2])*180/np.pi)
       
-        # self.camDebug = self.con.addUserDebugLine(self.achieved_pos, self.achieved_pos + 0.1 * camera_vector, [1, 0, 0], 1)
-       
+      
+        
         condition_number = self.get_condition_number()
         condition_number_reward = 0
         if condition_number > 50 or (self.joint_velocities > 5).any():
@@ -515,6 +522,10 @@ def compute_perpendicular_projection(a, b, c):
     projection = ab - np.dot(ab, bc)/np.dot(bc, bc) * bc
     return projection
 
+def compute_perpendicular_projection_vector(ab, bc):
+    projection = ab - np.dot(ab, bc)/np.dot(bc, bc) * bc
+    return projection
+
 class Tree():
     def __init__(self, env, urdf_path, obj_path, pos = np.array([0,0,0]), orientation = np.array([0,0,0,1]), num_points = None, scale = 1) -> None:
         self.urdf_path = urdf_path
@@ -524,21 +535,39 @@ class Tree():
         self.orientation = orientation
         self.tree_obj = pywavefront.Wavefront(obj_path, create_materials = True, collect_faces=True)
         self.vertex_and_projection = []
-        # print(self.tree_obj.mesh_list[0].materials[0].vertex_format)
-        # print([self.tree_obj.vertices[i][0:3] for i in self.tree_obj.mesh_list[0].faces[0]])
-        # input()
         self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
-        # print(self.transformed_vertices)
+        self.projection_mean = 0
+      
+        #Find the two longest edges of the face
+        #Add their mid-points and perpendicular projection to the smallest side as a point and branch
         for face in self.tree_obj.mesh_list[0].faces:
-            vertex_index = face[0]
-            projection = compute_perpendicular_projection(self.transformed_vertices[vertex_index], self.transformed_vertices[face[1]], self.transformed_vertices[face[2]])
-            self.vertex_and_projection.append((self.transformed_vertices[vertex_index], projection))
+            #Order the sides of the face by length
+            ab = (face[0], face[1], np.linalg.norm(self.transformed_vertices[face[0]] - self.transformed_vertices[face[1]]))
+            ac = (face[0], face[2], np.linalg.norm(self.transformed_vertices[face[0]] - self.transformed_vertices[face[2]]))
+            bc = (face[1], face[2], np.linalg.norm(self.transformed_vertices[face[1]] - self.transformed_vertices[face[2]]))
+            sides = [ab, ac, bc]
+            #argsort sorts in ascending order
+            sorted_sides = np.argsort([x[2] for x in sides])
+            ac = sides[sorted_sides[2]]
+            ab = sides[sorted_sides[1]]
+            bc = sides[sorted_sides[0]]
+            #|a
+            #|\
+            #| \
+            #|  \
+            #|   \
+            #|    \
+            #b______\c
+            perpendicular_projection = compute_perpendicular_projection_vector(self.transformed_vertices[ac[0]] - self.transformed_vertices[ac[1]], self.transformed_vertices[bc[0]] - self.transformed_vertices[bc[1]])
+                                                    
+            self.vertex_and_projection.append(((self.transformed_vertices[ac[0]]+self.transformed_vertices[ac[1]])/2, perpendicular_projection))
+            self.vertex_and_projection.append(((self.transformed_vertices[ab[0]]+self.transformed_vertices[ab[1]])/2, perpendicular_projection))
+            self.projection_mean += np.linalg.norm(perpendicular_projection)
+            self.projection_mean += np.linalg.norm(perpendicular_projection)
+        self.projection_mean = self.projection_mean/len(self.vertex_and_projection)
         self.num_points = num_points
         self.get_reachable_points(self.env.ur5)
-        # self.active()
-        for i in self.reachable_points:
-            self.env.con.addUserDebugLine(i[0], i[0]+i[1], [1,0,0], 200)
-
+        
     def active(self):
         self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
 
@@ -553,21 +582,22 @@ class Tree():
 
     def is_reachable(self, vertice, ur5):
         ur5_base_pos = np.array(self.env.con.getBasePositionAndOrientation(ur5)[0])
-        dist=np.linalg.norm(ur5_base_pos - vertice, axis=-1)
-        if dist >= 1:
+        dist=np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
+        projection_length = np.linalg.norm(vertice[1])
+        if dist >= 1 or projection_length < self.projection_mean* 0.7:
             return False
-        j_angles = self.env.calculate_ik(vertice, None)
+        j_angles = self.env.calculate_ik(vertice[0], None)
         self.env.set_joint_angles(j_angles)
         self.env.con.stepSimulation()
         ee_pos, _ = self.env.get_current_pose()
-        dist=np.linalg.norm(np.array(ee_pos) - vertice, axis=-1)
+        dist=np.linalg.norm(np.array(ee_pos) - vertice[0], axis=-1)
         condition_number = self.env.get_condition_number()
         if dist <= 0.05 and condition_number < 20: 
             return True
         return False
 
     def get_reachable_points(self, ur5):
-        self.reachable_points = list(filter(lambda x: self.is_reachable(x[0], ur5), self.vertex_and_projection))
+        self.reachable_points = list(filter(lambda x: self.is_reachable(x, ur5), self.vertex_and_projection))
         # self.reachable_points = [np.array(i[0][0:3]) for i in self.reachable_points]
         np.random.shuffle(self.reachable_points)
         if self.num_points:
