@@ -69,7 +69,7 @@ args_dict = {
     },
     'DISTANCE_REWARD_SCALE': {
         'type': float,
-        'default': 1/70,
+        'default': 0#1/70,
         'help': 'scaling factor for the distance reward'
     },
     'CONDITION_REWARD_SCALE': {
