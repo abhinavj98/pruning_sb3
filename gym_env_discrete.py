@@ -3,8 +3,10 @@ import pywavefront
 import numpy as np
 import random
 import numpy as np
-from gym import spaces
-import gym
+import gymnasium as gym
+
+from gymnasium import spaces
+# import gymnasium
 from pybullet_utils import bullet_client as bc
 import os
 import math
@@ -18,6 +20,7 @@ ROBOT_URDF_PATH = "./ur_e_description/urdf/ur5e_with_camera.urdf"
 
 
 class ur5GymEnv(gym.Env):
+    metadata = {'render.modes': ['rgb_array']}
     def __init__(self,
                  renders=False,
                  maxSteps=500,
@@ -46,6 +49,7 @@ class ur5GymEnv(gym.Env):
         
 
         self.renders = renders
+        self.render_mode = 'rgb_array'
         self.eval = eval
         self.terminate_on_singularity = terminate_on_singularity
         self.tree_urdf_path = tree_urdf_path
@@ -288,8 +292,9 @@ class ur5GymEnv(gym.Env):
         depth = self.linearize_depth(depth, self.far_val, self.near_val) - 0.5
         return rgb, depth
 
-    def reset(self):
-
+    def reset(self, seed = 1, options = None):
+        super().reset(seed=seed)
+        random.seed(seed)
         self.reset_env_variables()
         self.reset_counter+=1
         #Remove and add tree to avoid collisions with tree while resetting
@@ -317,8 +322,9 @@ class ur5GymEnv(gym.Env):
         self.debug_branch = self.con.addUserDebugLine(self.tree_goal_pos - 50*self.tree_goal_branch,self.tree_goal_pos+ 50*self.tree_goal_branch, [1,0,0], 200)
       
         self.getExtendedObservation()
-      
-        return self.observation
+        info = {}
+        #Make info analogous to one in step function
+        return self.observation, info
 
     def step(self, action):
         # remove debug line
@@ -337,8 +343,10 @@ class ur5GymEnv(gym.Env):
         reward, reward_infos = self.compute_reward(self.achieved_pos, self.achieved_or, self.desired_pos, self.previous_pos, None)
         self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0,0,1], 20)
         done, terminate_info = self.is_task_done()
+        truncated = terminate_info['time_limit_exceeded']
+        terminated = terminate_info['goal_achieved'] or terminate_info['singularity_achieved']
         
-        infos = {'is_success': False}
+        infos = {'is_success': False, "TimeLimit.truncated": False}
         if terminate_info['time_limit_exceeded']:
             infos["TimeLimit.truncated"] = True
             infos["terminal_observation"] = self.observation
@@ -349,7 +357,9 @@ class ur5GymEnv(gym.Env):
         self.stepCounter += 1
         infos['episode'] = {"l": self.stepCounter,  "r": reward}
         infos.update(reward_infos)
-        return self.observation, reward, done, infos
+        # return self.observation, reward, done, infos
+        #v26
+        return self.observation, reward, terminated, truncated, infos
 
     def render(self, mode = "human"):
         cam_prop = (1024, 768)

@@ -1,11 +1,11 @@
 from stable_baselines3.common.policies import BasePolicy
 from typing import Any, Dict, List, Optional, Type, Tuple
 from functools import partial
-import gym
+import gymnasium as gym
 import torch as th
 from torch import nn
 from stable_baselines3.common.type_aliases import Schedule
-import gym
+import gymnasium as gym
 import numpy as np
 import torch as th
 from torch import nn

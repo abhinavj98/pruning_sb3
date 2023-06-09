@@ -1,5 +1,5 @@
 from gym_env_discrete import ur5GymEnv
-from models import *
+from PPOAE.models import *
 import numpy as np
 import cv2
 import random

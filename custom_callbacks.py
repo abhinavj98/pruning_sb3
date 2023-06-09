@@ -245,6 +245,7 @@ class CustomEvalCallback(EventCallback):
         episode_counts = _locals["episode_counts"][0]
         if episode_counts == 0:
             screen = self.eval_env.render()
+            # print(episode_counts)
             # PyTorch uses CxHxW vs HxWxC gym (and tensorflow) image convention
             
             # critic_value = ppo.policy.critic(memory.depth_features[-1].unsqueeze(0), memory.states[-1])
@@ -333,6 +334,7 @@ class CustomEvalCallback(EventCallback):
                 print(f"Eval num_timesteps={self.num_timesteps}, " f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
                 print(f"Episode length: {mean_ep_length:.2f} +/- {std_ep_length:.2f}")
             # Add to current Logger
+            print("logging")
             self.logger.record("eval/mean_reward", float(mean_reward))
             self.logger.record("eval/mean_ep_length", mean_ep_length)
             self.logger.record(
