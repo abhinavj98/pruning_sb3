@@ -105,7 +105,7 @@ class PPOAE(OnPolicyAlgorithm):
         clip_range: Union[float, Schedule] = 0.2,
         clip_range_vf: Union[None, float, Schedule] = None,
         normalize_advantage: bool = True,
-        ent_coef: float = 0.1,
+        ent_coef: float = 0.0001,
         vf_coef: float = 0.5,
         ae_coef: float = 1,
         train_iterations_ae: int = 1,

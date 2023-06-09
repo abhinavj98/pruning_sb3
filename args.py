@@ -64,12 +64,12 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 0,#2
+        'default': 2,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
         'type': float,
-        'default': 1/70,
+        'default': 0,#1/70,
         'help': 'scaling factor for the distance reward'
     },
     'CONDITION_REWARD_SCALE': {
@@ -94,7 +94,7 @@ args_dict = {
     },
     'ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 0.001,
+        'default': 0,#0.001,
         'help': 'scaling factor for the orientation reward'
     },
     #Training parameters

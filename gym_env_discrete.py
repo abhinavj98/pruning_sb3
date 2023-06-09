@@ -330,7 +330,7 @@ class ur5GymEnv(gym.Env):
         self.joint_velocities = self.calculate_joint_velocities_from_end_effector_velocity(action)
         self.set_joint_velocities(self.joint_velocities)
         
-        for i in range(1):
+        for i in range(5):
             self.con.stepSimulation()
             # if self.renders: time.sleep(5./240.) 
         self.getExtendedObservation()
@@ -467,7 +467,7 @@ class ur5GymEnv(gym.Env):
         reward_info['condition_number_reward'] = condition_number_reward
 
         terminate_reward = 0
-        if self.target_dist < self.learning_param and orientation_reward > 0.95*self.orientation_reward_scale:  # and approach_velocity < 0.05:
+        if self.target_dist < self.learning_param and (self.orientation_reward_scale == 0 or orientation_reward >= 0.95*self.orientation_reward_scale):  # and approach_velocity < 0.05:
             self.terminated = True
             terminate_reward = 1*self.terminate_reward_scale
             reward += terminate_reward
