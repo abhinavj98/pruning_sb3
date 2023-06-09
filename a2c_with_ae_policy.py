@@ -84,7 +84,8 @@ class ActorCriticWithAePolicy(BasePolicy):
         normalize_images: bool = False,
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
-        lr_schedule_ae: Schedule = 0.0001
+        lr_schedule_ae: Schedule = 0.0001,
+        lr_schedule_logstd: Schedule = 0.0001,
     ):
 
         if optimizer_kwargs is None:
@@ -131,7 +132,7 @@ class ActorCriticWithAePolicy(BasePolicy):
 
         self.use_sde = use_sde
         self.dist_kwargs = dist_kwargs
-        self._build(lr_schedule, lr_schedule_ae)
+        self._build(lr_schedule, lr_schedule_ae, lr_schedule_logstd)
         
 
     def _get_constructor_parameters(self) -> Dict[str, Any]:
@@ -189,7 +190,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         if type(m) == nn.Conv2d or type(m)==nn.Linear or type(m)==nn.ConvTranspose2d:
             th.nn.init.kaiming_normal_(m.weight, a=0, mode='fan_in', nonlinearity='leaky_relu')
 
-    def _build(self, lr_schedule: Schedule, lr_schedule_ae: Schedule) -> None:
+    def _build(self, lr_schedule: Schedule, lr_schedule_ae: Schedule, lr_schedule_logstd) -> None:
         """
         Create the networks and the optimizer.
         :param lr_schedule: Learning rate schedule
@@ -226,8 +227,9 @@ class ActorCriticWithAePolicy(BasePolicy):
                  module.apply(partial(self.init_weights, gain=gain))
 
         # Setup optimizer with initial learning rate
-        self.optimizer = self.optimizer_class([*self.actor.parameters(), *self.critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters(), self.log_std], lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.optimizer = self.optimizer_class([*self.actor.parameters(), *self.critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
         self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
+        self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
         #print all nets in optimizer
         print(self.optimizer, self.optimizer_ae)
     

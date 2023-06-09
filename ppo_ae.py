@@ -96,11 +96,12 @@ class PPOAE(OnPolicyAlgorithm):
         env: Union[GymEnv, str],
         learning_rate_ae: Union[float, Schedule] = 3e-4,
         learning_rate: Union[float, Schedule] = 3e-4,
+        learning_rate_logstd : Union[float, Schedule] = 3e-4,
         n_steps: int = 1000,
         batch_size: int = 100,
         n_epochs: int = 10,
         gamma: float = 0.99,
-        latent_coef: float = 0,
+        latent_coef: float = 0.001,
         gae_lambda: float = 0.95,
         clip_range: Union[float, Schedule] = 0.2,
         clip_range_vf: Union[None, float, Schedule] = None,
@@ -149,6 +150,7 @@ class PPOAE(OnPolicyAlgorithm):
         )
         th.autograd.set_detect_anomaly(True)
         self.learning_rate_ae = learning_rate_ae
+        self.learning_rate_logstd = learning_rate_logstd
         self.ae_coef = ae_coef
         self.latent_coef = latent_coef
         self.train_iterations_ae = train_iterations_ae
@@ -210,6 +212,7 @@ class PPOAE(OnPolicyAlgorithm):
             self.lr_schedule,
             use_sde=self.use_sde,
             lr_schedule_ae = self.lr_schedule_ae,
+            lr_schedule_logstd = self.lr_schedule_logstd,
             **self.policy_kwargs  # pytype:disable=not-instantiable
         )
         self.policy = self.policy.to(self.device)
@@ -231,15 +234,16 @@ class PPOAE(OnPolicyAlgorithm):
             # Log the current learning rate
             self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
             self.logger.record("train/learning_rate_ae", self.lr_schedule_ae(self._current_progress_remaining))
-
+            self.logger.record("train/learning_rate_logstd", self.lr_schedule_logstd(self._current_progress_remaining))
             update_learning_rate(self.policy.optimizer, self.lr_schedule(self._current_progress_remaining))
             update_learning_rate(self.policy.optimizer_ae, self.lr_schedule_ae(self._current_progress_remaining))
-
+            update_learning_rate(self.policy.optimizer_logstd, self.lr_schedule_logstd(self._current_progress_remaining))
 
     def _custom_setup_lr_schedule(self) -> None:
         """Transform to callable if needed."""
         self.lr_schedule = get_schedule_fn(self.learning_rate)
         self.lr_schedule_ae = get_schedule_fn(self.learning_rate_ae)
+        self.lr_schedule_logstd = get_schedule_fn(self.learning_rate_logstd)
 
     def train(self) -> None:
         """
@@ -351,6 +355,7 @@ class PPOAE(OnPolicyAlgorithm):
                 # Optimization step
                 self.policy.optimizer.zero_grad()
                 self.policy.optimizer_ae.zero_grad()
+                self.policy.optimizer_logstd.zero_grad()
                 
                 loss.backward()
                 # Clip grad norm
@@ -361,6 +366,7 @@ class PPOAE(OnPolicyAlgorithm):
                     self.policy.optimizer.step()
                 if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
                     self.policy.optimizer_ae.step()
+                self.policy.optimizer_logstd.step()
             if not continue_training:
                 break
 
