@@ -94,7 +94,7 @@ args_dict = {
     },
     'ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 0,#0.001,
+        'default': 0.01,
         'help': 'scaling factor for the orientation reward'
     },
     #Training parameters
@@ -130,7 +130,7 @@ args_dict = {
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -4,
+        'default': -3,
         'help': 'initial value for the log standard deviation'
     },
 

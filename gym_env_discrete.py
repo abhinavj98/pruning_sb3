@@ -467,7 +467,7 @@ class ur5GymEnv(gym.Env):
         reward_info['condition_number_reward'] = condition_number_reward
 
         terminate_reward = 0
-        if self.target_dist < self.learning_param and (self.orientation_reward_scale == 0 or orientation_reward >= 0.95*self.orientation_reward_scale):  # and approach_velocity < 0.05:
+        if self.target_dist < self.learning_param and (self.orientation_reward_scale == 0 or orientation_reward >= 0.9*self.orientation_reward_scale):  # and approach_velocity < 0.05:
             self.terminated = True
             terminate_reward = 1*self.terminate_reward_scale
             reward += terminate_reward
