@@ -1,6 +1,6 @@
 from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
-import gym
+import gymnasium as gym
 import torch
 from torch import nn
 import torch as th

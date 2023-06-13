@@ -260,7 +260,7 @@ class ur5GymEnv(gym.Env):
         position, orientation = linkstate[4], linkstate[1] #Position wrt end effector, orientation wrt COM
         return (position, orientation)
 
-    def set_camera(self, pose, orientation):
+    def set_camera(self):
         pose, orientation = self.get_current_pose()
         rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3,3)
 		#Initial vectors
@@ -275,8 +275,9 @@ class ur5GymEnv(gym.Env):
         
     @staticmethod
     def seperate_rgbd_rgb_d(rgbd, h = 224, w = 224):
-        rgb = rgbd[2][:,:,0:3].reshape(3,h,w)/255
-        depth = rgbd[3]
+        rgb = np.array(rgbd[2]).reshape(h,w,4)/255
+        rgb = rgb[:,:,:3]
+        depth = np.array(rgbd[3]).reshape(h,w)
         return rgb, depth
 
     @staticmethod
@@ -286,7 +287,7 @@ class ur5GymEnv(gym.Env):
    
     def get_rgbd_at_cur_pose(self):
         cur_p = self.get_current_pose()
-        rgbd = self.set_camera(cur_p[0], cur_p[1])
+        rgbd = self.set_camera()
         rgb,  depth = self.seperate_rgbd_rgb_d(rgbd)
         depth = depth.astype(np.float32)
         depth = self.linearize_depth(depth, self.far_val, self.near_val) - 0.5
@@ -361,10 +362,20 @@ class ur5GymEnv(gym.Env):
         #v26
         return self.observation, reward, terminated, truncated, infos
 
-    def render(self, mode = "human"):
-        cam_prop = (1024, 768)
-        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1])
-        return img_rgbd[2]
+    def render(self, mode = "rgb_array"):
+        # self.con.resetDebugVisualizerCamera( cameraDistance=1.06, cameraYaw=-120.3, cameraPitch=-12.48, cameraTargetPosition=[-0.3,-0.06,0.4])
+        # cam_prop = self.con.getDebugVisualizerCamera()
+        # print(cam_prop)
+        a,b = self.get_rgbd_at_cur_pose()
+        return a
+        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1], cam_prop[2], cam_prop[3])#, renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
+        img_rgb = np.array(img_rgbd[2]).reshape(cam_prop[0], cam_prop[1], 4)
+        if mode == "human":
+            import cv2
+            cv2.imshow("img", (img_rgb[:,:, :3]*255).astype(np.uint8))
+            cv2.waitKey(1)
+        # print(img_rgb.shape)
+        return img_rgb[:,:, :3]
      
     def close(self):
         self.con.disconnect()
@@ -429,7 +440,7 @@ class ur5GymEnv(gym.Env):
         self.debug_des_or = self.con.addUserDebugLine(achieved_pos, achieved_pos + perpendicular_vector, [1,0,0], 2)
         self.debug_cur_or = self.con.addUserDebugLine(self.achieved_pos, self.achieved_pos + 0.1 * camera_vector, [0, 1, 0], 1)
        
-        orientation_reward = np.dot(camera_vector, perpendicular_vector)/(np.linalg.norm(camera_vector)*np.linalg.norm(perpendicular_vector))*self.orientation_reward_scale
+        orientation_reward = np.dot(camera_vector, perpendicular_vector)/(np.linalg.norm(camera_vector)*np.linalg.norm(perpendicular_vector))
         return orientation_reward
        
     
@@ -451,7 +462,8 @@ class ur5GymEnv(gym.Env):
         reward_info['distance_reward'] = distance_reward
         reward += distance_reward
 
-        orientation_reward = np.exp(self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, self.tree_goal_branch)*3)/np.exp(3)*self.orientation_reward_scale
+        self.orientation_reward_unscaled = self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, self.tree_goal_branch)
+        orientation_reward = self.orientation_reward_unscaled*self.orientation_reward_scale
         #Mostly within 0.8 to 1
         #Compress to increase range
 
@@ -621,6 +633,6 @@ class Tree():
         trees = []
         for urdf, obj in zip(sorted(glob.glob(trees_urdf_path+'/*.urdf')), sorted(glob.glob(trees_obj_path+'/*.obj'))):
             trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation = orientation, scale=scale, num_points=num_points))
-            break
+            
         return trees
  
