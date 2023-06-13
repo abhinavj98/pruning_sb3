@@ -258,8 +258,8 @@ class CustomEvalCallback(EventCallback):
                 1, (255,0,0), 2, cv2.LINE_AA)
             screen = cv2.putText(screen, "Goal: "+str(self.eval_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
                 1, (255,0,0), 2, cv2.LINE_AA)
-            screen = cv2.putText(screen, "J_velocity: "+" ".join(str(x) for x in self.eval_env.get_attr("joint_velocities", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX, 
-                0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+            screen_copy = cv2.putText(screen, "Orientation Reward: "+str(self.eval_env.get_attr("orientation_reward_unscaled", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX, 
+                0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions']) #str(_locals['actions'])
             screen = cv2.putText(screen, "Distance: "+" ".join(str(self.eval_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             self._screens_buffer.append(screen.transpose(2, 0, 1))

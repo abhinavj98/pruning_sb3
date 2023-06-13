@@ -24,6 +24,7 @@ class ur5GymEnv(gym.Env):
                  learning_param=0.05,
                  tree_urdf_path = None,
                  tree_obj_path = None,
+                 tree_count = 9999,
                  width = 224,
                  height = 224,
                  eval = False,
@@ -54,7 +55,7 @@ class ur5GymEnv(gym.Env):
         self.action_dim = action_dim
         self.stepCounter = 0
         self.maxSteps = maxSteps
-
+        self.tree_count = tree_count
         self.action_scale = action_scale
         self.movement_reward_scale = movement_reward_scale
         self.distance_reward_scale = distance_reward_scale
@@ -120,7 +121,8 @@ class ur5GymEnv(gym.Env):
         self.tree_goal_pos = [1, 0, 0] # initial object pos
         self.tree_goal_branch = [0, 0, 0]
 
-        self.trees = Tree.make_list_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos = np.array([0, -0.8, 0]), orientation=np.array([0,0,0,1]), scale=0.1, num_points = num_points)
+        self.trees = Tree.make_list_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos = np.array([0, -0.8, 0]),\
+                                                 orientation=np.array([0,0,0,1]), scale=0.1, num_points = num_points, num_trees = self.tree_count)
         self.tree = random.sample(self.trees, 1)[0]
         self.tree.active()
 
@@ -419,7 +421,7 @@ class ur5GymEnv(gym.Env):
         self.debug_des_or = self.con.addUserDebugLine(achieved_pos, achieved_pos + perpendicular_vector, [1,0,0], 2)
         self.debug_cur_or = self.con.addUserDebugLine(self.achieved_pos, self.achieved_pos + 0.1 * camera_vector, [0, 1, 0], 1)
        
-        orientation_reward = np.dot(camera_vector, perpendicular_vector)/(np.linalg.norm(camera_vector)*np.linalg.norm(perpendicular_vector))*self.orientation_reward_scale
+        orientation_reward = np.dot(camera_vector, perpendicular_vector)/(np.linalg.norm(camera_vector)*np.linalg.norm(perpendicular_vector))
         return orientation_reward
        
     
@@ -441,7 +443,8 @@ class ur5GymEnv(gym.Env):
         reward_info['distance_reward'] = distance_reward
         reward += distance_reward
 
-        orientation_reward = np.exp(self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, self.tree_goal_branch)*3)/np.exp(3)*self.orientation_reward_scale
+        self.orientation_reward_unscaled = self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, self.tree_goal_branch)
+        orientation_reward = self.orientation_reward_unscaled*self.orientation_reward_scale
         #Mostly within 0.8 to 1
         #Compress to increase range
 
@@ -527,7 +530,7 @@ def compute_perpendicular_projection_vector(ab, bc):
     return projection
 
 class Tree():
-    def __init__(self, env, urdf_path, obj_path, pos = np.array([0,0,0]), orientation = np.array([0,0,0,1]), num_points = None, scale = 1) -> None:
+    def __init__(self, env, urdf_path, obj_path, pos = np.array([0,0,0]), orientation = np.array([0,0,0,1]), num_points = None,  scale = 1) -> None:
         self.urdf_path = urdf_path
         self.env = env
         self.scale = scale
@@ -607,10 +610,11 @@ class Tree():
         return 
 
     @staticmethod
-    def make_list_from_folder(env, trees_urdf_path, trees_obj_path, pos, orientation, scale, num_points):
+    def make_list_from_folder(env, trees_urdf_path, trees_obj_path, pos, orientation, scale, num_points, num_trees ):
         trees = []
         for urdf, obj in zip(sorted(glob.glob(trees_urdf_path+'/*.urdf')), sorted(glob.glob(trees_obj_path+'/*.obj'))):
+            if len(trees) >= num_trees:
+                break
             trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation = orientation, scale=scale, num_points=num_points))
-            break
         return trees
  
