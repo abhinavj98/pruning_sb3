@@ -24,7 +24,7 @@ for arg_name, arg_params in args_dict.items():
 args = parser.parse_args()
 print(args)
 env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR}
-env = ur5GymEnv(**env_kwargs)
+env = ur5GymEnv(**env_kwargs, tree_count=1)
 
 
 # env.reset()
@@ -35,29 +35,29 @@ while True:
     action = get_key_pressed(env)
     #if action is wasd, then move the robot
     if ord('a') in action:
-        val = np.array([1,0,0,0,0,0])
+        val = np.array([0.2,0,0,0,0,0])
     elif ord('d') in action:
-        val = np.array([-1,0,0,0,0,0])
+        val = np.array([-0.2,0,0,0,0,0])
     elif ord('s') in action:
-        val = np.array([0,1,0,0,0,0])
+        val = np.array([0,0.2,0,0,0,0])
     elif ord('w') in action:
-        val = np.array([0,-1,0,0,0,0])
+        val = np.array([0,-0.2,0,0,0,0])
     elif ord('q') in action:
-        val = np.array([0,0,1,0,0,0])
+        val = np.array([0,0,0.2,0,0,0])
     elif ord('e') in action:
-        val = np.array([0,0,-1,0,0,0])
+        val = np.array([0,0,-0.2,0,0,0])
     elif ord('z') in action:
-        val = np.array([0,0,0,1,0,0])
+        val = np.array([0,0,0,0.2,0,0])
     elif ord('c') in action:
-        val = np.array([0,0,0,-1,0,0])
+        val = np.array([0,0,0,-0.2,0,0])
     elif ord('x') in action:
-        val = np.array([0,0,0,0,1,0])
+        val = np.array([0,0,0,0,0.2,0])
     elif ord('v') in action:
-        val = np.array([0,0,0,0,-1,0])
+        val = np.array([0,0,0,0,-0.2,0])
     elif ord('r') in action:
-        val = np.array([0,0,0,0,0,1])
+        val = np.array([0,0,0,0,0,0.2])
     elif ord('f') in action:
-        val = np.array([0,0,0,0,0,-1])
+        val = np.array([0,0,0,0,0,-0.2])
     elif ord('t') in action:
         env.reset()
     else:
