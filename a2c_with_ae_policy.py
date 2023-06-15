@@ -236,7 +236,7 @@ class ActorCriticWithAePolicy(BasePolicy):
     def make_state_from_obs(self, obs):
         depth_features = self.extract_features(obs['depth'])
         #TODO: Normalize inputs
-        robot_features = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos'], obs['joint_angles']], dim = 1)
+        robot_features = th.cat([obs['cur_pos'], obs['cur_or'], obs['goal_pos'], obs['joint_angles'], obs['prev_action']],  dim = 1)
         return depth_features, robot_features
         
     def forward(self, obs: Dict, deterministic: bool = False, *args, **kwargs) -> Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]:

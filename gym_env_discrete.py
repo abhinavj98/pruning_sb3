@@ -97,8 +97,10 @@ class ur5GymEnv(gym.Env):
             'joint_velocities' : spaces.Box(low = -6,
                         high = 6,
                         shape = (6,), dtype=np.float32),
+            'prev_action' : spaces.Box(low = -1., high = 1., 
+                                       shape = (self.action_dim,), dtype=np.float32),
                         })
-        
+        self.prev_action = np.zeros(self.action_dim)
         self.reset_counter = 0
         self.randomize_tree_count = 5
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
@@ -325,6 +327,7 @@ class ur5GymEnv(gym.Env):
     def step(self, action):
         # remove debug line
         self.con.removeUserDebugItem(self.debug_line)
+        self.prev_action = action
         self.previous_pose = self.get_current_pose()
         self.prev_joint_velocities = self.joint_velocities
 
@@ -387,6 +390,7 @@ class ur5GymEnv(gym.Env):
         self.joint_angles = np.array(self.get_joint_angles()).astype(np.float32)
         self.observation['joint_angles'] = np.array(self.joint_angles).astype(np.float32) - self.init_joint_angles
         self.observation['joint_velocities'] = np.array(self.joint_velocities).astype(np.float32)
+        self.observation['prev_action'] = np.array(self.prev_action).astype(np.float32)
 
     def is_task_done(self):
         # NOTE: need to call compute_reward before this to check termination!
