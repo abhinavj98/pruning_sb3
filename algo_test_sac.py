@@ -80,7 +80,7 @@ eval_env_kwargs =  {"renders" : False, "tree_urdf_path" :  args.TREE_TEST_URDF_P
                 "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE, 
                 "slack_reward_scale" : args.SLACK_REWARD_SCALE, "num_points" : args.EVAL_POINTS, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE}
 
-env = make_vec_env(ur5GymEnv, env_kwargs = train_env_kwargs, n_envs = 1)#args.N_ENVS)
+env = make_vec_env(ur5GymEnv, env_kwargs = train_env_kwargs, n_envs = args.N_ENVS)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
 eval_env = Monitor(ur5GymEnv(**eval_env_kwargs))
@@ -99,11 +99,11 @@ custom_callback = CustomTrainCallback()
 policy_kwargs = {
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam,
-	    "log_std_init" : args.LOG_STD_INIT,
+	 "log_std_init" : args.LOG_STD_INIT,
         }
 policy = SACPolicy
 
-model = SAC(policy, env, policy_kwargs = policy_kwargs)
+model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE))
 
 
 # model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),\
