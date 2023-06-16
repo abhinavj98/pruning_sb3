@@ -1,0 +1,115 @@
+wandb_version: 1
+
+TREE_TRAIN_URDF_PATH:
+  desc: null
+  value: ./ur_e_description/urdf/trees/train
+TREE_TRAIN_OBJ_PATH:
+  desc: null
+  value: ./ur_e_description/meshes/trees/train
+TREE_TEST_URDF_PATH:
+  desc: null
+  value: ./ur_e_description/urdf/trees/test
+TREE_TEST_OBJ_PATH:
+  desc: null
+  value: ./ur_e_description/meshes/trees/test
+EMB_SIZE:
+  desc: null
+  value: 128
+ACTION_DIM_ACTOR:
+  desc: null
+  value: 6
+STATE_DIM:
+  desc: null
+  value: 116
+N_ENVS:
+  desc: null
+  value: 1
+RENDER:
+  desc: null
+  value: false
+MAX_STEPS:
+  desc: null
+  value: 20
+EVAL_MAX_STEPS:
+  desc: null
+  value: 20
+ACTION_SCALE:
+  desc: null
+  value: 1
+MOVEMENT_REWARD_SCALE:
+  desc: null
+  value: 0
+DISTANCE_REWARD_SCALE:
+  desc: null
+  value: 0.014285714285714285
+CONDITION_REWARD_SCALE:
+  desc: null
+  value: 0
+TERMINATE_REWARD_SCALE:
+  desc: null
+  value: 3
+COLLISION_REWARD_SCALE:
+  desc: null
+  value: -0.001
+SLACK_REWARD_SCALE:
+  desc: null
+  value: -0.0005
+ORIENTATION_REWARD_SCALE:
+  desc: null
+  value: 0.001
+TOTAL_TIMESTEPS:
+  desc: null
+  value: 1000000
+STEPS_PER_EPOCH:
+  desc: null
+  value: 20
+EPOCHS:
+  desc: null
+  value: 1
+BATCH_SIZE:
+  desc: null
+  value: 100
+LEARNING_RATE:
+  desc: null
+  value: 1.0e-05
+LEARNING_RATE_AE:
+  desc: null
+  value: 1.0e-05
+LOG_STD_INIT:
+  desc: null
+  value: -1.8
+EVAL_FREQ:
+  desc: null
+  value: 21
+EVAL_EPISODES:
+  desc: null
+  value: 1
+EVAL_POINTS:
+  desc: null
+  value: 10
+_wandb:
+  desc: null
+  value:
+    python_version: 3.10.8
+    cli_version: 0.15.4
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1686945602.743481
+    t:
+      1:
+      - 1
+      - 41
+      - 55
+      2:
+      - 1
+      - 41
+      - 55
+      3:
+      - 16
+      - 23
+      - 35
+      4: 3.10.8
+      5: 0.15.4
+      8:
+      - 5
