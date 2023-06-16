@@ -31,6 +31,21 @@ for arg_name, arg_params in args_dict.items():
 args = parser.parse_args()
 print(args)
 
+import wandb
+import os
+import json
+if os.path.exists("./keys.json"):
+   with open("./keys.json") as f:
+     os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
+
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="test-ppo",
+    sync_tensorboard = True,
+    # track hyperparameters and run metadata
+    config=args
+)
+
 def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
     """
     Linear learning rate schedule.
