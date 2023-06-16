@@ -403,6 +403,10 @@ class SACPolicy(BasePolicy):
 
         # Target networks should always be in eval mode
         self.critic_target.set_training_mode(False)
+       
+        #Get actor weights
+        self.actor.weights.data = self.actor_target.weights.data/10
+
 
     def _get_constructor_parameters(self) -> Dict[str, Any]:
         data = super()._get_constructor_parameters()
