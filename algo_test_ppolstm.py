@@ -6,7 +6,8 @@ from custom_callbacks import CustomEvalCallback, CustomTrainCallback
 from SACAE.sac_ae import SAC
 from gym_env_discrete import ur5GymEnv
 from PPOAE.models import AutoEncoder
-
+from sb3_contrib.ppo_recurrent import RecurrentPPO
+from sb3_contrib.ppo_recurrent.policies import MultiInputLstmPolicy
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common import utils
@@ -17,8 +18,8 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 import torch as th
 import argparse
-from args import args_dict
-#from args_copy import args_dict
+# from args import args_dict
+from args_copy import args_dict
 
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
@@ -112,13 +113,13 @@ eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
 # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
 custom_callback = CustomTrainCallback()
 policy_kwargs = {
-        "features_extractor_class" : AutoEncoder,
+        # "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam,
 	    "log_std_init" : args.LOG_STD_INIT,
         }
-policy = SACPolicy
+policy = MultiInputLstmPolicy
 
-model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE))
+model = RecurrentPPO(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE))
 
 
 # model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),\
