@@ -3,8 +3,10 @@ import pywavefront
 import numpy as np
 import random
 import numpy as np
-from gym import spaces
-import gym
+import gymnasium as gym
+
+from gymnasium import spaces
+# import gymnasium
 from pybullet_utils import bullet_client as bc
 import os
 import math
@@ -18,6 +20,7 @@ ROBOT_URDF_PATH = "./ur_e_description/urdf/ur5e_with_camera.urdf"
 
 
 class ur5GymEnv(gym.Env):
+    metadata = {'render.modes': ['rgb_array']}
     def __init__(self,
                  renders=False,
                  maxSteps=500,
@@ -47,6 +50,7 @@ class ur5GymEnv(gym.Env):
         
 
         self.renders = renders
+        self.render_mode = 'rgb_array'
         self.eval = eval
         self.terminate_on_singularity = terminate_on_singularity
         self.tree_urdf_path = tree_urdf_path
@@ -260,7 +264,7 @@ class ur5GymEnv(gym.Env):
         position, orientation = linkstate[4], linkstate[1] #Position wrt end effector, orientation wrt COM
         return (position, orientation)
 
-    def set_camera(self, pose, orientation):
+    def set_camera(self):
         pose, orientation = self.get_current_pose()
         rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3,3)
 		#Initial vectors
@@ -275,8 +279,9 @@ class ur5GymEnv(gym.Env):
         
     @staticmethod
     def seperate_rgbd_rgb_d(rgbd, h = 224, w = 224):
-        rgb = rgbd[2][:,:,0:3].reshape(3,h,w)/255
-        depth = rgbd[3]
+        rgb = np.array(rgbd[2]).reshape(h,w,4)/255
+        rgb = rgb[:,:,:3]
+        depth = np.array(rgbd[3]).reshape(h,w)
         return rgb, depth
 
     @staticmethod
@@ -286,14 +291,15 @@ class ur5GymEnv(gym.Env):
    
     def get_rgbd_at_cur_pose(self):
         cur_p = self.get_current_pose()
-        rgbd = self.set_camera(cur_p[0], cur_p[1])
+        rgbd = self.set_camera()
         rgb,  depth = self.seperate_rgbd_rgb_d(rgbd)
         depth = depth.astype(np.float32)
         depth = self.linearize_depth(depth, self.far_val, self.near_val) - 0.5
         return rgb, depth
 
-    def reset(self):
-
+    def reset(self, seed = 1, options = None):
+        super().reset(seed=seed)
+        random.seed(seed)
         self.reset_env_variables()
         self.reset_counter+=1
         #Remove and add tree to avoid collisions with tree while resetting
@@ -321,8 +327,9 @@ class ur5GymEnv(gym.Env):
         self.debug_branch = self.con.addUserDebugLine(self.tree_goal_pos - 50*self.tree_goal_branch,self.tree_goal_pos+ 50*self.tree_goal_branch, [1,0,0], 200)
       
         self.getExtendedObservation()
-      
-        return self.observation
+        info = {}
+        #Make info analogous to one in step function
+        return self.observation, info
 
     def step(self, action):
         # remove debug line
@@ -342,8 +349,10 @@ class ur5GymEnv(gym.Env):
         reward, reward_infos = self.compute_reward(self.achieved_pos, self.achieved_or, self.desired_pos, self.previous_pos, None)
         self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0,0,1], 20)
         done, terminate_info = self.is_task_done()
+        truncated = terminate_info['time_limit_exceeded']
+        terminated = terminate_info['goal_achieved'] or terminate_info['singularity_achieved']
         
-        infos = {'is_success': False}
+        infos = {'is_success': False, "TimeLimit.truncated": False}
         if terminate_info['time_limit_exceeded']:
             infos["TimeLimit.truncated"] = True
             infos["terminal_observation"] = self.observation
@@ -354,12 +363,24 @@ class ur5GymEnv(gym.Env):
         self.stepCounter += 1
         infos['episode'] = {"l": self.stepCounter,  "r": reward}
         infos.update(reward_infos)
-        return self.observation, reward, done, infos
+        # return self.observation, reward, done, infos
+        #v26
+        return self.observation, reward, terminated, truncated, infos
 
-    def render(self, mode = "human"):
-        cam_prop = (1024, 768)
-        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1])
-        return img_rgbd[2]
+    def render(self, mode = "rgb_array"):
+        # self.con.resetDebugVisualizerCamera( cameraDistance=1.06, cameraYaw=-120.3, cameraPitch=-12.48, cameraTargetPosition=[-0.3,-0.06,0.4])
+        # cam_prop = self.con.getDebugVisualizerCamera()
+        # print(cam_prop)
+        a,b = self.get_rgbd_at_cur_pose()
+        return a
+        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1], cam_prop[2], cam_prop[3])#, renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
+        img_rgb = np.array(img_rgbd[2]).reshape(cam_prop[0], cam_prop[1], 4)
+        if mode == "human":
+            import cv2
+            cv2.imshow("img", (img_rgb[:,:, :3]*255).astype(np.uint8))
+            cv2.waitKey(1)
+        # print(img_rgb.shape)
+        return img_rgb[:,:, :3]
      
     def close(self):
         self.con.disconnect()
@@ -474,7 +495,7 @@ class ur5GymEnv(gym.Env):
         reward_info['condition_number_reward'] = condition_number_reward
 
         terminate_reward = 0
-        if self.target_dist < self.learning_param and (self.orientation_reward_scale == 0 or orientation_reward >= 0.9*self.orientation_reward_scale):  # and approach_velocity < 0.05:
+        if self.target_dist < self.learning_param and (orientation_reward == 0 or orientation_reward > 0.95*self.orientation_reward_scale):  # and approach_velocity < 0.05:
             self.terminated = True
             terminate_reward = 1*self.terminate_reward_scale
             reward += terminate_reward

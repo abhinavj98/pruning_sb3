@@ -1,11 +1,11 @@
 from tabnanny import verbose
+from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
-
-from PPOAE.policies import ActorCriticWithAePolicy
+from SACAE.policies import SACPolicy
 from custom_callbacks import CustomEvalCallback, CustomTrainCallback
-from PPOAE.ppo_ae import PPOAE
+from SACAE.sac_ae import SAC
 from gym_env_discrete import ur5GymEnv
-from PPOAE.models import *
+from PPOAE.models import AutoEncoder
 
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -15,11 +15,10 @@ import cv2
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
-# PARSE ARGUMENTS
+import torch as th
 import argparse
 from args import args_dict
-# from args_copy import args_dict
-
+#from args_copy import args_dict
 
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
@@ -46,6 +45,7 @@ wandb.init(
     # track hyperparameters and run metadata
     config=args
 )
+
 def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
     """
     Linear learning rate schedule.
@@ -99,8 +99,9 @@ env = make_vec_env(ur5GymEnv, env_kwargs = train_env_kwargs, n_envs = args.N_ENV
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
 eval_env = Monitor(ur5GymEnv(**eval_env_kwargs))
+# eval_env = DummyVecEnv([lambda: eval_env])
+# eval_env = make_vec_env(ur5GymEnv, env_kwargs = eval_env_kwargs, n_envs = 1)
 eval_env.logger = new_logger
-print(eval_env.render().shape)
 # Use deterministic actions for evaluation
 eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
                              log_path="./logs/", eval_freq=args.EVAL_FREQ,
@@ -111,22 +112,22 @@ eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
 # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
 custom_callback = CustomTrainCallback()
 policy_kwargs = {
-        "actor_class":  Actor,
-        "critic_class":  Critic,
-        "actor_kwargs": {"state_dim": args.STATE_DIM, "emb_size": args.EMB_SIZE},
-        "critic_kwargs": {"state_dim": args.STATE_DIM, "emb_size": args.EMB_SIZE},
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam,
-	    "log_std_init" : args.LOG_STD_INIT,
+	 "log_std_init" : args.LOG_STD_INIT,
         }
+policy = SACPolicy
 
-model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01),\
-              n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS )
-print(model.policy.parameters)
-if load_path:
-    model.load(load_path)
+model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_starts=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE)
+
+
+# model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),\
+#               n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS )
+# print(model.policy.parameters)
+# if load_path:
+#     model.load(load_path)
 model.set_logger(new_logger)
-print("Using device: ", utils.get_device())
+# print("Using device: ", utils.get_device())
 
-env.reset()
+# env.reset()
 model.learn(10000000, callback=[custom_callback, eval_callback], progress_bar = False)

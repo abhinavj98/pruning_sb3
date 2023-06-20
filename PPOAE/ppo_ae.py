@@ -3,33 +3,36 @@ from typing import Any, Dict, Optional, Type, TypeVar, Union, List
 
 import numpy as np
 import torch as th
-from gym import spaces
+from gymnasium import spaces
 from torch.nn import functional as F
-import torchvision
-import gym
+
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticPolicy, BasePolicy, MultiInputActorCriticPolicy
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import explained_variance, get_schedule_fn
-from stable_baselines3.common.logger import Image
-from stable_baselines3.common.base_class import BaseAlgorithm
-from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.policies import ActorCriticPolicy
-from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
-from stable_baselines3.common.utils import obs_as_tensor, safe_mean
-from stable_baselines3.common.vec_env import VecEnv
 
-from stable_baselines3.common.utils import (
-    check_for_correct_spaces,
-    get_device,
-    get_schedule_fn,
-    get_system_info,
-    set_random_seed,
-    update_learning_rate,
-)
+import torchvision
+import gymnasium as gym
+
+from stable_baselines3.common.logger import Image
+# from stable_baselines3.common.base_class import BaseAlgorithm
+from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
+# from stable_baselines3.common.callbacks import BaseCallback
+# from stable_baselines3.common.policies import ActorCriticPolicy
+# from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
+# from stable_baselines3.common.utils import obs_as_tensor, safe_mean
+# from stable_baselines3.common.vec_env import VecEnv
+from stable_baselines3.common.utils import update_learning_rate
+# from stable_baselines3.common.utils import (
+#     check_for_correct_spaces,
+#     get_device,
+#     get_schedule_fn,
+#     get_system_info,
+#     set_random_seed,
+#     update_learning_rate,
+# )
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
-mean = 0
+
 
 class PPOAE(OnPolicyAlgorithm):
     """
@@ -232,6 +235,7 @@ class PPOAE(OnPolicyAlgorithm):
                 An optimizer or a list of optimizers.
             """
             # Log the current learning rate
+            #TODO: Move to callback
             self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
             self.logger.record("train/learning_rate_ae", self.lr_schedule_ae(self._current_progress_remaining))
             self.logger.record("train/learning_rate_logstd", self.lr_schedule_logstd(self._current_progress_remaining))
@@ -249,12 +253,11 @@ class PPOAE(OnPolicyAlgorithm):
         """
         Update policy using the currently gathered rollout buffer.
         """
-        global mean
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
         # Update optimizer learning rate
         self._custom_update_learning_rate([self.policy.optimizer, self.policy.optimizer_ae])
-        # self._update_learning_rate(self.policy.optimizer_ae) #Make this work with 2 different netweorks
+     
         # Compute current clip range
         clip_range = self.clip_range(self._current_progress_remaining)
         # Optional: clip range for the value function
@@ -271,13 +274,10 @@ class PPOAE(OnPolicyAlgorithm):
             approx_kl_divs = []
             # Do a complete pass on the rollout buffer
             for rollout_data in self.rollout_buffer.get(self.batch_size):
-                # mean = 0.5* mean + th.mean(rollout_data.observations['depth'].reshape(-1))
-                # print(mean)
                 actions = rollout_data.actions
                 if isinstance(self.action_space, spaces.Discrete):
                     # Convert discrete action from float to long
                     actions = rollout_data.actions.long().flatten()
-
                 # Re-sample the noise matrix because the log_std has changed
                 if self.use_sde:
                     self.policy.reset_noise(self.batch_size)
@@ -290,9 +290,6 @@ class PPOAE(OnPolicyAlgorithm):
                 # Normalization does not make sense if mini batchsize == 1, see GH issue #325
                 if self.normalize_advantage and len(advantages) > 1:
                     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-                    #print("Mean: ", rollout_data.returns.mean(),  "Values :", values.mean())
-                   #NOTE: ZERO out last layer of critic
-
 
                 # ratio between old and new policy, should be one at the first iteration
                 if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
@@ -361,7 +358,7 @@ class PPOAE(OnPolicyAlgorithm):
                 # Clip grad norm
                 th.nn.utils.clip_grad_value_(self.policy.parameters(), self.max_grad_norm)
                 #Replace clip grad_norm with clip by value
-                #TODO: Check if value_net and action_net and log_std are being clipped
+            
                 if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
                     self.policy.optimizer.step()
                 if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
@@ -417,3 +414,5 @@ class PPOAE(OnPolicyAlgorithm):
             reset_num_timesteps=reset_num_timesteps,
         #    progress_bar=progress_bar,
         )
+
+

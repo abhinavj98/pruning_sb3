@@ -1,6 +1,6 @@
 
 from stable_baselines3.common.callbacks import BaseCallback, EventCallback, CallbackList
-import gym
+import gymnasium as gym
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.logger import Video
 
@@ -244,25 +244,22 @@ class CustomEvalCallback(EventCallback):
         """
         episode_counts = _locals["episode_counts"][0]
         if episode_counts == 0:
-            screen = self.eval_env.render()
-            # PyTorch uses CxHxW vs HxWxC gym (and tensorflow) image convention
-            
-            # critic_value = ppo.policy.critic(memory.depth_features[-1].unsqueeze(0), memory.states[-1])
-            # debug_img = cv2.putText(debug_img, "Critic: "+str(critic_value.item()), (0,50), cv2.FONT_HERSHEY_SIMPLEX, 
-            #     1, (255,0,0), 2, cv2.LINE_AA)
-            screen = cv2.putText(screen, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen = np.array(self.eval_env.render())*255
+            screen_copy = screen.reshape((screen.shape[0], screen.shape[1], 3)).astype(np.uint8)
+            screen_copy = cv2.resize(screen_copy, (1124, 768), interpolation=cv2.INTER_NEAREST)
+            screen_copy = cv2.putText(screen_copy, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
                 1, (255,0,0), 2, cv2.LINE_AA)
-            screen = cv2.putText(screen, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen_copy = cv2.putText(screen_copy, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-            screen = cv2.putText(screen, "Current: "+str(self.eval_env.get_attr("achieved_pos", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen_copy = cv2.putText(screen_copy, "Current: "+str(self.eval_env.get_attr("achieved_pos", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
                 1, (255,0,0), 2, cv2.LINE_AA)
-            screen = cv2.putText(screen, "Goal: "+str(self.eval_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen_copy = cv2.putText(screen_copy, "Goal: "+str(self.eval_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
                 1, (255,0,0), 2, cv2.LINE_AA)
-            screen_copy = cv2.putText(screen, "Orientation Reward: "+str(self.eval_env.get_attr("orientation_reward_unscaled", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX, 
-                0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions']) #str(_locals['actions'])
-            screen = cv2.putText(screen, "Distance: "+" ".join(str(self.eval_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen_copy = cv2.putText(screen_copy, "Orientation Reward: "+str(self.eval_env.get_attr("orientation_reward_unscaled", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-            self._screens_buffer.append(screen.transpose(2, 0, 1))
+            screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.eval_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX, 
+                0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+            self._screens_buffer.append(screen_copy.transpose(2, 0, 1))
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         self._collisions_buffer.append(self.eval_env.get_attr("collisions", 0)[0])
