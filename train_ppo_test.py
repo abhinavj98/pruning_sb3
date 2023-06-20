@@ -15,16 +15,11 @@ import cv2
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
-import os
-import json
+
 # PARSE ARGUMENTS
 import argparse
 # from args import args_dict
 from args_copy import args_dict
-import wandb
-if os.path.exists("./keys.json"):
-   with open("./keys.json") as f:
-     os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
 
 # Start a wandb run with `sync_tensorboard=True`
 
@@ -38,6 +33,14 @@ for arg_name, arg_params in args_dict.items():
 # Parse arguments from the command line
 args = parser.parse_args()
 print(args)
+
+import wandb
+import os
+import json
+if os.path.exists("./keys.json"):
+   with open("./keys.json") as f:
+     os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
+
 wandb.init(
     # set the wandb project where this run will be logged
     project="test-ppo",
