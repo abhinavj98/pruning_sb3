@@ -68,8 +68,7 @@ class ur5GymEnv(gym.Env):
         self.collision_reward_scale = collision_reward_scale
         self.slack_reward_scale = slack_reward_scale
         self.orientation_reward_scale = orientation_reward_scale
-
-        # setup pybullet sim:
+       # setup pybullet sim:
         if self.renders:
             self.con = bc.BulletClient(connection_mode=pybullet.GUI)
         else:
@@ -275,7 +274,7 @@ class ur5GymEnv(gym.Env):
         up_vector = rot_mat.dot(init_up_vector)
         view_matrix = self.con.computeViewMatrix(pose, pose + 0.1 * camera_vector, up_vector)
        
-        return self.con.getCameraImage(self.width, self.height, viewMatrix = view_matrix, projectionMatrix = self.proj_mat, renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
+        return self.con.getCameraImage(self.width, self.height, viewMatrix = view_matrix, projectionMatrix = self.proj_mat, renderer = self.con.ER_BULLET_HARDWARE_OPENGL, flags = self.con.ER_NO_SEGMENTATION_MASK, lightDirection = [1,1,1])
         
     @staticmethod
     def seperate_rgbd_rgb_d(rgbd, h = 224, w = 224):
@@ -368,19 +367,18 @@ class ur5GymEnv(gym.Env):
         return self.observation, reward, terminated, truncated, infos
 
     def render(self, mode = "rgb_array"):
-        # self.con.resetDebugVisualizerCamera( cameraDistance=1.06, cameraYaw=-120.3, cameraPitch=-12.48, cameraTargetPosition=[-0.3,-0.06,0.4])
-        # cam_prop = self.con.getDebugVisualizerCamera()
-        # print(cam_prop)
-        a,b = self.get_rgbd_at_cur_pose()
-        return a
-        img_rgbd = self.con.getCameraImage(cam_prop[0], cam_prop[1], cam_prop[2], cam_prop[3])#, renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
-        img_rgb = np.array(img_rgbd[2]).reshape(cam_prop[0], cam_prop[1], 4)
+        size = [960, 720]
+        view_matrix = self.con.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[-0.3,-0.06,0.4], distance=1.06, yaw=-120.3, pitch=-12.48, roll=0, upAxisIndex=2)
+        proj_matrix = self.con.computeProjectionMatrixFOV(fov=60, aspect=float(size[0]) /size[1], nearVal=0.1, farVal=100.0)
+        img_rgbd = self.con.getCameraImage(size[0], size[1], view_matrix, proj_matrix, renderer = self.con.ER_BULLET_HARDWARE_OPENGL, flags = self.con.ER_NO_SEGMENTATION_MASK)
+                                           #, renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
+        img_rgb,  _ = self.seperate_rgbd_rgb_d(img_rgbd, size[1], size[0])
         if mode == "human":
             import cv2
-            cv2.imshow("img", (img_rgb[:,:, :3]*255).astype(np.uint8))
+            cv2.imshow("img", (img_rgb*255).astype(np.uint8))
             cv2.waitKey(1)
-        # print(img_rgb.shape)
-        return img_rgb[:,:, :3]
+      
+        return img_rgb
      
     def close(self):
         self.con.disconnect()

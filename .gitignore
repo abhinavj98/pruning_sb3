@@ -1,7 +1,9 @@
 # Editors
 .vscode/
 .idea/
-wandb/
+wandb/*
+
+
 *.json
 # Vagrant
 .vagrant/

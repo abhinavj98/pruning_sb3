@@ -1,11 +1,11 @@
 from tabnanny import verbose
 
-from a2c import A2CWithAE
-from a2c_with_ae_policy import ActorCriticWithAePolicy
+
+from PPOAE.policies import ActorCriticWithAePolicy
 from custom_callbacks import CustomEvalCallback, CustomTrainCallback
-from ppo_ae import PPOAE
+from PPOAE.ppo_ae import PPOAE
 from gym_env_discrete import ur5GymEnv
-from models import *
+from PPOAE.models import *
 
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -15,7 +15,6 @@ import cv2
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
-
 # PARSE ARGUMENTS
 import argparse
 # from args import args_dict
@@ -40,14 +39,14 @@ import json
 if os.path.exists("./keys.json"):
    with open("./keys.json") as f:
      os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
-
-wandb.init(
-    # set the wandb project where this run will be logged
-    project="test-ppo",
-    sync_tensorboard = True,
-    # track hyperparameters and run metadata
-    config=args
-)
+if not args.TESTING:
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="test-ppo",
+        sync_tensorboard = True,
+        # track hyperparameters and run metadata
+        config=args
+    )
 
 def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
     """

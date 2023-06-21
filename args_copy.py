@@ -149,4 +149,10 @@ args_dict = {
         'default': 10,
         'help': 'number of points to sample in a tree during evaluation'
     },
+     'TESTING': {
+        'type': bool,
+        'default': True,
+        'help': 'whether to run in testing mode'
+    },
+
 }

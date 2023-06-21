@@ -49,7 +49,7 @@ args_dict = {
     },
     'MAX_STEPS': {
         'type': int,
-        'default': 500,
+        'default': 250,
         'help': 'maximum number of steps per episode'
     },
     'EVAL_MAX_STEPS': {
@@ -105,7 +105,7 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 1000,
+        'default': 250,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
@@ -137,7 +137,7 @@ args_dict = {
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 1001,
+        'default': 8000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {
@@ -149,6 +149,12 @@ args_dict = {
         'type': int,
         'default': 50,
         'help': 'number of points to sample in a tree during evaluation'
+    },  
+    'TESTING': {
+        'type': bool,
+        'default': False,
+        'help': 'whether to run in testing mode'
     },
+
     
 }
