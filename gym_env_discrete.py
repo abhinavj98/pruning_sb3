@@ -345,7 +345,7 @@ class ur5GymEnv(gym.Env):
             self.con.stepSimulation()
             # if self.renders: time.sleep(5./240.) 
         self.getExtendedObservation()
-        reward, reward_infos = self.compute_reward(self.observation['desired_goal'],self.observation['achieved_goal'],  None)
+        reward, reward_infos = self.compute_reward(self.desired_pos,self.achieved_pos,  None)
         self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0,0,1], 20)
         done, terminate_info = self.is_task_done()
         truncated = terminate_info['time_limit_exceeded']

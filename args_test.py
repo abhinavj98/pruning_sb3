@@ -136,7 +136,7 @@ args_dict = {
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 200001,
+        'default': 21,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {
