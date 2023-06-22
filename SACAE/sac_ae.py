@@ -14,6 +14,7 @@ from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedul
 from stable_baselines3.common.utils import get_parameters_by_name, polyak_update
 from stable_baselines3.sac.policies import Actor, CnnPolicy, MlpPolicy, MultiInputPolicy, SACPolicy
 import torchvision
+from stable_baselines3 import HerReplayBuffer
 SelfSAC = TypeVar("SelfSAC", bound="SAC")
 
 
@@ -214,7 +215,6 @@ class SAC(OffPolicyAlgorithm):
         ent_coef_losses, ent_coefs = [], []
         actor_losses, critic_losses = [], []
         ae_losses = []
-
         for gradient_step in range(gradient_steps):
             # Sample replay buffer
             replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)  # type: ignore[union-attr]

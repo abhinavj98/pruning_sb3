@@ -253,7 +253,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         depth_features, robot_features = self.make_state_from_obs(obs)
         # print(depth_features[0].shape, robot_features.shape)
         latent_pi = self.actor(depth_features[0], robot_features)
-        latent_vf = self.critic(depth_features[0], robot_features)
+        latent_vf = self.critic(depth_features[0].detach(), robot_features)
         values = self.value_net(latent_vf)
         distribution = self._get_action_dist_from_latent(latent_pi)
         actions = distribution.get_actions(deterministic=deterministic)
@@ -328,7 +328,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         # Preprocess the observation if needed
         depth_features, robot_features = self.make_state_from_obs(obs)
         latent_pi = self.actor(depth_features[0], robot_features)
-        latent_vf = self.critic(depth_features[0], robot_features)
+        latent_vf = self.critic(depth_features[0].detach(), robot_features)
         values = self.value_net(latent_vf)
         distribution = self._get_action_dist_from_latent(latent_pi)
         #actions = distribution.get_actions(deterministic=deterministic)

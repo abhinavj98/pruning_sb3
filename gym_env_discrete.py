@@ -85,15 +85,12 @@ class ur5GymEnv(gym.Env):
             'depth': spaces.Box(low=-1.,
                      high=1.0,
                      shape=(1, 224, 224), dtype=np.float32),\
-            'goal_pos': spaces.Box(low = -5.,
+            'desired_goal': spaces.Box(low = -5.,
                         high = 5.,
                         shape = (3,), dtype=np.float32),
-            'cur_pos': spaces.Box(low = -5.,
+            'achieved_goal': spaces.Box(low = -5.,
                         high = 5.,
-                        shape = (3,), dtype=np.float32),
-            'cur_or': spaces.Box(low = -2,
-                        high = 2,
-                        shape = (4,), dtype=np.float32),
+                        shape = (7,), dtype=np.float32),
             'joint_angles' : spaces.Box(low = -2*np.pi,
                         high = 2*np.pi,
                         shape = (6,), dtype=np.float32),
@@ -177,10 +174,10 @@ class ur5GymEnv(gym.Env):
         for i in range(1000):
             self.con.stepSimulation()
         self.init_pos = self.con.getLinkState(self.ur5, self.end_effector_index)
-        self.joint_velocities = [0,0,0,0,0,0]
+        self.joint_velocities = np.array([0,0,0,0,0,0]).astype(np.float32)
         self.joint_angles = self.init_joint_angles
         self.achieved_pos = self.get_current_pose()[0]
-        self.previous_pose = (np.array(0), np.array(0))
+        self.previous_pose = np.array([0,0,0,0,0,0,0]).astype(np.float32)
 
     def set_joint_angles(self, joint_angles):
         poses = []
@@ -226,7 +223,7 @@ class ur5GymEnv(gym.Env):
         jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0,0,0], self.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
         jacobian = np.vstack(jacobian)
         inv_jacobian = np.linalg.pinv(jacobian)
-        joint_velocities = np.matmul(inv_jacobian, end_effector_velocity)
+        joint_velocities = np.matmul(inv_jacobian, end_effector_velocity).astype(np.float32)
         return joint_velocities
 
     def get_joint_angles(self):
@@ -334,7 +331,10 @@ class ur5GymEnv(gym.Env):
         # remove debug line
         self.con.removeUserDebugItem(self.debug_line)
         self.prev_action = action
-        self.previous_pose = self.get_current_pose()
+        previous_pose = self.get_current_pose()
+        #convert two tuples into one array
+
+        self.previous_pose = np.hstack((previous_pose[0], previous_pose[1]))
         self.prev_joint_velocities = self.joint_velocities
 
         action = action*self.action_scale
@@ -345,7 +345,7 @@ class ur5GymEnv(gym.Env):
             self.con.stepSimulation()
             # if self.renders: time.sleep(5./240.) 
         self.getExtendedObservation()
-        reward, reward_infos = self.compute_reward(self.achieved_pos, self.achieved_or, self.desired_pos, self.previous_pos, None)
+        reward, reward_infos = self.compute_reward(self.observation['desired_goal'],self.observation['achieved_goal'],  None)
         self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0,0,1], 20)
         done, terminate_info = self.is_task_done()
         truncated = terminate_info['time_limit_exceeded']
@@ -389,27 +389,25 @@ class ur5GymEnv(gym.Env):
         The observations are the current position, the goal position, the current orientation, the current depth image, the current joint angles and the current joint velocities    
         """   
         tool_pos, tool_orient = self.get_current_pose()
-        goal_pos = self.tree_goal_pos
-
         self.achieved_pos = np.array(tool_pos).astype(np.float32) 
-        self.observation['cur_pos'] = np.array(tool_pos).astype(np.float32) - np.array(self.init_pos[0]).astype(np.float32)
+        self.achieved_or = np.array(tool_orient).astype(np.float32) 
 
-        self.desired_pos = np.array(goal_pos).astype(np.float32)
-        self.observation['goal_pos'] = np.array(goal_pos).astype(np.float32) - np.array(self.init_pos[0]).astype(np.float32)
-
-        self.previous_pos = np.array(self.previous_pose[0])
-        self.previous_or = np.array(self.previous_pose[1])
-
-        self.achieved_or = np.array(tool_orient).astype(np.float32)
-        self.observation['cur_or'] = self.achieved_or
-
+        self.desired_pos = np.array(self.tree_goal_pos).astype(np.float32)
         self.rgb, self.depth = self.get_rgbd_at_cur_pose()
-        self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis = 0)
 
         self.joint_angles = np.array(self.get_joint_angles()).astype(np.float32)
-        self.observation['joint_angles'] = np.array(self.joint_angles).astype(np.float32) - self.init_joint_angles
-        self.observation['joint_velocities'] = np.array(self.joint_velocities).astype(np.float32)
-        self.observation['prev_action'] = np.array(self.prev_action).astype(np.float32)
+
+        init_pos = np.array(self.init_pos[0]).astype(np.float32)
+
+        self.observation['achieved_goal'] = np.hstack((self.achieved_pos - init_pos, self.achieved_or))
+        self.observation['desired_goal'] = self.desired_pos - init_pos
+       
+        self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis = 0)
+
+        
+        self.observation['joint_angles'] = self.joint_angles - self.init_joint_angles
+        self.observation['joint_velocities'] = self.joint_velocities
+        self.observation['prev_action'] = self.prev_action
 
     def is_task_done(self):
         # NOTE: need to call compute_reward before this to check termination!
@@ -448,13 +446,15 @@ class ur5GymEnv(gym.Env):
         return orientation_reward
        
     
-    def compute_reward(self, achieved_pos, achieved_or, desired_pos, previous_pos, info):
+    def compute_reward(self, desired_goal, achieved_goal, info):#achieved_pos, achieved_or, desired_pos, previous_pos, info):
         reward = float(0)
         reward_info = {}
         # Give rewards better names, and appropriate scales
-
+        achieved_pos = achieved_goal[:3]
+        achieved_or = achieved_goal[3:]
+        desired_pos = desired_goal
+        previous_pos = self.previous_pose[:3]
         self.collisions = 0
-
         self.delta_movement = float(goal_reward(achieved_pos, previous_pos, desired_pos))
         self.target_dist = float(goal_distance(achieved_pos, desired_pos))
 

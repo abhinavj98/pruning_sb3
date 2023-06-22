@@ -20,6 +20,7 @@ import argparse
 # from args import args_dict
 from args_test import args_dict
 
+from stable_baselines3 import HerReplayBuffer
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
 
@@ -37,14 +38,14 @@ import json
 if os.path.exists("./keys.json"):
    with open("./keys.json") as f:
      os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
-
-wandb.init(
-    # set the wandb project where this run will be logged
-    project="test-ppo",
-    sync_tensorboard = True,
-    # track hyperparameters and run metadata
-    config=args
-)
+if not args.TESTING:
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="test-ppo",
+        sync_tensorboard = True,
+        # track hyperparameters and run metadata
+        config=args
+    )
 
 def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
     """
@@ -88,12 +89,12 @@ load_path = None
 train_env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
                 "maxSteps" : args.MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
                 "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE, 
-                "slack_reward_scale" : args.SLACK_REWARD_SCALE, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE}
+                "slack_reward_scale" : args.SLACK_REWARD_SCALE, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE, "tree_count": 1}
 
 eval_env_kwargs =  {"renders" : False, "tree_urdf_path" :  args.TREE_TEST_URDF_PATH, "tree_obj_path" :  args.TREE_TEST_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
                 "maxSteps" : args.EVAL_MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
                 "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE, 
-                "slack_reward_scale" : args.SLACK_REWARD_SCALE, "num_points" : args.EVAL_POINTS, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE}
+                "slack_reward_scale" : args.SLACK_REWARD_SCALE, "num_points" : args.EVAL_POINTS, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE, "tree_count": 1}
 
 env = make_vec_env(ur5GymEnv, env_kwargs = train_env_kwargs, n_envs = args.N_ENVS)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
@@ -114,12 +115,15 @@ custom_callback = CustomTrainCallback()
 policy_kwargs = {
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam,
-	 "log_std_init" : args.LOG_STD_INIT,
+	     "log_std_init" : args.LOG_STD_INIT,
+         "net_arch" : dict(qf=[args.EMB_SIZE], pi=[args.EMB_SIZE*2, args.EMB_SIZE]),
+         "share_features_extractor" : True,
         }
 policy = SACPolicy
 
-model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_starts=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE)
 
+model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_starts=10, batch_size=512, buffer_size=20, train_freq=(args.STEPS_PER_EPOCH, "step"))#, replay_buffer_class = HerReplayBuffer)
+print(model.policy)
 
 # model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),\
 #               n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS )

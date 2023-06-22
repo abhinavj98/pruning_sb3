@@ -18,7 +18,13 @@ from stable_baselines3.common.monitor import Monitor
 import torch as th
 import argparse
 from args import args_dict
+
+from stable_baselines3 import HerReplayBuffer
 #from args_copy import args_dict
+#TODO
+# 1. Add a way to save the model
+# 2. Add a way to load the model
+# 3. Create a seperate args file for SAC
 
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
@@ -114,11 +120,13 @@ custom_callback = CustomTrainCallback()
 policy_kwargs = {
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam,
-	 "log_std_init" : args.LOG_STD_INIT,
+	     "log_std_init" : args.LOG_STD_INIT,
+         "net_arch" : dict(qf=[args.EMB_SIZE], pi=[args.EMB_SIZE*2, args.EMB_SIZE]),
+         "share_features_extractor" : True,
         }
 policy = SACPolicy
 
-model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_starts=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE)
+model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_starts=250, batch_size=512, buffer_size=30000, train_freq=(args.STEPS_PER_EPOCH, "step"))#, replay_buffer_class = HerReplayBuffer)
 
 
 # model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),\
