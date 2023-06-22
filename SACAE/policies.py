@@ -102,7 +102,9 @@ class Actor(BasePolicy):
             self.action_dist = SquashedDiagGaussianDistribution(action_dim)  # type: ignore[assignment]
             self.mu = nn.Linear(last_layer_dim, action_dim)
             self.log_std = nn.Linear(last_layer_dim, action_dim)  # type: ignore[assignment]
-        self.mu.weight.data = self.mu.weight.data*0.1
+        self.mu.weight.data = self.mu.weight.data*0.01
+        self.log_std.weight.data = self.log_std.weight.data*0.01
+        self.log_std.bias.data = self.log_std.bias.data*0.01
     def _get_constructor_parameters(self) -> Dict[str, Any]:
         data = super()._get_constructor_parameters()
 

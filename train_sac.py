@@ -46,7 +46,7 @@ if os.path.exists("./keys.json"):
 
 wandb.init(
     # set the wandb project where this run will be logged
-    project="test-ppo",
+    project=args.NAME,
     sync_tensorboard = True,
     # track hyperparameters and run metadata
     config=args
@@ -120,9 +120,9 @@ custom_callback = CustomTrainCallback()
 policy_kwargs = {
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam,
-	     "log_std_init" : args.LOG_STD_INIT,
-         "net_arch" : dict(qf=[args.EMB_SIZE], pi=[args.EMB_SIZE*2, args.EMB_SIZE]),
-         "share_features_extractor" : True,
+        "log_std_init" : args.LOG_STD_INIT,
+        "net_arch" : dict(qf=[args.EMB_SIZE], pi=[args.EMB_SIZE*2, args.EMB_SIZE]),
+        "share_features_extractor" : True,
         }
 policy = SACPolicy
 
