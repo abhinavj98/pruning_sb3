@@ -41,7 +41,7 @@ if os.path.exists("./keys.json"):
 
 wandb.init(
     # set the wandb project where this run will be logged
-    project="test-ppo",
+    project=args.NAME,
     sync_tensorboard = True,
     # track hyperparameters and run metadata
     config=args
