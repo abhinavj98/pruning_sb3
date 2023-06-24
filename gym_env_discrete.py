@@ -345,7 +345,8 @@ class ur5GymEnv(gym.Env):
             self.con.stepSimulation()
             # if self.renders: time.sleep(5./240.) 
         self.getExtendedObservation()
-        reward, reward_infos = self.compute_reward(self.desired_pos,self.achieved_pos,  None)
+        
+        reward, reward_infos = self.compute_reward(self.desired_pos, np.hstack((self.achieved_pos, self.achieved_or)),  None)
         self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0,0,1], 20)
         done, terminate_info = self.is_task_done()
         truncated = terminate_info['time_limit_exceeded']
@@ -431,7 +432,6 @@ class ur5GymEnv(gym.Env):
 
         #Perpendicular vector to branch vector
         perpendicular_vector = compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector+desired_pos)
-
         #Get vector for current orientation of end effector
         rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3,3)
 		#Initial vectors
@@ -465,7 +465,6 @@ class ur5GymEnv(gym.Env):
         distance_reward = (np.exp(-self.target_dist*5)*self.distance_reward_scale)
         reward_info['distance_reward'] = distance_reward
         reward += distance_reward
-
         self.orientation_reward_unscaled = self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, self.tree_goal_branch)
         orientation_reward = self.orientation_reward_unscaled*self.orientation_reward_scale
         #Mostly within 0.8 to 1
