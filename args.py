@@ -137,7 +137,7 @@ args_dict = {
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 8000,
+        'default': 1000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {
@@ -155,6 +155,9 @@ args_dict = {
         'default': False,
         'help': 'whether to run in testing mode'
     },
-
+   'NAME' : {
+	'type':str,
+	'default': 'run'
+	}
     
 }
