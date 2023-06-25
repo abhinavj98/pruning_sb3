@@ -3,7 +3,8 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union
 import torch as th
 from gymnasium import spaces
 from torch import nn
-
+from functools import partial
+import numpy as np
 from stable_baselines3.common.distributions import SquashedDiagGaussianDistribution, StateDependentNoiseDistribution
 from stable_baselines3.common.policies import BasePolicy, BaseModel
 from stable_baselines3.common.preprocessing import get_action_dim
@@ -102,9 +103,7 @@ class Actor(BasePolicy):
             self.action_dist = SquashedDiagGaussianDistribution(action_dim)  # type: ignore[assignment]
             self.mu = nn.Linear(last_layer_dim, action_dim)
             self.log_std = nn.Linear(last_layer_dim, action_dim)  # type: ignore[assignment]
-        self.mu.weight.data = self.mu.weight.data*0.01
-        self.log_std.weight.data = self.log_std.weight.data*0.01
-        self.log_std.bias.data = self.log_std.bias.data*0.01
+        
     def _get_constructor_parameters(self) -> Dict[str, Any]:
         data = super()._get_constructor_parameters()
 
@@ -403,6 +402,21 @@ class SACPolicy(BasePolicy):
             **self.optimizer_kwargs,
         )
 
+        if True:#self.ortho_init:
+            # TODO: check for features_extractor
+            # Values from stable-baselines.
+            # features_extractor/mlp values are
+            # originally from openai/baselines (default gains/init_scales).
+            module_gains = {
+                self.actor.features_extractor: np.sqrt(2),
+                self.actor: np.sqrt(2),
+                self.critic: np.sqrt(2),
+                self.actor.mu: 0.01,
+                self.actor.log_std: 0.01,
+            }
+            for module, gain in module_gains.items():
+                print("Orthogonal initialization of {}".format(module))
+                module.apply(partial(self.init_weights, gain=gain))
         # Target networks should always be in eval mode
         self.critic_target.set_training_mode(False)
        

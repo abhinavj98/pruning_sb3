@@ -14,7 +14,10 @@ import pybullet
 import pybullet_data
 from collections import namedtuple
 import glob
+import os
 
+import pickle
+        
 ROBOT_URDF_PATH = "./ur_e_description/urdf/ur5e_with_camera.urdf"
 
 
@@ -562,7 +565,13 @@ class Tree():
         self.vertex_and_projection = []
         self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
         self.projection_mean = 0
-      
+        #if pickled file exists load an return
+        if os.path.exists('./' + os.path.basename(self.urdf_path)[:-5] + '_reachable_points.pkl'):
+            with open('./' + os.path.basename(self.urdf_path)[:-5] + '_reachable_points.pkl', 'rb') as f:
+                self.reachable_points = pickle.load(f)
+            print('Loaded reachable points from pickle file ', self.urdf_path[:-5] + '_reachable_points.pkl')
+            print("Number of reachable points: ", len(self.reachable_points))
+            return
         #Find the two longest edges of the face
         #Add their mid-points and perpendicular projection to the smallest side as a point and branch
         for face in self.tree_obj.mesh_list[0].faces:
@@ -592,6 +601,10 @@ class Tree():
         self.projection_mean = self.projection_mean/len(self.vertex_and_projection)
         self.num_points = num_points
         self.get_reachable_points(self.env.ur5)
+        # dump reachable points to file using pickle
+        with open('./' + os.path.basename(self.urdf_path)[:-5] + '_reachable_points.pkl', 'wb') as f:
+            pickle.dump(self.reachable_points, f)
+
         
     def active(self):
         self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
@@ -629,7 +642,7 @@ class Tree():
             self.reachable_points = self.reachable_points[0:self.num_points]
         print("Number of reachable points: ", len(self.reachable_points))
        
-        return 
+        return self.reachable_points
 
     @staticmethod
     def make_list_from_folder(env, trees_urdf_path, trees_obj_path, pos, orientation, scale, num_points, num_trees ):
