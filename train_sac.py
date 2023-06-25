@@ -126,7 +126,7 @@ policy_kwargs = {
         }
 policy = SACPolicy
 
-model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_starts=250, batch_size=512, buffer_size=30000, train_freq=(args.STEPS_PER_EPOCH, "step"))#, replay_buffer_class = HerReplayBuffer)
+model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(0.0005), learning_starts=250, batch_size=512, buffer_size=30000, train_freq=(args.STEPS_PER_EPOCH, "step"))#, replay_buffer_class = HerReplayBuffer)
 
 
 # model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),\

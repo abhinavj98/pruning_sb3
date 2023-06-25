@@ -1,7 +1,7 @@
 args_dict = {
     'NAME' : {
          'type': str,
-          'default' : train
+          'default' : 'train'
              },
     #File paths
     'TREE_TRAIN_URDF_PATH': {
