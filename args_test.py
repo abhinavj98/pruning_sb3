@@ -134,7 +134,7 @@ args_dict = {
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -1.8,
+        'default': -4,
         'help': 'initial value for the log standard deviation'
     },
     #Evaluation parameters

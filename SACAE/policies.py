@@ -407,6 +407,7 @@ class SACPolicy(BasePolicy):
             # Values from stable-baselines.
             # features_extractor/mlp values are
             # originally from openai/baselines (default gains/init_scales).
+          
             module_gains = {
                 #self.actor.features_extractor: np.sqrt(2),
                 self.actor: np.sqrt(2),
@@ -417,6 +418,9 @@ class SACPolicy(BasePolicy):
             for module, gain in module_gains.items():
                 print("Orthogonal initialization of {}".format(module))
                 module.apply(partial(self.init_weights, gain=gain))
+            self.actor.log_std.bias.data.fill_(self.actor.log_std_init)
+          
+        #     print(self.actor.mu.weight.data)
         # Target networks should always be in eval mode
         self.critic_target.set_training_mode(False)
        
