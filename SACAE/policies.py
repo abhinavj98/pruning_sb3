@@ -408,7 +408,7 @@ class SACPolicy(BasePolicy):
             # features_extractor/mlp values are
             # originally from openai/baselines (default gains/init_scales).
             module_gains = {
-                self.actor.features_extractor: np.sqrt(2),
+                #self.actor.features_extractor: np.sqrt(2),
                 self.actor: np.sqrt(2),
                 self.critic: np.sqrt(2),
                 self.actor.mu: 0.01,

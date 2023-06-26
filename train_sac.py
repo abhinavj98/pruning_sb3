@@ -110,7 +110,7 @@ eval_env = Monitor(ur5GymEnv(**eval_env_kwargs))
 eval_env.logger = new_logger
 # Use deterministic actions for evaluation
 eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
-                             log_path="./logs/", eval_freq=args.EVAL_FREQ,
+                             log_path="./logs/", eval_freq=args.EVAL_FREQ*3000,
                              deterministic=True, render=False,  n_eval_episodes = args.EVAL_EPISODES)
 # It will check your custom environment and output additional warnings if needed
 # check_env(env)
