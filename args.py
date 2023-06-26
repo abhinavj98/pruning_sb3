@@ -105,7 +105,7 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 250,
+        'default': 100,#250
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
@@ -137,7 +137,7 @@ args_dict = {
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 10000,
+        'default': 1000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {

@@ -231,7 +231,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
         self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
         #print all nets in optimizer
-        print(self.optimizer, self.optimizer_ae)
+        # print(self.optimizer, self.optimizer_ae)
     
     def make_state_from_obs(self, obs):
         depth_features = self.extract_features(obs['depth'])
