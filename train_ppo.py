@@ -122,7 +122,6 @@ policy_kwargs = {
 
 model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01),\
               n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS )
-print(model.policy.parameters)
 if load_path:
     model.load(load_path)
 model.set_logger(new_logger)

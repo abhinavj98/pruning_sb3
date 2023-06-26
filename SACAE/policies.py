@@ -409,11 +409,10 @@ class SACPolicy(BasePolicy):
             # originally from openai/baselines (default gains/init_scales).
           
             module_gains = {
-                #self.actor.features_extractor: np.sqrt(2),
                 self.actor.features_extractor: np.sqrt(2),
                 self.actor.latent_pi: np.sqrt(2),
-                self.actor.mu: 0.01,
-                self.actor.log_std: 0.01,
+                self.actor.mu: 0.001,
+                self.actor.log_std: 0.001,
                 self.critic.q_networks[0]: np.sqrt(2),
                 self.critic.q_networks[1]: np.sqrt(2)
             }
