@@ -412,8 +412,8 @@ class SACPolicy(BasePolicy):
                 #self.actor.features_extractor: np.sqrt(2),
                 self.actor: np.sqrt(2),
                 self.critic: np.sqrt(2),
-                self.actor.mu: 0.01,
-                self.actor.log_std: 0.01,
+                self.actor.mu: 0.001,
+                self.actor.log_std: 0.001,
             }
             for module, gain in module_gains.items():
                 print("Orthogonal initialization of {}".format(module))
