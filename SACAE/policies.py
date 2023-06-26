@@ -410,13 +410,15 @@ class SACPolicy(BasePolicy):
           
             module_gains = {
                 #self.actor.features_extractor: np.sqrt(2),
-                self.actor: np.sqrt(2),
-                self.critic: np.sqrt(2),
+                self.actor.features_extractor: np.sqrt(2),
+                self.actor.latent_pi: np.sqrt(2),
                 self.actor.mu: 0.01,
                 self.actor.log_std: 0.01,
+                self.critic.q_networks[0]: np.sqrt(2),
+                self.critic.q_networks[1]: np.sqrt(2)
             }
             for module, gain in module_gains.items():
-                print("Orthogonal initialization of {}".format(module))
+                print("Orthogonal initialization")
                 module.apply(partial(self.init_weights, gain=gain))
             self.actor.log_std.bias.data.fill_(self.actor.log_std_init)
           
@@ -425,7 +427,7 @@ class SACPolicy(BasePolicy):
         self.critic_target.set_training_mode(False)
        
         #Get actor weights
-        # self.actor.weights.data = self.actor_target.weights.data/10
+         #self.actor.weights.data = self.actor_target.weights.data/10
 
 
     def _get_constructor_parameters(self) -> Dict[str, Any]:

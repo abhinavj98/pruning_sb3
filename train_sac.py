@@ -110,7 +110,7 @@ eval_env = Monitor(ur5GymEnv(**eval_env_kwargs))
 eval_env.logger = new_logger
 # Use deterministic actions for evaluation
 eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
-                             log_path="./logs/", eval_freq=args.EVAL_FREQ*3000,
+                             log_path="./logs/", eval_freq=args.EVAL_FREQ,
                              deterministic=True, render=False,  n_eval_episodes = args.EVAL_EPISODES)
 # It will check your custom environment and output additional warnings if needed
 # check_env(env)
@@ -126,7 +126,7 @@ policy_kwargs = {
         }
 policy = SACPolicy
 
-model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(0.0005), learning_starts=250, batch_size=512, buffer_size=30000, train_freq=(args.STEPS_PER_EPOCH, "step"))#, replay_buffer_class = HerReplayBuffer)
+model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(0.0005), learning_starts=512, batch_size=512, buffer_size=50000)#, train_freq=(args.STEPS_PER_EPOCH, "step"))#, replay_buffer_class = HerReplayBuffer)
 
 
 # model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),\

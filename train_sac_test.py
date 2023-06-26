@@ -115,7 +115,7 @@ custom_callback = CustomTrainCallback()
 policy_kwargs = {
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam,
-	     "log_std_init" : args.LOG_STD_INIT,
+	     "log_std_init" : -6,
          "net_arch" : dict(qf=[args.EMB_SIZE], pi=[args.EMB_SIZE*2, args.EMB_SIZE]),
          "share_features_extractor" : True,
         }
