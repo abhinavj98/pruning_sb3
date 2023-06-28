@@ -17,8 +17,8 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 import torch as th
 import argparse
-# from args import args_dict
-from args_test import args_dict
+from args import args_dict
+# from args_test import args_dict
 
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
@@ -38,13 +38,13 @@ if os.path.exists("./keys.json"):
    with open("./keys.json") as f:
      os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
 
-# wandb.init(
-#     # set the wandb project where this run will be logged
-#     project="test-ppo",
-#     sync_tensorboard = True,
-#     # track hyperparameters and run metadata
-#     config=args
-# )
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="test-ppo",
+    sync_tensorboard = True,
+    # track hyperparameters and run metadata
+    config=args
+)
 
 def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
     """
@@ -121,7 +121,7 @@ policy_kwargs = {
         }
 policy = RecurrentActorCriticPolicy
 
-model = RecurrentPPOAE(policy, env, policy_kwargs = policy_kwargs)#, learning_rate = linear_schedule(args.LEARNING_RATE),  n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
+model = RecurrentPPOAE(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE),  n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
 
 
 # model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),\
