@@ -1,3 +1,5 @@
+import sys
+sys.path.append("/Users/abhinav/Desktop/gradstuff/research/tree_pruning_rl")
 from gym_env_discrete import ur5GymEnv
 from PPOAE.models import *
 import numpy as np
