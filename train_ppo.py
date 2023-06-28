@@ -100,8 +100,8 @@ new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", re
 env.logger = new_logger 
 eval_env = Monitor(ur5GymEnv(**eval_env_kwargs))
 eval_env.logger = new_logger
-print(eval_env.render().shape)
 # Use deterministic actions for evaluation
+print("setting eval callback")
 eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
                              log_path="./logs/", eval_freq=args.EVAL_FREQ,
                              deterministic=True, render=False,  n_eval_episodes = args.EVAL_EPISODES)
@@ -109,6 +109,7 @@ eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
 # check_env(env)
 
 # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
+print("train callback")
 custom_callback = CustomTrainCallback()
 policy_kwargs = {
         "actor_class":  Actor,
@@ -117,11 +118,13 @@ policy_kwargs = {
         "critic_kwargs": {"state_dim": args.STATE_DIM, "emb_size": args.EMB_SIZE},
         "features_extractor_class" : AutoEncoder,
         "optimizer_class" : th.optim.Adam,
-	    "log_std_init" : args.LOG_STD_INIT,
+	"log_std_init" : args.LOG_STD_INIT,
+        "ortho_init" : True
         }
-
+print("model")
 model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01),\
               n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS )
+print("model done")
 if load_path:
     model.load(load_path)
 model.set_logger(new_logger)

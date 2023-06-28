@@ -190,6 +190,18 @@ class ActorCriticWithAePolicy(BasePolicy):
         if type(m) == nn.Conv2d or type(m)==nn.Linear or type(m)==nn.ConvTranspose2d:
             th.nn.init.kaiming_normal_(m.weight, a=0, mode='fan_in', nonlinearity='leaky_relu')
 
+    @staticmethod
+    def init_weights(module: nn.Module, gain: float = 1) -> None:
+        """
+        Orthogonal initialization (used in PPO and A2C)
+        """
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            print("nbas")
+            nn.init.orthogonal_(module.weight, gain=gain)
+            print("aa")
+            if module.bias is not None:
+                module.bias.data.fill_(0.0)
+    
     def _build(self, lr_schedule: Schedule, lr_schedule_ae: Schedule, lr_schedule_logstd) -> None:
         """
         Create the networks and the optimizer.
@@ -224,6 +236,7 @@ class ActorCriticWithAePolicy(BasePolicy):
                  self.value_net: 1,
              }
              for module, gain in module_gains.items():
+                 print("ortho")
                  module.apply(partial(self.init_weights, gain=gain))
 
         # Setup optimizer with initial learning rate

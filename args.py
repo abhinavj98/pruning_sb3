@@ -94,7 +94,7 @@ args_dict = {
     },
     'ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 0.01,
+        'default': 0,
         'help': 'scaling factor for the orientation reward'
     },
     #Training parameters
@@ -105,7 +105,7 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 100,#250
+        'default': 128,#250
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
@@ -115,7 +115,7 @@ args_dict = {
     },
     'BATCH_SIZE': {
         'type': int,
-        'default': 128,
+        'default': 64,
         'help': 'batch size'
     },
     'LEARNING_RATE': {
@@ -137,7 +137,7 @@ args_dict = {
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 1000,
+        'default': 5000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {

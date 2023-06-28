@@ -428,7 +428,17 @@ class SACPolicy(BasePolicy):
         #Get actor weights
          #self.actor.weights.data = self.actor_target.weights.data/10
 
-
+    @staticmethod
+    def init_weights(module: nn.Module, gain: float = 1) -> None:
+        """
+        Orthogonal initialization (used in PPO and A2C)
+        """
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            print("asd")
+            nn.init.orthogonal_(module.weight, gain=gain)
+            print("bnasd")
+            if module.bias is not None:
+                module.bias.data.fill_(0.0)
     def _get_constructor_parameters(self) -> Dict[str, Any]:
         data = super()._get_constructor_parameters()
 
