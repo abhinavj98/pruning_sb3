@@ -246,6 +246,16 @@ class ActorCriticWithAePolicy(BasePolicy):
         #print all nets in optimizer
         # print(self.optimizer, self.optimizer_ae)
     
+    @staticmethod
+    def init_weights(module: nn.Module, gain: float = 1) -> None:
+        """
+        Orthogonal initialization (used in PPO and A2C)
+        """
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            nn.init.orthogonal_(module.weight, gain=gain)
+            if module.bias is not None:
+                module.bias.data.fill_(0.0)
+    
     def make_state_from_obs(self, obs):
         depth_features = self.extract_features(obs['depth'])
         #TODO: Normalize inputs
