@@ -15,7 +15,6 @@ from stable_baselines3.common.torch_layers import (
 from stable_baselines3.common.type_aliases import Schedule
 from stable_baselines3.common.utils import zip_strict
 from torch import nn
-
 from sb3_contrib.common.recurrent.type_aliases import RNNStates
 
 
@@ -66,6 +65,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         observation_space: spaces.Space,
         action_space: spaces.Space,
         lr_schedule: Schedule,
+        lr_schedule_ae: Schedule = 0.0001,
+        lr_schedule_logstd: Schedule = 0.0001,
         net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
         activation_fn: Type[nn.Module] = nn.Tanh,
         ortho_init: bool = True,
@@ -145,8 +146,11 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             )
 
         # Setup optimizer with initial learning rate
-        self.optimizer = self.optimizer_class(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
-
+        # self.optimizer = self.optimizer_class(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.optimizer = self.optimizer_class([*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
+        self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
+       
     def _build_mlp_extractor(self) -> None:
         """
         Create the policy and value networks.
@@ -158,6 +162,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             activation_fn=self.activation_fn,
             device=self.device,
         )
+  
 
     @staticmethod
     def _process_sequence(

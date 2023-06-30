@@ -1,7 +1,7 @@
 import sys
 import time
 from copy import deepcopy
-from typing import Any, ClassVar, Dict, Optional, Type, TypeVar, Union
+from typing import Any, ClassVar, Dict, Optional, Type, TypeVar, Union, List
 import torchvision
 import numpy as np
 import torch as th
@@ -14,6 +14,9 @@ from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedul
 from stable_baselines3.common.utils import explained_variance, get_schedule_fn, obs_as_tensor, safe_mean
 from stable_baselines3.common.vec_env import VecEnv
 
+from stable_baselines3.common.utils import explained_variance, get_schedule_fn
+
+from stable_baselines3.common.utils import update_learning_rate
 from stable_baselines3.common.logger import Image
 from sb3_contrib.common.recurrent.buffers import RecurrentDictRolloutBuffer, RecurrentRolloutBuffer
 from sb3_contrib.common.recurrent.policies import RecurrentActorCriticPolicy
@@ -79,6 +82,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         policy: Union[str, Type[RecurrentActorCriticPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 3e-4,
+        learning_rate_ae: Union[float, Schedule] = 3e-4,
+        learning_rate_logstd : Union[float, Schedule] = 3e-4,
         n_steps: int = 128,
         batch_size: Optional[int] = 128,
         n_epochs: int = 10,
@@ -127,7 +132,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 spaces.MultiBinary,
             ),
         )
-
+        self.learning_rate_ae = learning_rate_ae
+        self.learning_rate_logstd = learning_rate_logstd
         self.batch_size = batch_size
         self.n_epochs = n_epochs
         self.clip_range = clip_range
@@ -140,7 +146,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             self._setup_model()
 
     def _setup_model(self) -> None:
-        self._setup_lr_schedule()
+        self._custom_setup_lr_schedule()
         self.set_random_seed(self.seed)
 
         buffer_cls = RecurrentDictRolloutBuffer if isinstance(self.observation_space, spaces.Dict) else RecurrentRolloutBuffer
@@ -149,6 +155,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             self.observation_space,
             self.action_space,
             self.lr_schedule,
+            lr_schedule_ae=self.lr_schedule_ae,
+            lr_schedule_logstd=self.lr_schedule_logstd,
             use_sde=self.use_sde,
             **self.policy_kwargs,  # pytype:disable=not-instantiable
         )
@@ -313,6 +321,27 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         callback.on_rollout_end()
 
         return True
+    def _custom_update_learning_rate(self, optimizers: Union[List[th.optim.Optimizer], th.optim.Optimizer]) -> None:
+        """
+        Update the optimizers learning rate using the current learning rate schedule
+        and the current progress remaining (from 1 to 0).
+        :param optimizers:
+            An optimizer or a list of optimizers.
+        """
+        # Log the current learning rate
+        #TODO: Move to callback
+        self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
+        self.logger.record("train/learning_rate_ae", self.lr_schedule_ae(self._current_progress_remaining))
+        self.logger.record("train/learning_rate_logstd", self.lr_schedule_logstd(self._current_progress_remaining))
+        update_learning_rate(self.policy.optimizer, self.lr_schedule(self._current_progress_remaining))
+        update_learning_rate(self.policy.optimizer_ae, self.lr_schedule_ae(self._current_progress_remaining))
+        update_learning_rate(self.policy.optimizer_logstd, self.lr_schedule_logstd(self._current_progress_remaining))
+    
+    def _custom_setup_lr_schedule(self) -> None:
+        """Transform to callable if needed."""
+        self.lr_schedule = get_schedule_fn(self.learning_rate)
+        self.lr_schedule_ae = get_schedule_fn(self.learning_rate_ae)
+        self.lr_schedule_logstd = get_schedule_fn(self.learning_rate_logstd)
 
     def train(self) -> None:
         """
@@ -321,7 +350,9 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
         # Update optimizer learning rate
-        self._update_learning_rate(self.policy.optimizer)
+        self._custom_update_learning_rate([self.policy.optimizer, self.policy.optimizer_ae, self.policy.optimizer_logstd])
+     
+        # self._update_learning_rate(self.policy.optimizer)
         # Compute current clip range
         clip_range = self.clip_range(self._current_progress_remaining)
         # Optional: clip range for the value function
@@ -421,12 +452,17 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                         print(f"Early stopping at step {epoch} due to reaching max kl: {approx_kl_div:.2f}")
                     break
 
-                # Optimization step
+                # Optimization step  
                 self.policy.optimizer.zero_grad()
+                self.policy.optimizer_ae.zero_grad()
+                self.policy.optimizer_logstd.zero_grad()
+                
                 loss.backward()
                 # Clip grad norm
                 th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                 self.policy.optimizer.step()
+                self.policy.optimizer_ae.step()
+                self.policy.optimizer_logstd.step()
 
             if not continue_training:
                 break
