@@ -38,6 +38,7 @@ class CustomTrainCallback(BaseCallback):
         # Sometimes, for event callback, it is useful
         # to have access to the parent object
         self.parent = None  # type: Optional[BaseCallback]
+        self._screens_buffer = []
         self.running_mean_std_joint_velocities = RunningMeanStd(shape=(6,))
         self.running_mean_std_cur_pos = RunningMeanStd(shape=(3,))
         self.running_mean_std_cur_or = RunningMeanStd(shape=(4,))
@@ -80,8 +81,48 @@ class CustomTrainCallback(BaseCallback):
         self.logger.record("rollout/condition_number_reward", infos[0]["condition_number_reward"])
         self.logger.record("rollout/velocity_reward", infos[0]["velocity_reward"])
         self.logger.record("rollout/orientation_reward", infos[0]["orientation_reward"])
-        return True
+        reset_counter = self.training_env.get_attr("reset_counter", 0)[0]
+        if reset_counter%10 == 0:
+            self._screens_buffer.append(self._grab_screen_callback(self.locals, self.globals))
+            # print("Screen recorded")
+        else:
+            if len(self._screens_buffer) > 0:
+                self.logger.record(
+                    "rollout/video",
+                    Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
+                    exclude=("stdout", "log", "json", "csv"),
+                )
+                print("Video recorded")
+                self._screens_buffer = []
 
+
+
+        return True
+    
+    def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
+        """
+        Renders the environment in its current state, recording the screen in the captured `screens` list
+
+        :param _locals: A dictionary containing all local variables of the callback's scope
+        :param _globals: A dictionary containing all global variables of the callback's scope
+        """
+       
+        screen = np.array(self.training_env.render())*255
+        screen_copy = screen.reshape((screen.shape[0], screen.shape[1], 3)).astype(np.uint8)
+        screen_copy = cv2.resize(screen_copy, (1124, 768), interpolation=cv2.INTER_NEAREST)
+        screen_copy = cv2.putText(screen_copy, "Reward: "+str(_locals['rewards']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
+            1, (255,0,0), 2, cv2.LINE_AA)
+        screen_copy = cv2.putText(screen_copy, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
+            0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+        screen_copy = cv2.putText(screen_copy, "Current: "+str(self.training_env.get_attr("achieved_pos", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
+            1, (255,0,0), 2, cv2.LINE_AA)
+        screen_copy = cv2.putText(screen_copy, "Goal: "+str(self.training_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
+            1, (255,0,0), 2, cv2.LINE_AA)
+        screen_copy = cv2.putText(screen_copy, "Orientation Reward: "+str(self.training_env.get_attr("orientation_reward_unscaled", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX, 
+            0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+        screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.training_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX, 
+            0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+        return screen_copy.transpose(2, 0, 1)
     def _on_rollout_end(self) -> None:
         """
         This event is triggered before updating the policy.
