@@ -17,9 +17,9 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 import torch as th
 import argparse
-# from args import args_dict
-from args_test import args_dict
-
+from args import args_dict
+#from args_test import args_dict
+import random
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
 
@@ -84,6 +84,22 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
 
     return func
 
+
+def set_seed(seed: int = 42) -> None:
+    np.random.seed(seed)
+    random.seed(seed)
+    th.manual_seed(seed)
+    th.cuda.manual_seed(seed)
+    # When running on the CuDNN backend, two further options must be set
+    th.backends.cudnn.deterministic = True
+    th.backends.cudnn.benchmark = False
+    # Set a fixed value for the hash seed
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    print(f"Random seed set as {seed}")
+
+
+
+set_seed(np.random.randint(0,1000))
 load_path = None
 train_env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
                 "maxSteps" : args.MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
@@ -130,7 +146,7 @@ model = RecurrentPPOAE(policy, env, policy_kwargs = policy_kwargs, learning_rate
 # if load_path:
 #     model.load(load_path)
 model.set_logger(new_logger)
-# print("Using device: ", utils.get_device())
+print("Using device: ", utils.get_device())
 
 # env.reset()
 model.learn(10000000, callback=[custom_callback, eval_callback], progress_bar = False)

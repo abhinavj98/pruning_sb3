@@ -517,7 +517,7 @@ class ur5GymEnv(gym.Env):
 
         #Minimize joint velocities
         velocity_mag = np.linalg.norm(self.joint_velocities)
-        velocity_reward = -np.clip(velocity_mag, -0.1, 0.1)
+        velocity_reward = velocity_mag#-np.clip(velocity_mag, -0.1, 0.1)
         #reward += velocity_rewarid
         reward_info['velocity_reward'] = velocity_reward
         return reward, reward_info

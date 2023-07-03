@@ -120,7 +120,7 @@ args_dict = {
     },
     'LEARNING_RATE': {
         'type': float,
-        'default': 0.00005,
+        'default': 0.000005,
         'help': 'learning rate'
     },
     'LEARNING_RATE_AE': {
@@ -130,7 +130,7 @@ args_dict = {
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -5,
+        'default': -4,
         'help': 'initial value for the log standard deviation'
     },
 
