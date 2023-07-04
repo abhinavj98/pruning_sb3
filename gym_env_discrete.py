@@ -71,6 +71,7 @@ class ur5GymEnv(gym.Env):
         self.collision_reward_scale = collision_reward_scale
         self.slack_reward_scale = slack_reward_scale
         self.orientation_reward_scale = orientation_reward_scale
+        self.sum_reward = 0
        # setup pybullet sim:
         if self.renders:
             self.con = bc.BulletClient(connection_mode=pybullet.GUI)
@@ -141,6 +142,7 @@ class ur5GymEnv(gym.Env):
         # Env variables that will change
         self.observation = {}
         self.stepCounter = 0
+        self.sum_reward = 0
         self.terminated = False
         self.singularity_terminated = False
         self.collisions = 0
@@ -350,6 +352,7 @@ class ur5GymEnv(gym.Env):
         self.getExtendedObservation()
         
         reward, reward_infos = self.compute_reward(self.desired_pos, np.hstack((self.achieved_pos, self.achieved_or)),  None)
+        self.sum_reward += reward
         self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0,0,1], 20)
         done, terminate_info = self.is_task_done()
         truncated = terminate_info['time_limit_exceeded']
@@ -359,12 +362,15 @@ class ur5GymEnv(gym.Env):
         if terminate_info['time_limit_exceeded']:
             infos["TimeLimit.truncated"] = True
             infos["terminal_observation"] = self.observation
+            
+            infos['episode'] = {"l": self.stepCounter,  "r": self.sum_reward}
         
         if self.terminated == True:
             infos['is_success'] = True
+            infos['episode'] = {"l": self.stepCounter,  "r": self.sum_reward}
         
         self.stepCounter += 1
-        infos['episode'] = {"l": self.stepCounter,  "r": reward}
+        # infos['episode'] = {"l": self.stepCounter,  "r": reward}
         infos.update(reward_infos)
         # return self.observation, reward, done, infos
         #v26
