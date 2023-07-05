@@ -298,7 +298,7 @@ class ur5GymEnv(gym.Env):
         depth = self.linearize_depth(depth, self.far_val, self.near_val) - 0.5
         return rgb, depth
 
-    def reset(self, seed = 1, options = None):
+    def reset(self, seed = None, options = None):
         super().reset(seed=seed)
         random.seed(seed)
         self.reset_env_variables()
