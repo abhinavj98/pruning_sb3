@@ -626,6 +626,8 @@ class Tree():
 
     def is_reachable(self, vertice, ur5):
         ur5_base_pos = np.array(self.env.con.getBasePositionAndOrientation(ur5)[0])
+        if abs(vertice[0][0]) < 0.05:
+            return False
         dist=np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
         projection_length = np.linalg.norm(vertice[1])
         if dist >= 1 or projection_length < self.projection_mean* 0.7:
