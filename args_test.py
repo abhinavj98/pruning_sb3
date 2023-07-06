@@ -37,7 +37,7 @@ args_dict = {
     },
     'STATE_DIM': {
         'type': int,
-        'default': 72+22*2,
+        'default': 72+22,
         'help': 'dimension of the state space'
     },
     #Gym envirionment parameters
@@ -140,7 +140,7 @@ args_dict = {
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 21000,
+        'default': 21,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {

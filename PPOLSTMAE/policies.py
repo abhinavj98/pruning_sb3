@@ -233,7 +233,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         :return: action, value and log probability of the action
         """
         # Preprocess the observation if needed
-        features, recon = self.extract_features(obs["depth"])
+        features, recon = self.extract_features(obs)
 
         if self.share_features_extractor:
             pi_features = vf_features = features  # alis
@@ -261,6 +261,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         actions = distribution.get_actions(deterministic=deterministic)
         log_prob = distribution.log_prob(actions)
         return actions, values, log_prob, RNNStates(lstm_states_pi, lstm_states_vf)
+    
     def extract_features(self, obs: th.Tensor) -> th.Tensor:
         """
         Preprocess the observation if needed and extract features.
@@ -270,8 +271,16 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         """
         assert self.features_extractor is not None, "No features extractor was set"
         #preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
-        features = self.features_extractor(obs)
-        return features
+        image_features = self.features_extractor(obs['depth'])
+        features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'], image_features[0]],  dim = 1).to(th.float32)
+        return features, image_features[1]
+    
+    # def make_state_from_obs(self, obs):
+    #     depth_features = self.extract_features(obs['depth'])
+    #     #TODO: Normalize inputs
+    #     robot_features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action']],  dim = 1)
+    #     return depth_features, robot_features
+        
 
     def get_distribution(
         self,
@@ -289,7 +298,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         :return: the action distribution and new hidden states.
         """
         # Call the method from the parent of the parent class WHYYYY
-        features, recon = self.extract_features(obs["depth"])
+        features, recon = self.extract_features(obs)
         latent_pi, lstm_states = self._process_sequence(features, lstm_states, episode_starts, self.lstm_actor)
         latent_pi = self.mlp_extractor.forward_actor(latent_pi)
         return self._get_action_dist_from_latent(latent_pi), lstm_states
@@ -310,7 +319,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         :return: the estimated values.
         """
         # Call the method from the parent of the parent class
-        features, _ = self.extract_features(obs["depth"])#, self.vf_features_extractor)
+        features, _ = self.extract_features(obs)#, self.vf_features_extractor)
 
         if self.lstm_critic is not None:
             latent_vf, lstm_states_vf = self._process_sequence(features, lstm_states, episode_starts, self.lstm_critic)
@@ -340,7 +349,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             and entropy of the action distribution.
         """
         # Preprocess the observation if needed
-        features, recon = self.extract_features(obs["depth"])
+        features, recon = self.extract_features(obs)
         if self.share_features_extractor:
             pi_features = vf_features = features  # alias
         else:

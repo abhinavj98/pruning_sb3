@@ -474,7 +474,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         for data in self.rollout_buffer.get(1):
             plot_img = data.observations['depth']
         with th.no_grad():
-            _, recon = self.policy.extract_features(plot_img)
+            _, recon = self.policy.features_extractor(plot_img)
         ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
         self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
         self.logger.record("train/ae_loss", np.mean(ae_losses))

@@ -17,8 +17,8 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 import torch as th
 import argparse
-from args import args_dict
-#from args_test import args_dict
+# from args import args_dict
+from args_test import args_dict
 import random
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
@@ -38,13 +38,13 @@ if os.path.exists("./keys.json"):
    with open("./keys.json") as f:
      os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
 
-wandb.init(
-    # set the wandb project where this run will be logged
-    project="test-ppo",
-    sync_tensorboard = True,
-    # track hyperparameters and run metadata
-    config=args
-)
+# wandb.init(
+#     # set the wandb project where this run will be logged
+#     project="test-ppo",
+#     sync_tensorboard = True,
+#     # track hyperparameters and run metadata
+#     config=args
+# )
 
 def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
     """
@@ -134,7 +134,7 @@ policy_kwargs = {
 	    "log_std_init" : args.LOG_STD_INIT,
         "net_arch" : dict(qf=[args.EMB_SIZE], pi=[args.EMB_SIZE*2, args.EMB_SIZE]),
         "share_features_extractor" : True,
-        "n_lstm_layers" : 1,
+        "n_lstm_layers" : 2,
         }
 policy = RecurrentActorCriticPolicy
 
