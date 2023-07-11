@@ -40,8 +40,9 @@ if os.path.exists("./keys.json"):
 
 wandb.init(
     # set the wandb project where this run will be logged
-    project="test-ppo",
+    project="ppo_lstm",
     sync_tensorboard = True,
+    name = args.NAME,
     # track hyperparameters and run metadata
     config=args
 )
@@ -119,8 +120,8 @@ eval_env = Monitor(ur5GymEnv(**eval_env_kwargs))
 # eval_env = make_vec_env(ur5GymEnv, env_kwargs = eval_env_kwargs, n_envs = 1)
 eval_env.logger = new_logger
 # Use deterministic actions for evaluation
-eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",
-                             log_path="./logs/", eval_freq=args.EVAL_FREQ,
+eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/{}".format(args.NAME),
+                             log_path="./logs/{}".format(args.NAME), eval_freq=args.EVAL_FREQ,
                              deterministic=True, render=False,  n_eval_episodes = args.EVAL_EPISODES)
 # It will check your custom environment and output additional warnings if needed
 # check_env(env)
@@ -150,4 +151,4 @@ model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
 
 # env.reset()
-model.learn(10000000, callback=[custom_callback, eval_callback], progress_bar = False)
+model.learn(5000000, callback=[custom_callback, eval_callback], progress_bar = False)
