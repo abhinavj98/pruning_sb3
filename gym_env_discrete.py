@@ -484,7 +484,6 @@ class ur5GymEnv(gym.Env):
         reward += distance_reward
         self.orientation_reward_unscaled, cosine_sim = self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, previous_pos, previous_or, self.tree_goal_branch)
         orientation_reward = (self.orientation_reward_unscaled)*self.orientation_reward_scale
-        print(self.orientation_reward_unscaled)
 
         reward_info['orientation_reward'] = orientation_reward
         reward += orientation_reward
@@ -506,7 +505,6 @@ class ur5GymEnv(gym.Env):
             condition_number_reward = np.abs(1/condition_number)*self.condition_reward_scale
         reward += condition_number_reward
         reward_info['condition_number_reward'] = condition_number_reward
-        print(cosine_sim)
         terminate_reward = 0
         if self.target_dist < self.learning_param and (orientation_reward == 0 or cosine_sim>0.95):  # and approach_velocity < 0.05:
             self.terminated = True
@@ -632,7 +630,7 @@ class Tree():
         return np.array(vertex_w_transform[0])
 
     def is_reachable(self, vertice, ur5):
-        ur5_base_pos = np.array(self.env.con.getBasePositionAndOrientation(ur5)[0])
+        ur5_base_pos = np.array(self.env.get_current_pose()[0])
         if abs(vertice[0][0]) < 0.05:
             return False
         dist=np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
