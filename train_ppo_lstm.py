@@ -134,7 +134,7 @@ policy_kwargs = {
 	    "log_std_init" : args.LOG_STD_INIT,
         "net_arch" : dict(qf=[args.EMB_SIZE], pi=[args.EMB_SIZE*2, args.EMB_SIZE]),
         "share_features_extractor" : True,
-        "n_lstm_layers" : 1,
+        "n_lstm_layers" : 2,
         }
 policy = RecurrentActorCriticPolicy
 

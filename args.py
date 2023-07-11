@@ -105,7 +105,7 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 100,
+        'default': 250,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
@@ -120,7 +120,7 @@ args_dict = {
     },
     'LEARNING_RATE': {
         'type': float,
-        'default': 0.00005,
+        'default': 0.00001,
         'help': 'learning rate'
     },
     'LEARNING_RATE_AE': {
