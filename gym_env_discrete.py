@@ -94,7 +94,7 @@ class ur5GymEnv(gym.Env):
                         shape = (3,), dtype=np.float32),
             'achieved_goal': spaces.Box(low = -5.,
                         high = 5.,
-                        shape = (7,), dtype=np.float32),
+                        shape = (6,), dtype=np.float32),
             'joint_angles' : spaces.Box(low = -2*np.pi,
                         high = 2*np.pi,
                         shape = (6,), dtype=np.float32),
@@ -401,6 +401,7 @@ class ur5GymEnv(gym.Env):
         tool_pos, tool_orient = self.get_current_pose()
         self.achieved_pos = np.array(tool_pos).astype(np.float32) 
         self.achieved_or = np.array(tool_orient).astype(np.float32) 
+        
 
         self.desired_pos = np.array(self.tree_goal_pos).astype(np.float32)
         self.rgb, self.depth = self.get_rgbd_at_cur_pose()
@@ -408,10 +409,11 @@ class ur5GymEnv(gym.Env):
         self.joint_angles = np.array(self.get_joint_angles()).astype(np.float32)
 
         init_pos = np.array(self.init_pos[0]).astype(np.float32)
+        init_or = np.array(self.init_pos[1]).astype(np.float32)
 
-        self.observation['achieved_goal'] = np.hstack((self.achieved_pos - init_pos, self.achieved_or))
+        self.observation['achieved_goal'] = np.hstack((self.achieved_pos - init_pos, np.array(self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or))))
         self.observation['desired_goal'] = self.desired_pos - init_pos
-       
+        # print(np.array(self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or)))
         self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis = 0)
 
         
@@ -435,24 +437,29 @@ class ur5GymEnv(gym.Env):
         condition_number = np.linalg.cond(jacobian)
         return condition_number
     
-    def compute_orientation_reward(self, achieved_pos, desired_pos, achieved_or, branch_vector):
+    def compute_orientation_reward(self, achieved_pos, desired_pos, achieved_or, previous_pos, previous_or, branch_vector):
         # Orientation reward is computed as the dot product between the current orientation and the perpedicular vector to the end effector and goal pos vector
         # This is to encourage the end effector to be perpendicular to the branch
 
         #Perpendicular vector to branch vector
         perpendicular_vector = compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector+desired_pos)
+        perpendicular_vector_prev = compute_perpendicular_projection(previous_pos, desired_pos, branch_vector+desired_pos)
         #Get vector for current orientation of end effector
         rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3,3)
+        rot_mat_prev = np.array(self.con.getMatrixFromQuaternion(previous_or)).reshape(3,3)
 		#Initial vectors
         init_vector = np.array([1, 0, 0])
         camera_vector = rot_mat.dot(init_vector)
+        camera_vector_prev = rot_mat_prev.dot(init_vector)
+
         self.con.removeUserDebugItem(self.debug_cur_or)
         self.con.removeUserDebugItem(self.debug_des_or)
         self.debug_des_or = self.con.addUserDebugLine(achieved_pos, achieved_pos + perpendicular_vector, [1,0,0], 2)
         self.debug_cur_or = self.con.addUserDebugLine(self.achieved_pos, self.achieved_pos + 0.1 * camera_vector, [0, 1, 0], 1)
-       
+        orientation_reward_prev = np.dot(camera_vector_prev, perpendicular_vector_prev)/(np.linalg.norm(camera_vector_prev)*np.linalg.norm(perpendicular_vector_prev))
         orientation_reward = np.dot(camera_vector, perpendicular_vector)/(np.linalg.norm(camera_vector)*np.linalg.norm(perpendicular_vector))
-        return orientation_reward
+        # print("Orientation reward: ", orientation_reward)
+        return (orientation_reward - orientation_reward_prev), orientation_reward
        
     
     def compute_reward(self, desired_goal, achieved_goal, info):#achieved_pos, achieved_or, desired_pos, previous_pos, info):
@@ -463,6 +470,7 @@ class ur5GymEnv(gym.Env):
         achieved_or = achieved_goal[3:]
         desired_pos = desired_goal
         previous_pos = self.previous_pose[:3]
+        previous_or = self.previous_pose[3:]
         self.collisions = 0
         self.delta_movement = float(goal_reward(achieved_pos, previous_pos, desired_pos))
         self.target_dist = float(goal_distance(achieved_pos, desired_pos))
@@ -474,10 +482,9 @@ class ur5GymEnv(gym.Env):
         distance_reward = (np.exp(-self.target_dist*5)*self.distance_reward_scale)
         reward_info['distance_reward'] = distance_reward
         reward += distance_reward
-        self.orientation_reward_unscaled = self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, self.tree_goal_branch)
-        orientation_reward = self.orientation_reward_unscaled*self.orientation_reward_scale
-        #Mostly within 0.8 to 1
-        #Compress to increase range
+        self.orientation_reward_unscaled, cosine_sim = self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, previous_pos, previous_or, self.tree_goal_branch)
+        orientation_reward = (self.orientation_reward_unscaled)*self.orientation_reward_scale
+        print(self.orientation_reward_unscaled)
 
         reward_info['orientation_reward'] = orientation_reward
         reward += orientation_reward
@@ -499,9 +506,9 @@ class ur5GymEnv(gym.Env):
             condition_number_reward = np.abs(1/condition_number)*self.condition_reward_scale
         reward += condition_number_reward
         reward_info['condition_number_reward'] = condition_number_reward
-
+        print(cosine_sim)
         terminate_reward = 0
-        if self.target_dist < self.learning_param and (orientation_reward == 0 or orientation_reward > 0.95*self.orientation_reward_scale):  # and approach_velocity < 0.05:
+        if self.target_dist < self.learning_param and (orientation_reward == 0 or cosine_sim>0.95):  # and approach_velocity < 0.05:
             self.terminated = True
             terminate_reward = 1*self.terminate_reward_scale
             reward += terminate_reward
