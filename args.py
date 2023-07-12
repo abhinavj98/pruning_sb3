@@ -64,7 +64,7 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 2,
+        'default': 1,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
@@ -94,13 +94,13 @@ args_dict = {
     },
     'ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 0.001,
+        'default': 2,
         'help': 'scaling factor for the orientation reward'
     },
     #Training parameters
     'TOTAL_TIMESTEPS': {
         'type': int,
-        'default': 1000000,
+        'default': 5000000,
         'help': 'total number of timesteps to train for'
     },
     'STEPS_PER_EPOCH': {
@@ -125,7 +125,7 @@ args_dict = {
     },
     'LEARNING_RATE_AE': {
         'type': float,
-        'default': 0.00005,
+        'default': 0.00001,
         'help': 'learning rate for the autoencoder'
     },
     'LOG_STD_INIT': {
