@@ -106,7 +106,8 @@ class ur5GymEnv(gym.Env):
                         })
         self.prev_action = np.zeros(self.action_dim)
         self.reset_counter = 0
-        self.randomize_tree_count = 5
+        self.randomize_tree_count = 1
+        self.sphereUid = -1
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
         self.learning_param = learning_param
  
@@ -146,6 +147,7 @@ class ur5GymEnv(gym.Env):
         self.terminated = False
         self.singularity_terminated = False
         self.collisions = 0
+        
         
 
 
@@ -320,6 +322,14 @@ class ur5GymEnv(gym.Env):
         
         # Sample new point
         random_point = random.sample(self.tree.reachable_points,1)[0]
+        if "eval" in self.name:
+            print('eval')
+            self.con.removeBody(self.sphereUid)
+            colSphereId = -1   
+            visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=0.02,rgbaColor =[1,0,0,1])
+            self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId, [random_point[0][0],random_point[0][1],random_point[0][2]], [0,0,0,1])
+        self.set_joint_angles(self.init_joint_angles)
+
         self.tree_goal_pos = random_point[0]
         self.tree_goal_branch = random_point[1]
         self.tree.active()
