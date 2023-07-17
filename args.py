@@ -49,12 +49,12 @@ args_dict = {
     },
     'MAX_STEPS': {
         'type': int,
-        'default': 250,
+        'default': 400,
         'help': 'maximum number of steps per episode'
     },
     'EVAL_MAX_STEPS': {
         'type': int,
-        'default': 200,
+        'default': 400,
         'help': 'maximum number of steps per episode during evaluation'
     },
     'ACTION_SCALE': {
@@ -94,7 +94,7 @@ args_dict = {
     },
     'ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 2,
+        'default': 1.5,
         'help': 'scaling factor for the orientation reward'
     },
     #Training parameters
@@ -105,7 +105,7 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 250,
+        'default': 400,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
@@ -130,7 +130,7 @@ args_dict = {
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -3,
+        'default': -4,
         'help': 'initial value for the log standard deviation'
     },
 
