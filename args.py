@@ -64,7 +64,7 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': 5,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
@@ -84,7 +84,7 @@ args_dict = {
     },
     'COLLISION_REWARD_SCALE': {
         'type': float,
-        'default': -0.005,
+        'default': -0.00001,
         'help': 'scaling factor for the collision reward'
     },
     'SLACK_REWARD_SCALE': {
@@ -94,7 +94,7 @@ args_dict = {
     },
     'ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 1.5,
+        'default': 8,
         'help': 'scaling factor for the orientation reward'
     },
     #Training parameters
@@ -120,12 +120,12 @@ args_dict = {
     },
     'LEARNING_RATE': {
         'type': float,
-        'default': 0.00001,
+        'default': 0.000005,
         'help': 'learning rate'
     },
     'LEARNING_RATE_AE': {
         'type': float,
-        'default': 0.00001,
+        'default': 0.000005,
         'help': 'learning rate for the autoencoder'
     },
     'LOG_STD_INIT': {
