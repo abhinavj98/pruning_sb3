@@ -3,7 +3,7 @@
 .vscode/
 .idea/
 wandb/*
-
+*media*
 
 *.json
 # Vagrant

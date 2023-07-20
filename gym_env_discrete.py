@@ -269,7 +269,7 @@ class ur5GymEnv(gym.Env):
 
     def set_camera(self):
         pose, orientation = self.get_current_pose()
-        CAMERA_BASE_OFFSET = np.array([-0.0, 0.1, 0.1])
+        CAMERA_BASE_OFFSET = np.array([-0.0, 0., 0.])
         pose = pose + CAMERA_BASE_OFFSET
         rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3,3)
 		#Initial vectors
