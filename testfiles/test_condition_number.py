@@ -1,3 +1,7 @@
+# (0.13449400663375854, -0.5022612810134888, 0.5729108452796936), (0.08233322092014395, 0.08148885209843372, -0.7017698639513068, 0.7029223753490557))
+# ((0.13449425995349884, -0.5022624731063843, 0.5729091167449951), (0.08233936213522093, 0.08149007539678467, -0.7017685790089195, 0.7029227970202654))
+# ((0.13449451327323914, -0.5022636651992798, 0.5729073882102966), (0.08234550355528829, 0.08149129879013207, -0.7017672940054546, 0.7029232186590406))
+# ((0.13449475169181824, -0.5022648572921753, 0.5729056596755981)
 import sys
 sys.path.append("/Users/abhinav/Desktop/gradstuff/research/tree_pruning_rl")
 from gym_env_discrete import ur5GymEnv
@@ -65,8 +69,10 @@ while True:
     else:
         val = np.array([0,0,0,0,0,0])
  
-    env.step(val)
-
+    observation, reward, terminated, truncated, infos = env.step(val)
+    print(env.get_current_pose())
+    # print(infos)
+    # print(observation['desired_goal'], observation['achieved_goal'])
     # env.render()
     # jacobian = env.con.calculateJacobian(env.ur5, env.end_effector_index, [0,0,0], env.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
     # jacobian = np.vstack(jacobian)
