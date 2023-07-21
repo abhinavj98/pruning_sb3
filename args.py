@@ -79,7 +79,7 @@ args_dict = {
     },
     'TERMINATE_REWARD_SCALE': {
         'type': float,
-        'default': 4,
+        'default': 5,
         'help': 'scaling factor for the terminate reward'
     },
     'COLLISION_REWARD_SCALE': {
@@ -94,7 +94,7 @@ args_dict = {
     },
     'ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 2,
+        'default':2,
         'help': 'scaling factor for the orientation reward'
     },
     #Training parameters
