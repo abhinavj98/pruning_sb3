@@ -369,6 +369,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         for epoch in range(self.n_epochs):
             approx_kl_divs = []
             ae_losses = []
+            cosine_sim_losses = []
             # Do a complete pass on the rollout buffer
             for rollout_data in self.rollout_buffer.get(self.batch_size):
                 actions = rollout_data.actions
@@ -383,7 +384,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 if self.use_sde:
                     self.policy.reset_noise(self.batch_size)
 
-                values, log_prob, entropy, recon = self.policy.evaluate_actions(
+                values, log_prob, entropy, recon, cosine_sim = self.policy.evaluate_actions(
                     rollout_data.observations,
                     actions,
                     rollout_data.lstm_states,
@@ -418,6 +419,9 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                     values_pred = rollout_data.old_values + th.clamp(
                         values - rollout_data.old_values, -clip_range_vf, clip_range_vf
                     )
+                
+                cosine_prediction_loss = self.mse_loss(cosine_sim, rollout_data.observations['cosine_sim'])
+                cosine_sim_losses.append(cosine_prediction_loss.item())
                 # Value loss using the TD(gae_lambda) target
                 # Mask padded sequences
                 ae_l2_loss = self.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), recon) 
@@ -435,7 +439,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
                 entropy_losses.append(entropy_loss.item())
 
-                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + ae_l2_loss
+                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + ae_l2_loss + cosine_prediction_loss
 
                 # Calculate approximate form of reverse KL Divergence for early stopping
                 # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -478,6 +482,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
         self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
         self.logger.record("train/ae_loss", np.mean(ae_losses))
+        self.logger.record("train/cosine_sim_loss", np.mean(cosine_sim_losses))
         self.logger.record("train/entropy_loss", np.mean(entropy_losses))
         self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
         self.logger.record("train/value_loss", np.mean(value_losses))

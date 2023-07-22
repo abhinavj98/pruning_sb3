@@ -103,9 +103,11 @@ class ur5GymEnv(gym.Env):
                         shape = (6,), dtype=np.float32),
             'prev_action' : spaces.Box(low = -1., high = 1., 
                                        shape = (self.action_dim,), dtype=np.float32),
+            'cosine_sim': spaces.Box(low = -1., high = 1.,shape = (1,), dtype=np.float32)
                         })
         self.prev_action = np.zeros(self.action_dim)
         self.grayscale = np.zeros((224,224))
+        self.cosine_sim = 0.5
         self.reset_counter = 0
         self.randomize_tree_count = 1
         self.sphereUid = -1
@@ -429,9 +431,17 @@ class ur5GymEnv(gym.Env):
         self.observation['achieved_goal'] = np.hstack((self.achieved_pos - init_pos, np.array(self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or))))
         self.observation['desired_goal'] = self.desired_pos - init_pos
         # print(np.array(self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or)))
+        # if use_optical_flow:
+        #     flow = cv2.calcOpticalFlowFarneback(prev=self.last_grayscale, next=grayscale, flow=None,
+        #                                             pyr_scale=0.5, levels=3, winsize=15, iterations=3,
+        #                                             poly_n=5, poly_sigma=1.1, flags=0)
+        #     flow_mag = np.linalg.norm(flow, axis=2)
+        #     # flow_img = (255 * flow_mag / flow_mag.max())
+        #     self.observation['depth'] = flow_mag
+        # else:
         self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis = 0)
 
-        
+        self.observation['cosine_sim'] =  np.array(self.cosine_sim).astype(np.float32).reshape(1,-1)
         self.observation['joint_angles'] = self.joint_angles - self.init_joint_angles
         self.observation['joint_velocities'] = self.joint_velocities
         self.observation['prev_action'] = self.prev_action

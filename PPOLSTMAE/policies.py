@@ -147,7 +147,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
 
         # Setup optimizer with initial learning rate
         # self.optimizer = self.optimizer_class(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
-        self.optimizer = self.optimizer_class([*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.cosine_sim_prediction_head = nn.Linear(lstm_hidden_size, 1)
+        self.optimizer = self.optimizer_class([*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters(), *self.cosine_sim_prediction_head.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
         self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
         self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
        
@@ -368,7 +369,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         distribution = self._get_action_dist_from_latent(latent_pi)
         log_prob = distribution.log_prob(actions)
         values = self.value_net(latent_vf)
-        return values, log_prob, distribution.entropy(), recon
+        cosine_sim_pediction = self.cosine_sim_prediction_head(latent_vf)
+        return values, log_prob, distribution.entropy(), recon, cosine_sim_pediction
     
     @staticmethod
     def init_weights(module: nn.Module, gain: float = 1) -> None:
