@@ -105,6 +105,7 @@ class ur5GymEnv(gym.Env):
                                        shape = (self.action_dim,), dtype=np.float32),
                         })
         self.prev_action = np.zeros(self.action_dim)
+        self.grayscale = np.zeros((224,224))
         self.reset_counter = 0
         self.randomize_tree_count = 1
         self.sphereUid = -1
@@ -348,6 +349,7 @@ class ur5GymEnv(gym.Env):
         # remove debug line
         self.con.removeUserDebugItem(self.debug_line)
         self.prev_action = action
+        self.prev_grayscale = self.grayscale
         previous_pose = self.get_current_pose()
         #convert two tuples into one array
 
@@ -417,6 +419,7 @@ class ur5GymEnv(gym.Env):
 
         self.desired_pos = np.array(self.tree_goal_pos).astype(np.float32)
         self.rgb, self.depth = self.get_rgbd_at_cur_pose()
+        self.grayscale = self.rgb.mean(axis=2).astype(np.uint8)
 
         self.joint_angles = np.array(self.get_joint_angles()).astype(np.float32)
 
