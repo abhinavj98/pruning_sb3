@@ -67,7 +67,7 @@ class CustomEvalCallback(EventCallback):
         self.evaluations_successes = []
         self._reward_dict = {}
         self.model = model
-        self.n_eval_episodes = 50
+        self.n_eval_episodes = 10
     def _log_success_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
         """
         Callback passed to the  ``evaluate_policy`` function
@@ -135,9 +135,9 @@ class CustomEvalCallback(EventCallback):
 if __name__ == "__main__":
     './ur_e_description/urdf/trees/train',
     eval_env_kwargs =  {"renders" : False, "tree_urdf_path" :  './ur_e_description/urdf/trees/test', "tree_obj_path" : './ur_e_description/meshes/trees/test', "action_dim" :6,
-                "maxSteps" : 600, "movement_reward_scale" : 1, "action_scale" :1, "distance_reward_scale" :0,
+                "maxSteps" : 600, "movement_reward_scale" : 1, "action_scale" :0, "distance_reward_scale" :0,
                 "condition_reward_scale" :0, "terminate_reward_scale" : 5, "collision_reward_scale" : -0.01, 
-                "slack_reward_scale" :-0.0001, "num_points" : 10, "orientation_reward_scale" : 2, "learning_param":0.02}
+                "slack_reward_scale" :-0.0001, "num_points" : 10, "orientation_reward_scale" : 2, "learning_param":0.5}
 
     eval_env = Monitor(ur5GymEnv(**eval_env_kwargs))
     load_path = "./logs/5e5lrloadwprking/best_model.zip"

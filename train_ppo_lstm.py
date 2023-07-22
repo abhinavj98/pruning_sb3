@@ -146,6 +146,8 @@ if not load_path:
     model = RecurrentPPOAE(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
 else:
     model = RecurrentPPOAE.load(load_path, env = env)
+    model.num_timesteps = 1000000
+    model._num_timesteps_at_start = 1000000
     print("LOADED MODEL")
 model.set_logger(new_logger)
 print("Using device: ", utils.get_device())
