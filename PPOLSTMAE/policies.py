@@ -235,7 +235,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         """
         # Preprocess the observation if needed
         features, recon = self.extract_features(obs)
-
+        
         if self.share_features_extractor:
             pi_features = vf_features = features  # alis
         else:
@@ -255,13 +255,13 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
 
         latent_pi = self.mlp_extractor.forward_actor(latent_pi)
         latent_vf = self.mlp_extractor.forward_critic(latent_vf)
-
         # Evaluate the values for the given observations
         values = self.value_net(latent_vf)
         distribution = self._get_action_dist_from_latent(latent_pi)
         actions = distribution.get_actions(deterministic=deterministic)
         log_prob = distribution.log_prob(actions)
         return actions, values, log_prob, RNNStates(lstm_states_pi, lstm_states_vf)
+    
     
     def extract_features(self, obs: th.Tensor) -> th.Tensor:
         """
@@ -333,6 +333,12 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
 
         latent_vf = self.mlp_extractor.forward_critic(latent_vf)
         return self.value_net(latent_vf)
+    
+    def predict_cosine_sim(
+             self, obs: th.Tensor,lstm_states: RNNStates, episode_starts: th.Tensor):
+        features, recon = self.extract_features(obs)
+        latent_pi, lstm_states = self._process_sequence(features, lstm_states, episode_starts, self.lstm_actor)
+        return self.cosine_sim_prediction_head(latent_pi) 
 
     def evaluate_actions(
         self, obs: th.Tensor, actions: th.Tensor, lstm_states: RNNStates, episode_starts: th.Tensor
@@ -452,6 +458,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             actions, states = self._predict(
                 observation, lstm_states=states, episode_starts=episode_starts, deterministic=deterministic
             )
+            self.predicted_cosine_sim = self.predict_cosine_sim(observation, lstm_states=states, episode_starts=episode_starts).cpu().numpy()[0]
             states = (states[0].cpu().numpy(), states[1].cpu().numpy())
 
         # Convert to numpy

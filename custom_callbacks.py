@@ -322,7 +322,10 @@ class CustomEvalCallback(EventCallback):
                 1, (255,0,0), 2, cv2.LINE_AA)
             screen_copy = cv2.putText(screen_copy, "Goal: "+str(self.eval_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
                 1, (255,0,0), 2, cv2.LINE_AA)
-            screen_copy = cv2.putText(screen_copy, "Orientation: "+str(self.eval_env.get_attr("cosine_sim", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX, 
+            with th.no_grad():
+                prediction = self.model.policy.predicted_cosine_sim
+                # print(self.model.policy.latent_vf)
+            screen_copy = cv2.putText(screen_copy, "Orientation: "+str(self.eval_env.get_attr("cosine_sim", 0)[0]) + " Predicted: "+str(prediction), (0,200), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.eval_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
