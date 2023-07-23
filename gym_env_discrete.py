@@ -507,7 +507,10 @@ class ur5GymEnv(gym.Env):
         distance_reward = (np.exp(-self.target_dist*5)*self.distance_reward_scale)
         reward_info['distance_reward'] = distance_reward
         reward += distance_reward
-        self.orientation_reward_unscaled, self.cosine_sim = self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, previous_pos, previous_or, self.tree_goal_branch)
+        if self.target_dist<0.2:
+            self.orientation_reward_unscaled, self.cosine_sim = self.compute_orientation_reward(achieved_pos, desired_pos, achieved_or, previous_pos, previous_or, self.tree_goal_branch)
+        else:
+            self.orientation_reward_unscaled = 0
         orientation_reward = (self.orientation_reward_unscaled)*self.orientation_reward_scale
 
         reward_info['orientation_reward'] = orientation_reward
