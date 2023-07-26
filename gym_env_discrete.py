@@ -130,9 +130,19 @@ class ur5GymEnv(gym.Env):
         #Tree parameters
         self.tree_goal_pos = [1, 0, 0] # initial object pos
         self.tree_goal_branch = [0, 0, 0]
-
-        self.trees = Tree.make_list_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos = np.array([0, -0.8, 0]),\
-                                                 orientation=np.array([0,0,0,1]), scale=0.1, num_points = num_points, num_trees = self.tree_count)
+        pos = None
+        scale = None
+        if "envy" in self.tree_urdf_path:
+            pos = np.array([0, -0.8, 0])
+            scale = 0.1
+        elif "ufo" in self.tree_urdf_path:
+            pos = np.array([-0.5, -0.8, -0.2])
+            scale = 0.08
+        
+        assert scale is not None
+        assert pos is not None
+        self.trees = Tree.make_list_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos = pos,\
+                                                 orientation=np.array([0,0,0,1]), scale=scale, num_points = num_points, num_trees = self.tree_count)
         self.tree = random.sample(self.trees, 1)[0]
         self.tree.active()
 
@@ -606,14 +616,17 @@ class Tree():
         self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
         self.projection_mean = 0
         #if pickled file exists load an return
-        if os.path.exists('./' + os.path.basename(self.urdf_path)[:-5] + '_reachable_points.pkl'):
-            with open('./' + os.path.basename(self.urdf_path)[:-5] + '_reachable_points.pkl', 'rb') as f:
+        path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
+        pkl_path = './pkl/' + str(path_component[3])+'/'+str(path_component[-1][:-5]) + '_reachable_points.pkl'
+        if os.path.exists(pkl_path):
+            with open(pkl_path, 'rb') as f:
                 self.reachable_points = pickle.load(f)
             print('Loaded reachable points from pickle file ', self.urdf_path[:-5] + '_reachable_points.pkl')
             print("Number of reachable points: ", len(self.reachable_points))
             return
         #Find the two longest edges of the face
         #Add their mid-points and perpendicular projection to the smallest side as a point and branch
+        # self.active()
         for face in self.tree_obj.mesh_list[0].faces:
             #Order the sides of the face by length
             ab = (face[0], face[1], np.linalg.norm(self.transformed_vertices[face[0]] - self.transformed_vertices[face[1]]))
@@ -642,11 +655,15 @@ class Tree():
         self.num_points = num_points
         self.get_reachable_points(self.env.ur5)
         # dump reachable points to file using pickle
-        with open('./' + os.path.basename(self.urdf_path)[:-5] + '_reachable_points.pkl', 'wb') as f:
+      
+        path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
+        with open(pkl_path, 'wb') as f:
             pickle.dump(self.reachable_points, f)
 
         
     def active(self):
+
+        print('Loading tree from ', self.urdf_path)
         self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
 
     def inactive(self):
@@ -660,8 +677,12 @@ class Tree():
 
     def is_reachable(self, vertice, ur5):
         ur5_base_pos = np.array(self.env.get_current_pose()[0])
-        if abs(vertice[0][0]) < 0.05:
-            return False
+        if "envy" in self.urdf_path:
+            if abs(vertice[0][0]) < 0.05:
+                return False
+        elif "ufo" in self.urdf_path:
+            if vertice[0][2] < 0.1:
+                return False
         dist=np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
         projection_length = np.linalg.norm(vertice[1])
         if dist >= 1 or projection_length < self.projection_mean* 0.7:
