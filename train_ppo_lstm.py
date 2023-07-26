@@ -136,7 +136,7 @@ policy_kwargs = {
         "features_extractor_kwargs" : {"features_dim": args.STATE_DIM},
         "optimizer_class" : th.optim.Adam,
 	    "log_std_init" : args.LOG_STD_INIT,
-        "net_arch" : dict(qf=[args.EMB_SIZE*2, args.EMB_SIZE], pi=[args.EMB_SIZE*2, args.EMB_SIZE]),
+        "net_arch" : dict(qf=[args.EMB_SIZE*2, args.EMB_SIZE, args.EMB_SIZE//2], pi=[args.EMB_SIZE*2, args.EMB_SIZE, args.EMB_SIZE//2]),
         "share_features_extractor" : True,
         "n_lstm_layers" : 2,
         }
