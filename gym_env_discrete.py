@@ -136,8 +136,8 @@ class ur5GymEnv(gym.Env):
             pos = np.array([0, -0.8, 0])
             scale = 0.1
         elif "ufo" in self.tree_urdf_path:
-            pos = np.array([-0.5, -0.8, -0.2])
-            scale = 0.08
+            pos = np.array([-0.5, -0.8, -0.3])
+            scale = 0.05
         
         assert scale is not None
         assert pos is not None
@@ -626,7 +626,8 @@ class Tree():
             return
         #Find the two longest edges of the face
         #Add their mid-points and perpendicular projection to the smallest side as a point and branch
-        # self.active()
+        
+        
         for face in self.tree_obj.mesh_list[0].faces:
             #Order the sides of the face by length
             ab = (face[0], face[1], np.linalg.norm(self.transformed_vertices[face[0]] - self.transformed_vertices[face[1]]))
@@ -651,11 +652,17 @@ class Tree():
             self.vertex_and_projection.append(((self.transformed_vertices[ab[0]]+self.transformed_vertices[ab[1]])/2, perpendicular_projection))
             self.projection_mean += np.linalg.norm(perpendicular_projection)
             self.projection_mean += np.linalg.norm(perpendicular_projection)
+          
         self.projection_mean = self.projection_mean/len(self.vertex_and_projection)
         self.num_points = num_points
         self.get_reachable_points(self.env.ur5)
         # dump reachable points to file using pickle
-      
+        # self.active()
+        # for i in self.reachable_points:
+        #     print(i)
+        #     visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.02,rgbaColor =[1,0,0,1])
+        #     self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0],i[0][1],i[0][2]], [0,0,0,1])
+
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         with open(pkl_path, 'wb') as f:
             pickle.dump(self.reachable_points, f)
