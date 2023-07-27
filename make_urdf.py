@@ -17,7 +17,7 @@ for dataset in ["ufo", "envy"]:
                 <link name="tree">
                     <visual>
                     <geometry>
-                        <mesh filename="./ur_e_description/meshes/trees/{0}/train/{1}.obj" scale="01 1"/>
+                        <mesh filename="./ur_e_description/meshes/trees/{0}/train/{1}.obj" scale="1 1 1"/>
                     </geometry>
                     <material name="LightGrey">
                         <color rgba="0.7 0.7 0.7 1.0"/>
