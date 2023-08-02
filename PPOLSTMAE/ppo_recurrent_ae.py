@@ -422,16 +422,16 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                
                
                 #Remove 0 entries
-                cosine_sim_predicted = cosine_sim[rollout_data.observations['cosine_sim'].flatten() > 0]
-                cosine_sim_true = rollout_data.observations['cosine_sim'][rollout_data.observations['cosine_sim'].flatten() > 0]
+                cosine_sim_predicted = cosine_sim
+                cosine_sim_true = rollout_data.observations['cosine_sim']
                 #Shuffle
                 indices = th.randperm(cosine_sim_true.size()[0])
                 cosine_sim_predicted=cosine_sim_predicted[indices]
                 cosine_sim_true=cosine_sim_true[indices]
-                if len(cosine_sim_true) > 0:
-                    cosine_prediction_loss = self.mse_loss(cosine_sim_predicted, cosine_sim_true)
-                else:
-                    cosine_prediction_loss = th.tensor(0)
+                # if len(cosine_sim_true) > 0:
+                cosine_prediction_loss = self.mse_loss(cosine_sim_predicted, cosine_sim_true)
+                # else:
+                #     cosine_prediction_loss = th.tensor(0)
                 cosine_sim_losses.append(cosine_prediction_loss.item())
                 # Value loss using the TD(gae_lambda) target
                 # Mask padded sequences

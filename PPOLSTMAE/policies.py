@@ -368,14 +368,14 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             latent_vf = latent_pi.detach()
         else:
             latent_vf = self.critic(vf_features)
-
+        cosine_sim_features = latent_vf
         latent_pi = self.mlp_extractor.forward_actor(latent_pi)
         latent_vf = self.mlp_extractor.forward_critic(latent_vf)
 
         distribution = self._get_action_dist_from_latent(latent_pi)
         log_prob = distribution.log_prob(actions)
         values = self.value_net(latent_vf)
-        cosine_sim_pediction = self.cosine_sim_prediction_head(latent_vf)
+        cosine_sim_pediction = self.cosine_sim_prediction_head(cosine_sim_features)
         return values, log_prob, distribution.entropy(), recon, cosine_sim_pediction
     
     @staticmethod
