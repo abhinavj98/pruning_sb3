@@ -84,12 +84,12 @@ args_dict = {
     },
     'COLLISION_REWARD_SCALE': {
         'type': float,
-        'default': -0.00001,
+        'default': -0.01,
         'help': 'scaling factor for the collision reward'
     },
     'SLACK_REWARD_SCALE': {
         'type': float,
-        'default': -0.001,
+        'default': -0.01,
         'help': 'scaling factor for the slack reward'
     },
     'ORIENTATION_REWARD_SCALE': {

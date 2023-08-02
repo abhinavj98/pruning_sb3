@@ -384,14 +384,12 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         Orthogonal initialization (used in PPO and A2C)
         """
         if isinstance(module, (nn.Linear, nn.Conv2d)):
-            print(module)
             #nn.init.kaiming_normal_(module.weight, mode='fan_in', nonlinearity='relu')
             #module.weight.data = module.weight.data*gain
             nn.init.orthogonal_(module.weight, gain=gain)
-            print("AB")
             if module.bias is not None:
                 module.bias.data.fill_(0.0)
-            print("B")
+        
     def _predict(
         self,
         observation: th.Tensor,

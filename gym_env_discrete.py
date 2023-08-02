@@ -134,7 +134,7 @@ class ur5GymEnv(gym.Env):
         pos = None
         scale = None
         if "envy" in self.tree_urdf_path:
-            pos = np.array([0, -0.6, 0])
+            pos = np.array([0, -0.8, 0])
             scale = 0.75
         elif "ufo" in self.tree_urdf_path:
             pos = np.array([-0.5, -0.8, -0.3])
@@ -145,6 +145,7 @@ class ur5GymEnv(gym.Env):
         self.trees = Tree.make_list_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos = pos,\
                                                  orientation=np.array([0,0,0,1]), scale=scale, num_points = num_points, num_trees = self.tree_count)
         self.tree = random.sample(self.trees, 1)[0]
+        self.supports = -1
         self.tree.active()
 
         #Debug parameters
@@ -160,8 +161,8 @@ class ur5GymEnv(gym.Env):
         self.sum_reward = 0
         self.terminated = False
         self.singularity_terminated = False
-        self.collisions = 0
-        
+        self.collisions_acceptable = 0
+        self.collisions_unacceptable = 0        
         
 
 
@@ -255,13 +256,23 @@ class ur5GymEnv(gym.Env):
 
 
     def check_collisions(self):
-        collisions = self.con.getContactPoints(bodyA = self.ur5)#, linkIndexA=self.end_effector_index)
-        for i in range(len(collisions)):
+        collisions_acceptable = self.con.getContactPoints(bodyA = self.ur5, bodyB=self.tree.tree_urdf)
+        collisions_unacceptable = self.con.getContactPoints(bodyA = self.ur5, bodyB=self.tree.supports)
+        collision_info = {"collisions_acceptable": False, "collisions_unacceptable": False}
+        for i in range(len(collisions_unacceptable)):
             # print("collision")
-            if collisions[i][-6] < 0 :
+            if collisions_unacceptable[i][-6] < 0 :
+                collision_info["collisions_unacceptable"] = True
                 # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
-                return True
-        return False
+                return True, collision_info
+            
+        for i in range(len(collisions_acceptable)):
+            # print("collision")
+            if collisions_acceptable[i][-6] < 0 :
+                collision_info["collisions_acceptable"] = True
+                # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
+                return True, collision_info
+        return False, collision_info
 
 
     def calculate_ik(self, position, orientation):
@@ -406,7 +417,7 @@ class ur5GymEnv(gym.Env):
 
     def render(self, mode = "rgb_array"):
         size = [960, 720]
-        view_matrix = self.con.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[-0.3,-0.06,2.4], distance=1.06, yaw=-120.3, pitch=-12.48, roll=0, upAxisIndex=2)
+        view_matrix = self.con.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[-0.3,-0.06,1.3], distance=1.06, yaw=-120.3, pitch=-12.48, roll=0, upAxisIndex=2)
         proj_matrix = self.con.computeProjectionMatrixFOV(fov=60, aspect=float(size[0]) /size[1], nearVal=0.1, farVal=100.0)
         img_rgbd = self.con.getCameraImage(size[0], size[1], view_matrix, proj_matrix, renderer = self.con.ER_BULLET_HARDWARE_OPENGL, flags = self.con.ER_NO_SEGMENTATION_MASK)
                                            #, renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
@@ -508,7 +519,8 @@ class ur5GymEnv(gym.Env):
         desired_pos = desired_goal
         previous_pos = self.previous_pose[:3]
         previous_or = self.previous_pose[3:]
-        self.collisions = 0
+        self.collisions_acceptable = 0
+        self.collisions_unacceptable = 0   
         self.delta_movement = float(goal_reward(achieved_pos, previous_pos, desired_pos))
         self.target_dist = float(goal_distance(achieved_pos, desired_pos))
 
@@ -556,9 +568,16 @@ class ur5GymEnv(gym.Env):
         
         # check collisions:
         collision_reward = 0
-        if self.check_collisions():
-            collision_reward = 1*self.collision_reward_scale
-            self.collisions+=1
+        is_collision, collision_info = self.check_collisions()
+        if is_collision:
+            if collision_info['collisions_acceptable']:
+                collision_reward = 1*self.collision_reward_scale
+                self.collisions_acceptable+=1
+                # print('Collision acceptable!')
+            elif collision_info['collisions_unacceptable']:
+                collision_reward = 100*self.collision_reward_scale
+                self.collisions_unacceptable+=1
+                # print('Collision unacceptable!')
 
         reward += collision_reward
         reward_info['collision_reward'] = collision_reward
@@ -658,12 +677,12 @@ class Tree():
         self.projection_mean = self.projection_mean/len(self.vertex_and_projection)
         self.num_points = num_points
         self.get_reachable_points(self.env.ur5)
-        # dump reachable points to file using pickle
-        self.active()
-        for i in self.reachable_points:
-            print(i)
-            visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.02,rgbaColor =[1,0,0,1])
-            self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0],i[0][1],i[0][2]], [0,0,0,1])
+        # # dump reachable points to file using pickle
+        # self.active()
+        # for i in self.reachable_points:
+        #     print(i)
+        #     visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.02,rgbaColor =[1,0,0,1])
+        #     self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0],i[0][1],i[0][2]], [0,0,0,1])
 
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         with open(pkl_path, 'wb') as f:
@@ -673,7 +692,7 @@ class Tree():
     def active(self):
 
         print('Loading tree from ', self.urdf_path)
-        self.supports = self.env.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.6, 0], list(self.env.con.getQuaternionFromEuler([np.pi/2,0,np.pi/2])), globalScaling=0.75)
+        self.supports = self.env.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.8, 0], list(self.env.con.getQuaternionFromEuler([np.pi/2,0,np.pi/2])), globalScaling=0.75)
         self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
 
     def inactive(self):
