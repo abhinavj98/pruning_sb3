@@ -258,7 +258,8 @@ class CustomEvalCallback(EventCallback):
         self.evaluations_successes = []
         #For video
         self._screens_buffer = []
-        self._collisions_buffer = []
+        self._collisions_acceptable_buffer = []
+        self._collisions_unacceptable_buffer = []
         self._reward_dict = {}
 
     def _init_callback(self) -> None:
@@ -332,7 +333,8 @@ class CustomEvalCallback(EventCallback):
             self._screens_buffer.append(screen_copy.transpose(2, 0, 1))
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-        self._collisions_buffer.append(self.eval_env.get_attr("collisions", 0)[0])
+        self._collisions_acceptable_buffer.append(self.eval_env.get_attr("collisions_acceptable", 0)[0])
+        self._collisions_unacceptable_buffer.append(self.eval_env.get_attr("collisions_unacceptable", 0)[0])
 
     def _master_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         self._grab_screen_callback(_locals, _globals)
@@ -402,7 +404,8 @@ class CustomEvalCallback(EventCallback):
 
             mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
             mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
-            mean_collisions = np.mean(self._collisions_buffer)
+            mean_collisions_acceptable = np.mean(self._collisions_acceptable_buffer)
+            mean_collisions_unacceptable = np.mean(self._collisions_unacceptable_buffer)
             self.last_mean_reward = mean_reward
 
             if self.verbose >= 1:
@@ -416,7 +419,8 @@ class CustomEvalCallback(EventCallback):
                     Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
                     exclude=("stdout", "log", "json", "csv"),
                 )
-            self.logger.record("eval/collisions", mean_collisions)
+            self.logger.record("eval/collisions_acceptable", mean_collisions_acceptable)
+            self.logger.record("eval/collisions_unacceptable", mean_collisions_unacceptable)
             if len(self._is_success_buffer) > 0:
                 success_rate = np.mean(self._is_success_buffer)
                 if self.verbose >= 1:
