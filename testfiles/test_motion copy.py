@@ -9,7 +9,7 @@ import torch
 import gym
 import random
 # from ppo_discrete import PPO, Memory, ActorCritic
-from gym_env_discrete import ur5GymEnv
+from gym_env_discrete import PruningEnv
 import torchvision
 import imageio
 import matplotlib
@@ -27,7 +27,7 @@ def get_args():
     parser = argparse.ArgumentParser(description=title)
     arg = parser.add_argument
     # env
-    # arg('--env_name', type=str, default='ur5GymEnv', help='environment name')
+    # arg('--env_name', type=str, default='PruningEnv', help='environment name')
     arg('--render', action='store_true', default=False, help='render the environment')
     arg('--randObjPos', action='store_true', default=True, help='fixed object position to pick up')
     arg('--mel', type=int, default=100, help='max episode length')
@@ -78,7 +78,7 @@ def write_file(filepath, data, mode):
 
 args.filename_tl = 'training_log.txt' # log file
 
-env = ur5GymEnv(renders=True)
+env = PruningEnv(renders=True)
 
 env.seed(args.seed)
 random.seed(args.seed)

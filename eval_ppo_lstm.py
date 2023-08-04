@@ -10,7 +10,7 @@ import numpy as np
 import os
 import cv2
 import torch as th
-from gym_env_discrete import ur5GymEnv
+from gym_env_discrete import PruningEnv
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
 from stable_baselines3.common.monitor import Monitor
 from PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
@@ -133,13 +133,13 @@ class CustomEvalCallback(EventCallback):
 
 
 if __name__ == "__main__":
-    './ur_e_description/urdf/trees/train',
-    eval_env_kwargs =  {"renders" : False, "tree_urdf_path" :  './ur_e_description/urdf/trees/test', "tree_obj_path" : './ur_e_description/meshes/trees/test', "action_dim" :6,
+    './meshes_and_urdf/urdf/trees/train',
+    eval_env_kwargs =  {"renders" : False, "tree_urdf_path" :  './meshes_and_urdf/urdf/trees/test', "tree_obj_path" : './meshes_and_urdf/meshes/trees/test', "action_dim" :6,
                 "maxSteps" : 600, "movement_reward_scale" : 1, "action_scale" :0, "distance_reward_scale" :0,
                 "condition_reward_scale" :0, "terminate_reward_scale" : 5, "collision_reward_scale" : -0.01, 
                 "slack_reward_scale" :-0.0001, "num_points" : 50, "orientation_reward_scale" : 2,  "name":"evalenv"}
 
-    eval_env = Monitor(ur5GymEnv(**eval_env_kwargs))
+    eval_env = Monitor(PruningEnv(**eval_env_kwargs))
     load_path = "./logs/best_model.zip"
     model = RecurrentPPOAE.load(load_path)
     eval = CustomEvalCallback(eval_env, model)

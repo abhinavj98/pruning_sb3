@@ -6,22 +6,22 @@ args_dict = {
     #File paths
     'TREE_TRAIN_URDF_PATH': {
         'type': str,
-        'default': './ur_e_description/urdf/trees/envy/train',
+        'default': './meshes_and_urdf/urdf/trees/envy/train',
         'help': 'path to the train URDF file for the tree environment'
     },
     'TREE_TRAIN_OBJ_PATH': {
         'type': str,
-        'default': './ur_e_description/meshes/trees/envy/train',
+        'default': './meshes_and_urdf/meshes/trees/envy/train',
         'help': 'path to the train OBJ file for the tree environment'
     },
     'TREE_TEST_URDF_PATH': {
         'type': str,
-        'default': './ur_e_description/urdf/trees/envy/test',
+        'default': './meshes_and_urdf/urdf/trees/envy/test',
         'help': 'path to the test URDF file for the tree environment'
     },
     'TREE_TEST_OBJ_PATH': {
         'type': str,
-        'default': './ur_e_description/meshes/trees/envy/test',
+        'default': './meshes_and_urdf/meshes/trees/envy/test',
         'help': 'path to the test OBJ file for the tree environment'
     },
     #PPO parameters

@@ -4,7 +4,7 @@
 # ((0.13449475169181824, -0.5022648572921753, 0.5729056596755981)
 import sys
 sys.path.append("/Users/abhinav/Desktop/gradstuff/research/tree_pruning_rl")
-from gym_env_discrete import ur5GymEnv
+from gym_env_discrete import PruningEnv
 from PPOAE.models import *
 import numpy as np
 import cv2
@@ -30,7 +30,7 @@ for arg_name, arg_params in args_dict.items():
 args = parser.parse_args()
 print(args)
 env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR}
-env = ur5GymEnv(**env_kwargs, tree_count=1)
+env = PruningEnv(**env_kwargs, tree_count=1)
 
 
 # env.reset()

@@ -4,10 +4,10 @@ import os
 dataset = "ufo"
 for dataset in ["ufo", "envy"]:
     for label in ["test", "train"]:
-        train_obj_path = "./ur_e_description/meshes/trees/{}/{}".format(dataset, label)
+        train_obj_path = "./meshes_and_urdf/meshes/trees/{}/{}".format(dataset, label)
         train_obj_files = [f for f in os.listdir(train_obj_path) if os.path.isfile(os.path.join(train_obj_path, f)) and f.endswith(".obj")]
         try:
-            os.mkdir("./ur_e_description/urdf/trees/{}/{}".format(dataset, label))
+            os.mkdir("./meshes_and_urdf/urdf/trees/{}/{}".format(dataset, label))
         except:
             print("urdf folder already exists")
 
@@ -17,7 +17,7 @@ for dataset in ["ufo", "envy"]:
                 <link name="tree">
                     <visual>
                     <geometry>
-                        <mesh filename="./ur_e_description/meshes/trees/{0}/train/{1}.obj" scale="1 1 1"/>
+                        <mesh filename="./meshes_and_urdf/meshes/trees/{0}/train/{1}.obj" scale="1 1 1"/>
                     </geometry>
                     <material name="LightGrey">
                         <color rgba="0.7 0.7 0.7 1.0"/>
@@ -25,7 +25,7 @@ for dataset in ["ufo", "envy"]:
                     </visual>
                     <collision concave = "true">
                     <geometry>
-                        <mesh filename="./ur_e_description/meshes/trees/{0}/train/{1}.obj" scale="1 1 1"/>
+                        <mesh filename="./meshes_and_urdf/meshes/trees/{0}/train/{1}.obj" scale="1 1 1"/>
                     </geometry>
                     </collision>
                     <inertial>
@@ -42,5 +42,5 @@ for dataset in ["ufo", "envy"]:
                 </joint>
             </robot>""".format(dataset, i[:-4])
             #Save file
-            with open("./ur_e_description/urdf/trees/{}/{}/{}.urdf".format(dataset,label, i[:-4]), "w") as f:
+            with open("./meshes_and_urdf/urdf/trees/{}/{}/{}.urdf".format(dataset,label, i[:-4]), "w") as f:
                 f.write(urdf)

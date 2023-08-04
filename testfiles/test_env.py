@@ -1,8 +1,8 @@
 from stable_baselines3.common.env_checker import check_env
-from gym_env_discrete import ur5GymEnv
+from gym_env_discrete import PruningEnv
 #from stable_baselines3.common.vec_env.base_vec_env import DummyVecEnv
 
-env = ur5GymEnv()
+env = PruningEnv()
 #env = DummyVecEnv(env)
 # It will check your custom environment and output additional warnings if needed
 check_env(env)

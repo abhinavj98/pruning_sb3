@@ -4,7 +4,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 from PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from custom_callbacks import CustomEvalCallback, CustomTrainCallback
 from PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
-from gym_env_discrete import ur5GymEnv
+from gym_env_discrete import PruningEnv
 from PPOAE.models import AutoEncoder
 
 from stable_baselines3.common.env_checker import check_env
@@ -107,19 +107,19 @@ else:
 train_env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
                 "maxSteps" : args.MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
                 "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE, 
-                "slack_reward_scale" : args.SLACK_REWARD_SCALE, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE,"tree_count":1}
+                "slack_reward_scale" : args.SLACK_REWARD_SCALE, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE,"tree_count":3}
 
 eval_env_kwargs =  {"renders" : False, "tree_urdf_path" :  args.TREE_TEST_URDF_PATH, "tree_obj_path" :  args.TREE_TEST_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
                 "maxSteps" : args.EVAL_MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
                 "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE, 
                 "slack_reward_scale" : args.SLACK_REWARD_SCALE, "num_points" : args.EVAL_POINTS, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE, "name":"evalenv"}
 
-env = make_vec_env(ur5GymEnv, env_kwargs = train_env_kwargs, n_envs = args.N_ENVS)
+env = make_vec_env(PruningEnv, env_kwargs = train_env_kwargs, n_envs = args.N_ENVS)
 new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
 env.logger = new_logger 
-eval_env = Monitor(ur5GymEnv(**eval_env_kwargs))
+eval_env = Monitor(PruningEnv(**eval_env_kwargs))
 # eval_env = DummyVecEnv([lambda: eval_env])
-# eval_env = make_vec_env(ur5GymEnv, env_kwargs = eval_env_kwargs, n_envs = 1)
+# eval_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, n_envs = 1)
 eval_env.logger = new_logger
 # Use deterministic actions for evaluation
 eval_callback = CustomEvalCallback(eval_env, best_model_save_path="./logs/",

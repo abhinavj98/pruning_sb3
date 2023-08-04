@@ -1,7 +1,7 @@
 import glob
 import os
 folder = "test"
-OBJ_FOLDER = "./ur_e_description/meshes/trees/"+folder
+OBJ_FOLDER = "./meshes_and_urdf/meshes/trees/"+folder
 
 for name in glob.glob(OBJ_FOLDER+'/*.obj'):
     print(name)
@@ -33,6 +33,6 @@ for name in glob.glob(OBJ_FOLDER+'/*.obj'):
         <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
     </joint>
     </robot>""".format(filepath = name)
-    file = open("./ur_e_description/urdf/trees/{}/{}.urdf".format(folder, os.path.basename(name)[:-4]), "w")
+    file = open("./meshes_and_urdf/urdf/trees/{}/{}.urdf".format(folder, os.path.basename(name)[:-4]), "w")
     file.write(urdf_template)
     file.close()

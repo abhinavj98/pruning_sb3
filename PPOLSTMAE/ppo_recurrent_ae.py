@@ -2,27 +2,27 @@ import sys
 import time
 from copy import deepcopy
 from typing import Any, ClassVar, Dict, Optional, Type, TypeVar, Union, List
-import torchvision
+
 import numpy as np
 import torch as th
+import torchvision
 from gymnasium import spaces
-from stable_baselines3.common.buffers import RolloutBuffer
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
-from stable_baselines3.common.policies import BasePolicy
-from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
-from stable_baselines3.common.utils import explained_variance, get_schedule_fn, obs_as_tensor, safe_mean
-from stable_baselines3.common.vec_env import VecEnv
-
-from stable_baselines3.common.utils import explained_variance, get_schedule_fn
-
-from stable_baselines3.common.utils import update_learning_rate
-from stable_baselines3.common.logger import Image
 from sb3_contrib.common.recurrent.buffers import RecurrentDictRolloutBuffer, RecurrentRolloutBuffer
 from sb3_contrib.common.recurrent.policies import RecurrentActorCriticPolicy
 from sb3_contrib.common.recurrent.type_aliases import RNNStates
 from sb3_contrib.ppo_recurrent.policies import CnnLstmPolicy, MlpLstmPolicy, MultiInputLstmPolicy
+from stable_baselines3.common.buffers import RolloutBuffer
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.logger import Image
+from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
+from stable_baselines3.common.policies import BasePolicy
+from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
+from stable_baselines3.common.utils import explained_variance, get_schedule_fn
+from stable_baselines3.common.utils import obs_as_tensor, safe_mean
+from stable_baselines3.common.utils import update_learning_rate
+from stable_baselines3.common.vec_env import VecEnv
 from torch.nn import functional as F
+
 SelfRecurrentPPOAE = TypeVar("SelfRecurrentPPOAE", bound="RecurrentPPOAE")
 
 
@@ -78,33 +78,33 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
     }
 
     def __init__(
-        self,
-        policy: Union[str, Type[RecurrentActorCriticPolicy]],
-        env: Union[GymEnv, str],
-        learning_rate: Union[float, Schedule] = 3e-4,
-        learning_rate_ae: Union[float, Schedule] = 3e-4,
-        learning_rate_logstd : Union[float, Schedule] = 3e-4,
-        n_steps: int = 128,
-        batch_size: Optional[int] = 128,
-        n_epochs: int = 10,
-        gamma: float = 0.99,
-        gae_lambda: float = 0.95,
-        clip_range: Union[float, Schedule] = 0.2,
-        clip_range_vf: Union[None, float, Schedule] = None,
-        normalize_advantage: bool = True,
-        ent_coef: float = 0.0,
-        vf_coef: float = 0.5,
-        max_grad_norm: float = 0.5,
-        use_sde: bool = False,
-        sde_sample_freq: int = -1,
-        target_kl: Optional[float] = None,
-        stats_window_size: int = 100,
-        tensorboard_log: Optional[str] = None,
-        policy_kwargs: Optional[Dict[str, Any]] = None,
-        verbose: int = 0,
-        seed: Optional[int] = None,
-        device: Union[th.device, str] = "auto",
-        _init_setup_model: bool = True,
+            self,
+            policy: Union[str, Type[RecurrentActorCriticPolicy]],
+            env: Union[GymEnv, str],
+            learning_rate: Union[float, Schedule] = 3e-4,
+            learning_rate_ae: Union[float, Schedule] = 3e-4,
+            learning_rate_logstd: Union[float, Schedule] = 3e-4,
+            n_steps: int = 128,
+            batch_size: Optional[int] = 128,
+            n_epochs: int = 10,
+            gamma: float = 0.99,
+            gae_lambda: float = 0.95,
+            clip_range: Union[float, Schedule] = 0.2,
+            clip_range_vf: Union[None, float, Schedule] = None,
+            normalize_advantage: bool = True,
+            ent_coef: float = 0.0,
+            vf_coef: float = 0.5,
+            max_grad_norm: float = 0.5,
+            use_sde: bool = False,
+            sde_sample_freq: int = -1,
+            target_kl: Optional[float] = None,
+            stats_window_size: int = 100,
+            tensorboard_log: Optional[str] = None,
+            policy_kwargs: Optional[Dict[str, Any]] = None,
+            verbose: int = 0,
+            seed: Optional[int] = None,
+            device: Union[th.device, str] = "auto",
+            _init_setup_model: bool = True,
     ):
         super().__init__(
             policy,
@@ -149,7 +149,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         self._custom_setup_lr_schedule()
         self.set_random_seed(self.seed)
 
-        buffer_cls = RecurrentDictRolloutBuffer if isinstance(self.observation_space, spaces.Dict) else RecurrentRolloutBuffer
+        buffer_cls = RecurrentDictRolloutBuffer if isinstance(self.observation_space,
+                                                              spaces.Dict) else RecurrentRolloutBuffer
 
         self.policy = self.policy_class(
             self.observation_space,
@@ -202,15 +203,15 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 assert self.clip_range_vf > 0, "`clip_range_vf` must be positive, pass `None` to deactivate vf clipping"
 
             self.clip_range_vf = get_schedule_fn(self.clip_range_vf)
-        
+
         self.mse_loss = th.nn.MSELoss()
 
     def collect_rollouts(
-        self,
-        env: VecEnv,
-        callback: BaseCallback,
-        rollout_buffer: RolloutBuffer,
-        n_rollout_steps: int,
+            self,
+            env: VecEnv,
+            callback: BaseCallback,
+            rollout_buffer: RolloutBuffer,
+            n_rollout_steps: int,
     ) -> bool:
         """
         Collect experiences using the current policy and fill a ``RolloutBuffer``.
@@ -282,19 +283,20 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             # see GitHub issue #633
             for idx, done_ in enumerate(dones):
                 if (
-                    done_
-                    and infos[idx].get("terminal_observation") is not None
-                    and infos[idx].get("TimeLimit.truncated", False)
+                        done_
+                        and infos[idx].get("terminal_observation") is not None
+                        and infos[idx].get("TimeLimit.truncated", False)
                 ):
                     terminal_obs = self.policy.obs_to_tensor(infos[idx]["terminal_observation"])[0]
                     with th.no_grad():
                         terminal_lstm_state = (
-                            lstm_states.vf[0][:, idx : idx + 1, :].contiguous(),
-                            lstm_states.vf[1][:, idx : idx + 1, :].contiguous(),
+                            lstm_states.vf[0][:, idx: idx + 1, :].contiguous(),
+                            lstm_states.vf[1][:, idx: idx + 1, :].contiguous(),
                         )
                         # terminal_lstm_state = None
                         episode_starts = th.tensor([False], dtype=th.float32, device=self.device)
-                        terminal_value = self.policy.predict_values(terminal_obs, terminal_lstm_state, episode_starts)[0]
+                        terminal_value = self.policy.predict_values(terminal_obs, terminal_lstm_state, episode_starts)[
+                            0]
                     rewards[idx] += self.gamma * terminal_value
 
             rollout_buffer.add(
@@ -321,6 +323,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         callback.on_rollout_end()
 
         return True
+
     def _custom_update_learning_rate(self, optimizers: Union[List[th.optim.Optimizer], th.optim.Optimizer]) -> None:
         """
         Update the optimizers learning rate using the current learning rate schedule
@@ -329,14 +332,14 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             An optimizer or a list of optimizers.
         """
         # Log the current learning rate
-        #TODO: Move to callback
+        # TODO: Move to callback
         self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
         self.logger.record("train/learning_rate_ae", self.lr_schedule_ae(self._current_progress_remaining))
         self.logger.record("train/learning_rate_logstd", self.lr_schedule_logstd(self._current_progress_remaining))
         update_learning_rate(self.policy.optimizer, self.lr_schedule(self._current_progress_remaining))
         update_learning_rate(self.policy.optimizer_ae, self.lr_schedule_ae(self._current_progress_remaining))
         update_learning_rate(self.policy.optimizer_logstd, self.lr_schedule_logstd(self._current_progress_remaining))
-    
+
     def _custom_setup_lr_schedule(self) -> None:
         """Transform to callable if needed."""
         self.lr_schedule = get_schedule_fn(self.learning_rate)
@@ -350,8 +353,9 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
         # Update optimizer learning rate
-        self._custom_update_learning_rate([self.policy.optimizer, self.policy.optimizer_ae, self.policy.optimizer_logstd])
-     
+        self._custom_update_learning_rate(
+            [self.policy.optimizer, self.policy.optimizer_ae, self.policy.optimizer_logstd])
+
         # self._update_learning_rate(self.policy.optimizer)
         # Compute current clip range
         clip_range = self.clip_range(self._current_progress_remaining)
@@ -419,15 +423,14 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                     values_pred = rollout_data.old_values + th.clamp(
                         values - rollout_data.old_values, -clip_range_vf, clip_range_vf
                     )
-               
-               
-                #Remove 0 entries
+
+                # Remove 0 entries
                 cosine_sim_predicted = cosine_sim
                 cosine_sim_true = rollout_data.observations['cosine_sim']
-                #Shuffle
+                # Shuffle
                 indices = th.randperm(cosine_sim_true.size()[0])
-                cosine_sim_predicted=cosine_sim_predicted[indices]
-                cosine_sim_true=cosine_sim_true[indices]
+                cosine_sim_predicted = cosine_sim_predicted[indices]
+                cosine_sim_true = cosine_sim_true[indices]
                 # if len(cosine_sim_true) > 0:
                 cosine_prediction_loss = self.mse_loss(cosine_sim_predicted, cosine_sim_true)
                 # else:
@@ -435,7 +438,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 cosine_sim_losses.append(cosine_prediction_loss.item())
                 # Value loss using the TD(gae_lambda) target
                 # Mask padded sequences
-                ae_l2_loss = self.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), recon) 
+                ae_l2_loss = self.mse_loss(F.interpolate(rollout_data.observations['depth'], size=(112, 112)), recon)
                 ae_losses.append(ae_l2_loss.item())
                 value_loss = th.mean(((rollout_data.returns - values_pred) ** 2)[mask])
 
@@ -471,7 +474,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 self.policy.optimizer.zero_grad()
                 self.policy.optimizer_ae.zero_grad()
                 self.policy.optimizer_logstd.zero_grad()
-                
+
                 loss.backward()
                 # Clip grad norm
                 th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
@@ -490,7 +493,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             plot_img = data.observations['depth']
         with th.no_grad():
             _, recon = self.policy.features_extractor(plot_img)
-        ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
+        ae_image = torchvision.utils.make_grid(
+            [recon.squeeze(0) + 0.5, F.interpolate(plot_img + 0.5, size=(112, 112)).squeeze(0)])
         self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
         self.logger.record("train/ae_loss", np.mean(ae_losses))
         self.logger.record("train/cosine_sim_loss", np.mean(cosine_sim_losses))
@@ -510,13 +514,13 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             self.logger.record("train/clip_range_vf", clip_range_vf)
 
     def learn(
-        self: SelfRecurrentPPOAE,
-        total_timesteps: int,
-        callback: MaybeCallback = None,
-        log_interval: int = 1,
-        tb_log_name: str = "RecurrentPPO",
-        reset_num_timesteps: bool = True,
-        progress_bar: bool = False,
+            self: SelfRecurrentPPOAE,
+            total_timesteps: int,
+            callback: MaybeCallback = None,
+            log_interval: int = 1,
+            tb_log_name: str = "RecurrentPPO",
+            reset_num_timesteps: bool = True,
+            progress_bar: bool = False,
     ) -> SelfRecurrentPPOAE:
         iteration = 0
 
@@ -531,7 +535,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         callback.on_training_start(locals(), globals())
 
         while self.num_timesteps < total_timesteps:
-            continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
+            continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer,
+                                                      n_rollout_steps=self.n_steps)
 
             if continue_training is False:
                 break
@@ -545,8 +550,10 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 fps = int((self.num_timesteps - self._num_timesteps_at_start) / time_elapsed)
                 self.logger.record("time/iterations", iteration, exclude="tensorboard")
                 if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
-                    self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
-                    self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
+                    self.logger.record("rollout/ep_rew_mean",
+                                       safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+                    self.logger.record("rollout/ep_len_mean",
+                                       safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
                 self.logger.record("time/fps", fps)
                 self.logger.record("time/time_elapsed", int(time_elapsed), exclude="tensorboard")
                 self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")

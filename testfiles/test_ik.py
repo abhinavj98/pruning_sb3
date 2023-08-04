@@ -1,5 +1,5 @@
 
-from gym_env_discrete import ur5GymEnv
+from gym_env_discrete import PruningEnv
 from models import *
 import numpy as np
 import cv2
@@ -25,7 +25,7 @@ for arg_name, arg_params in args_dict.items():
 args = parser.parse_args()
 print(args)
 env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR}
-env = ur5GymEnv(**env_kwargs)
+env = PruningEnv(**env_kwargs)
 env.tree.inactive()
 print(env.joint_angles)
 print(env.get_current_pose())
