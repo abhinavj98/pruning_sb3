@@ -58,10 +58,10 @@ class SpatialSoftmax(torch.nn.Module):
         return feature_keypoints
 
 class AutoEncoder(BaseFeaturesExtractor):
-    def __init__(self, observation_space: gym.spaces.Box, features_dim = 72):
+    def __init__(self, observation_space: gym.spaces.Box, features_dim = 72,  in_channels=1):
         super(AutoEncoder, self).__init__(observation_space, features_dim)
         self.encoder = nn.Sequential(
-            nn.Conv2d(1, 16, 3, padding='same'),  # b, 16, 224, 224
+            nn.Conv2d(in_channels, 16, 3, padding='same'),  # b, 16, 224, 224
             nn.ReLU(),
             nn.Conv2d(16, 32, 3, padding=1, stride=2),  #  b, 64, 112, 112
             nn.ReLU(),
@@ -78,7 +78,7 @@ class AutoEncoder(BaseFeaturesExtractor):
             nn.Conv2d(32, 8, 3, padding = 1), 
             nn.AvgPool2d(5, stride = 1),
         )
-        output_conv = nn.Conv2d(3, 1, 3, padding = 1)
+        output_conv = nn.Conv2d(3, in_channels, 3, padding = 1)
         #output_conv.bias.data.fill_(0.3)
         self.fc = nn.Sequential(
             nn.Linear(72, 7*7*32),

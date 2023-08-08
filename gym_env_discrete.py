@@ -12,13 +12,51 @@ import pywavefront
 from gymnasium import spaces
 from pybullet_utils import bullet_client as bc
 
+from torchvision.models.optical_flow import raft_small
+from torchvision.models.optical_flow import Raft_Small_Weights
+import torch as th
+import torchvision.transforms.functional as F
+
 # Global URDF path pointing to robot and supports URDF
 ROBOT_URDF_PATH = "meshes_and_urdf/urdf/ur5e_with_camera.urdf"
 SUPPORT_AND_POST_PATH = "meshes_and_urdf/urdf/supports_and_post.urdf"
 
 
+class OpticalFlow:
+    def __init__(self, size = (224, 224)):
+        self.device = "cpu"#"cuda" if th.cuda.is_available() else "cpu"
+        weights = Raft_Small_Weights.DEFAULT
+        self.transforms = weights.transforms()
+        model = raft_small(weights=Raft_Small_Weights.DEFAULT, progress=False).to(self.device)
+        self.model = model.eval()
+        self.size = size
+        print("raft model loaded")
+
+    def _preprocess(self, img1, img2):
+
+        img1 = F.resize(img1, size=self.size, antialias=False)
+        img2 = F.resize(img2, size=self.size, antialias=False)
+        return self.transforms(img1, img2)
+
+    def calculate_optical_flow(self, current_rgb, previous_rgb):
+        current_rgb, previous_rgb = self._preprocess(th.tensor(current_rgb).permute(2, 0, 1).unsqueeze(0),
+                                                     th.tensor(previous_rgb).permute(2, 0, 1).unsqueeze(0))
+        with th.no_grad():
+            list_of_flows = self.model(current_rgb.to(self.device), previous_rgb.to(self.device))
+        predicted_flows = list_of_flows[-1]
+        predicted_flows[:, 0, :, :] /= self.size[0]
+        predicted_flows[:, 1, :, :] /= self.size[1]
+
+        # from torchvision.utils import flow_to_image
+        # print(predicted_flows.shape, predicted_flows.max(), predicted_flows.min())
+        #
+        # flow_img = flow_to_image(predicted_flows)
+        # print(flow_img.shapee, flow_img.max(), flow_img.min())
+        return predicted_flows[0].cpu().numpy()
+
 class PruningEnv(gym.Env):
     metadata = {'render.modes': ['rgb_array']}
+    # optical_flow_model = OpticalFlow()
 
     def __init__(self,
                  renders=False,
@@ -42,6 +80,7 @@ class PruningEnv(gym.Env):
                  collision_reward_scale=1,
                  slack_reward_scale=1,
                  orientation_reward_scale=1,
+                 use_optical_flow=False,
                  ):
         super(PruningEnv, self).__init__()
 
@@ -63,6 +102,9 @@ class PruningEnv(gym.Env):
         self.action_scale = action_scale
         self.terminated = None
         self.terminate_on_singularity = terminate_on_singularity
+        self.use_optical_flow = use_optical_flow
+        if self.use_optical_flow:
+            self.optical_flow_model = OpticalFlow()
         # Reward variables
         self.movement_reward_scale = movement_reward_scale
         self.distance_reward_scale = distance_reward_scale
@@ -72,7 +114,6 @@ class PruningEnv(gym.Env):
         self.slack_reward_scale = slack_reward_scale
         self.orientation_reward_scale = orientation_reward_scale
         self.sum_reward = 0
-
 
         # Set up pybullet
         if self.renders:
@@ -90,7 +131,7 @@ class PruningEnv(gym.Env):
         self.observation_space = spaces.Dict({
             'depth': spaces.Box(low=-1.,
                                 high=1.0,
-                                shape=(1, 224, 224), dtype=np.float32),
+                                shape=((2, 224, 224) if self.use_optical_flow else (1, 224, 224)), dtype=np.float32),
             'desired_goal': spaces.Box(low=-5.,
                                        high=5.,
                                        shape=(3,), dtype=np.float32),
@@ -110,7 +151,11 @@ class PruningEnv(gym.Env):
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
 
         self.prev_action = np.zeros(self.action_dim)
-        self.grayscale = np.zeros((224, 224))
+        self.action = np.zeros(self.action_dim)
+        # self.grayscale = np.zeros((224, 224))
+        self.rgb = np.zeros((224, 224, 3))
+        self.prev_rgb = np.zeros((224, 224, 3))
+
         self.cosine_sim = 0.5
         self.reset_counter = 0
         self.randomize_tree_count = 1
@@ -136,7 +181,7 @@ class PruningEnv(gym.Env):
         scale = None
         if "envy" in self.tree_urdf_path:
             pos = np.array([0, -0.8, 0])
-            scale = 0.75
+            scale = 1
         elif "ufo" in self.tree_urdf_path:
             pos = np.array([-0.5, -0.8, -0.3])
             scale = 1
@@ -149,6 +194,7 @@ class PruningEnv(gym.Env):
         self.tree = random.sample(self.trees, 1)[0]
         self.supports = -1
         self.tree.active()
+        self.create_background()
 
         # Debug parameters
         self.debug_line = -1
@@ -205,6 +251,36 @@ class PruningEnv(gym.Env):
         self.joint_angles = self.init_joint_angles
         self.achieved_pos = self.get_current_pose()[0]
         self.previous_pose = np.array([0, 0, 0, 0, 0, 0, 0]).astype(np.float32)
+
+    def create_background(self):
+        # wall_folder = os.path.join('models', 'wall_textures') #TODO: Replace all static paths with os.path.join
+        self.wall_texture = self.con.loadTexture(
+            "C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/textures/bark_willow_02/bark_willow_02_diff_4k.jpg")  # C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/textures/leaves-dead.png")
+        self.wall_dim = [4, 0.01, 1.5]
+        wall_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=self.wall_dim,
+                                              )
+        wall_col = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=self.wall_dim,
+                                                 )
+
+        self.wall_id = self.con.loadURDF(
+            "C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/meshes/plane/plane.urdf")  # , [0,0,0], list(self.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])))
+
+        side_wall_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=[0.01, 10, 7.5],
+                                                   )
+        side_wall_col = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=[0.01, 10, 7.5],
+                                                      )
+        self.side_wall_id = self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=side_wall_viz,
+                                                     baseCollisionShapeIndex=side_wall_col, basePosition=[5, -2, 7.5],
+                                                     baseOrientation=list(
+                                                         self.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])))
+
+        self.con.changeVisualShape(objectUniqueId=self.wall_id, linkIndex=-1,
+                                   textureUniqueId=self.wall_texture)
+        self.con.changeVisualShape(objectUniqueId=self.side_wall_id, linkIndex=-1,
+                                   textureUniqueId=self.wall_texture)
+
+        self.con.changeVisualShape(objectUniqueId=self.tree.tree_urdf, linkIndex=-1,
+                                   textureUniqueId=self.wall_texture)
 
     def set_joint_angles(self, joint_angles):
         """Set joint angles using pybullet motor control"""
@@ -305,7 +381,7 @@ class PruningEnv(gym.Env):
     def set_camera(self):
         """Take the current pose of the end effector and set the camera to that pose"""
         pose, orientation = self.get_current_pose()
-        CAMERA_BASE_OFFSET = np.array([-0.0, 0., 0.]) #TODO: Change camera position
+        CAMERA_BASE_OFFSET = np.array([-0.0, 0., 0.])  # TODO: Change camera position
         pose = pose + CAMERA_BASE_OFFSET
         rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
         # Initial vectors
@@ -384,7 +460,7 @@ class PruningEnv(gym.Env):
         self.debug_branch = self.con.addUserDebugLine(self.tree_goal_pos - 50 * self.tree_goal_branch,
                                                       self.tree_goal_pos + 50 * self.tree_goal_branch, [1, 0, 0], 200)
 
-        self.getExtendedObservation()
+        self.get_extended_observation()
         info = {}
         # Make info analogous to one in step function
         return self.observation, info
@@ -392,13 +468,7 @@ class PruningEnv(gym.Env):
     def step(self, action):
         # remove debug line
         self.con.removeUserDebugItem(self.debug_line)
-        self.prev_action = action
-        self.prev_grayscale = self.grayscale
-        previous_pose = self.get_current_pose()
-        # convert two tuples into one array
-
-        self.previous_pose = np.hstack((previous_pose[0], previous_pose[1]))
-        self.prev_joint_velocities = self.joint_velocities
+        self.action = action
 
         action = action * self.action_scale
         self.joint_velocities = self.calculate_joint_velocities_from_end_effector_velocity(action)
@@ -407,9 +477,10 @@ class PruningEnv(gym.Env):
         for i in range(5):
             self.con.stepSimulation()
             # if self.renders: time.sleep(5./240.) 
-        self.getExtendedObservation()
+        self.get_extended_observation()
 
         reward, reward_infos = self.compute_reward(self.desired_pos, np.hstack((self.achieved_pos, self.achieved_or)),
+                                                   self.previous_pose,
                                                    None)
         self.sum_reward += reward
         self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
@@ -436,7 +507,7 @@ class PruningEnv(gym.Env):
         return self.observation, reward, terminated, truncated, infos
 
     def render(self, mode="rgb_array"):
-        size = [960, 720]
+        size = [512, 512]
         view_matrix = self.con.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[-0.3, -0.06, 1.3], distance=1.06,
                                                                  yaw=-120.3, pitch=-12.48, roll=0, upAxisIndex=2)
         proj_matrix = self.con.computeProjectionMatrixFOV(fov=60, aspect=float(size[0]) / size[1], nearVal=0.1,
@@ -456,17 +527,26 @@ class PruningEnv(gym.Env):
     def close(self):
         self.con.disconnect()
 
-    def getExtendedObservation(self):
+    def get_extended_observation(self):
         """
         The observations are the current position, the goal position, the current orientation, the current depth image, the current joint angles and the current joint velocities    
         """
+        self.prev_action = self.action
+        previous_pose = self.get_current_pose()
+        # convert two tuples into one array
+
+        self.previous_pose = np.hstack((previous_pose[0], previous_pose[1]))
+        self.prev_joint_velocities = self.joint_velocities
+        self.prev_rgb = self.rgb
+
         tool_pos, tool_orient = self.get_current_pose()
         self.achieved_pos = np.array(tool_pos).astype(np.float32)
         self.achieved_or = np.array(tool_orient).astype(np.float32)
 
         self.desired_pos = np.array(self.tree_goal_pos).astype(np.float32)
+
         self.rgb, self.depth = self.get_rgbd_at_cur_pose()
-        self.grayscale = self.rgb.mean(axis=2).astype(np.uint8)
+        # self.grayscale = self.rgb.mean(axis=2).astype(np.uint8)
 
         self.joint_angles = np.array(self.get_joint_angles()).astype(np.float32)
 
@@ -477,17 +557,17 @@ class PruningEnv(gym.Env):
             self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or))))
         self.observation['desired_goal'] = self.desired_pos - init_pos
         # print(np.array(self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or)))
-        # if use_optical_flow:
-        #     flow = cv2.calcOpticalFlowFarneback(prev=self.last_grayscale, next=grayscale, flow=None,
-        #                                             pyr_scale=0.5, levels=3, winsize=15, iterations=3,
-        #                                             poly_n=5, poly_sigma=1.1, flags=0)
-        #     flow_mag = np.linalg.norm(flow, axis=2)
-        #     # flow_img = (255 * flow_mag / flow_mag.max())
-        #     self.observation['depth'] = flow_mag
-        # else:
-        self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis=0)
+        if self.use_optical_flow:
+            # #if subprocvenv add the rgb to the queue and wait for the optical flow to be calculated
+            # if self.subprocvenv:
+            #     self.rgb_queue.put(self.rgb)
+            #     self.observation['depth'] = self.optical_flow_queue.get()
+            self.observation['depth'] = self.optical_flow_model.calculate_optical_flow(self.rgb,
+                                                                               self.prev_rgb)  # TODO: rename depth
+        else:
+            self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis=0)
 
-        self.observation['cosine_sim'] = np.array(self.cosine_sim).astype(np.float32).reshape(1, -1)
+        self.observation['cosine_sim'] = np.array(self.cosine_sim).astype(np.float32).reshape(1, )
         self.observation['joint_angles'] = self.joint_angles - self.init_joint_angles
         self.observation['joint_velocities'] = self.joint_velocities
         self.observation['prev_action'] = self.prev_action
@@ -539,16 +619,16 @@ class PruningEnv(gym.Env):
         # print("Orientation reward: ", orientation_reward)
         return (orientation_reward - orientation_reward_prev), orientation_reward
 
-    def compute_reward(self, desired_goal, achieved_goal,
+    def compute_reward(self, desired_goal, achieved_pose, previous_pose,
                        info):  # achieved_pos, achieved_or, desired_pos, previous_pos, info):
         reward = float(0)
         reward_info = {}
         # Give rewards better names, and appropriate scales
-        achieved_pos = achieved_goal[:3]
-        achieved_or = achieved_goal[3:]
+        achieved_pos = achieved_pose[:3]
+        achieved_or = achieved_pose[3:]
         desired_pos = desired_goal
-        previous_pos = self.previous_pose[:3]
-        previous_or = self.previous_pose[3:]
+        previous_pos = previous_pose[:3]
+        previous_or = previous_pose[3:]
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
         self.delta_movement = float(goal_reward(achieved_pos, previous_pos, desired_pos))
@@ -584,7 +664,7 @@ class PruningEnv(gym.Env):
         if condition_number > 50 or (self.joint_velocities > 5).any():
             print('Too high condition number!')
             self.singularity_terminated = True
-            condition_number_reward = -3 #TODO: Replace with an input argument
+            condition_number_reward = -3  # TODO: Replace with an input argument
         elif self.terminate_on_singularity:
             condition_number_reward = np.abs(1 / condition_number) * self.condition_reward_scale
         reward += condition_number_reward
@@ -661,7 +741,7 @@ def compute_perpendicular_projection_vector(ab, bc):
     return projection
 
 
-class Tree():
+class Tree:
     def __init__(self, env, urdf_path, obj_path, pos=np.array([0, 0, 0]), orientation=np.array([0, 0, 0, 1]),
                  num_points=None, scale=1) -> None:
         self.urdf_path = urdf_path
@@ -675,6 +755,8 @@ class Tree():
         self.projection_mean = 0
         # if pickled file exists load an return
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
+        if not os.path.exists('./pkl/' + str(path_component[3])):
+            os.makedirs('./pkl/' + str(path_component[3]))
         pkl_path = './pkl/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_reachable_points.pkl'
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
@@ -732,6 +814,8 @@ class Tree():
         #     self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0],i[0][1],i[0][2]], [0,0,0,1])
 
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
+        # if pkl path exists else create
+
         with open(pkl_path, 'wb') as f:
             pickle.dump(self.reachable_points, f)
 
@@ -739,7 +823,7 @@ class Tree():
         print('Loading tree from ', self.urdf_path)
         self.supports = self.env.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.8, 0],
                                               list(self.env.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
-                                              globalScaling=0.75)
+                                              globalScaling=1)
         self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
 
     def inactive(self):
@@ -794,3 +878,4 @@ class Tree():
             trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
                               num_points=num_points))
         return trees
+

@@ -11,7 +11,7 @@ import numpy as np
 import cv2
 import torchvision
 import torch
-from torchvision.models.optical_flow import raft_small,Raft_Small_Weights
+    from torchvision.models.optical_flow import raft_small,Raft_Small_Weights
 
 import torchvision.transforms.functional as F
 # Better samples/python2/opt_flow.py

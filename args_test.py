@@ -145,7 +145,7 @@ args_dict = {
     },
     'EVAL_EPISODES': {
         'type': int,
-        'default': 1,
+        'default': 8,
         'help': 'number of episodes to run during evaluation'
     },
     'EVAL_POINTS': {
@@ -161,6 +161,9 @@ args_dict = {
     'LOAD_PATH':{
         'type':str,
         'default':None
-        }   
-
+        },
+     'USE_OPTICAL_FLOW': {
+         'type': bool,
+         'default': True
+     },
 }

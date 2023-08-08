@@ -60,6 +60,7 @@ class CustomTrainCallback(BaseCallback):
         using the current policy.
         This event is triggered before collecting new samples.
         """
+        print("Rollout start")
         self._reward_dict["movement_reward"] = []
         self._reward_dict["distance_reward"] = []
         self._reward_dict["terminate_reward"] = []
@@ -100,18 +101,18 @@ class CustomTrainCallback(BaseCallback):
         # self.logger.record("rollout/velocity_reward", infos[0]["velocity_reward"])
         # self.logger.record("rollout/orientation_reward", infos[0]["orientation_reward"])
         reset_counter = self.training_env.get_attr("reset_counter", 0)[0]
-        if reset_counter%10 == 0:
-            self._screens_buffer.append(self._grab_screen_callback(self.locals, self.globals))
-            # print("Screen recorded")
-        else:
-            if len(self._screens_buffer) > 0:
-                self.logger.record(
-                    "rollout/video",
-                    Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
-                    exclude=("stdout", "log", "json", "csv"),
-                )
-                print("Video recorded")
-                self._screens_buffer = []
+        # if reset_counter%10 == 0:
+        #     self._screens_buffer.append(self._grab_screen_callback(self.locals, self.globals))
+        #     # print("Screen recorded")
+        # else:
+        #     if len(self._screens_buffer) > 0:
+        #         self.logger.record(
+        #             "rollout/video",
+        #             Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
+        #             exclude=("stdout", "log", "json", "csv"),
+        #         )
+        #         print("Video recorded")
+        #         self._screens_buffer = []
 
 
 
@@ -145,6 +146,7 @@ class CustomTrainCallback(BaseCallback):
         """
         This event is triggered before updating the policy.
         """
+        print("Rollout end")
         self.logger.record("rollout/movement_reward", np.mean(self._reward_dict["movement_reward"]))
         self.logger.record("rollout/distance_reward", np.mean(self._reward_dict["distance_reward"]))
         self.logger.record("rollout/terminate_reward", np.mean(self._reward_dict["terminate_reward"]))
@@ -214,6 +216,7 @@ class CustomEvalCallback(EventCallback):
     def __init__(
         self,
         eval_env: Union[gym.Env, VecEnv],
+        record_env: Union[gym.Env, VecEnv],
         callback_on_new_best: Optional[BaseCallback] = None,
         callback_after_eval: Optional[BaseCallback] = None,
         n_eval_episodes: int = 5,
@@ -245,6 +248,8 @@ class CustomEvalCallback(EventCallback):
             eval_env = DummyVecEnv([lambda: eval_env])
 
         self.eval_env = eval_env
+        #Monitor, single env, do not vectorize
+        self.record_env = record_env
         self.best_model_save_path = best_model_save_path
         # Logs will be written in ``evaluations.npz``
         if log_path is not None:
@@ -264,8 +269,8 @@ class CustomEvalCallback(EventCallback):
 
     def _init_callback(self) -> None:
         # Does not work in some corner cases, where the wrapper is not the same
-        if not isinstance(self.training_env, type(self.eval_env)):
-            warnings.warn("Training and eval env are not of the same type" f"{self.training_env} != {self.eval_env}")
+        # if not isinstance(self.training_env, type(self.eval_env)):
+        #     Warning.warn("Training and eval env are not of the same type" f"{self.training_env} != {self.eval_env}")
         # Create folders if needed
         if self.best_model_save_path is not None:
             os.makedirs(self.best_model_save_path, exist_ok=True)
@@ -312,7 +317,7 @@ class CustomEvalCallback(EventCallback):
         """
         episode_counts = _locals["episode_counts"][0]
         if episode_counts == 0:
-            screen = np.array(self.eval_env.render())*255
+            screen = np.array(self.record_env.render())*255
             screen_copy = screen.reshape((screen.shape[0], screen.shape[1], 3)).astype(np.uint8)
             screen_copy = cv2.resize(screen_copy, (1124, 768), interpolation=cv2.INTER_NEAREST)
             screen_copy = cv2.putText(screen_copy, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
@@ -331,13 +336,14 @@ class CustomEvalCallback(EventCallback):
             screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.eval_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             self._screens_buffer.append(screen_copy.transpose(2, 0, 1))
+            print("Saving screen")
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         self._collisions_acceptable_buffer.append(self.eval_env.get_attr("collisions_acceptable", 0)[0])
         self._collisions_unacceptable_buffer.append(self.eval_env.get_attr("collisions_unacceptable", 0)[0])
 
     def _master_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-        self._grab_screen_callback(_locals, _globals)
+        #self._grab_screen_callback(_locals, _globals)
         self._log_collisions(_locals, _globals)
         self._log_success_callback(_locals, _globals)
         self._log_rewards_callback(_locals, _globals)
@@ -371,7 +377,7 @@ class CustomEvalCallback(EventCallback):
             self._reward_dict["condition_number_reward"] = []
             self._reward_dict["velocity_reward"] = []
             self._reward_dict["orientation_reward"] = []
-
+            print("Evaluating")
             episode_rewards, episode_lengths = evaluate_policy(
                 self.model,
                 self.eval_env,
@@ -382,6 +388,16 @@ class CustomEvalCallback(EventCallback):
                 warn=self.warn,
                 callback=self._master_callback,
             )
+            # _, _ = evaluate_policy(
+            #     self.model,
+            #     self.record_env,
+            #     n_eval_episodes=1,
+            #     render=self.render,
+            #     deterministic=self.deterministic,
+            #     return_episode_rewards=False,
+            #     warn=self.warn,
+            #     callback=self._grab_screen_callback,
+            # )
 
             if self.log_path is not None:
                 self.evaluations_timesteps.append(self.num_timesteps)
@@ -414,11 +430,11 @@ class CustomEvalCallback(EventCallback):
             # Add to current Logger
             self.logger.record("eval/mean_reward", float(mean_reward))
             self.logger.record("eval/mean_ep_length", mean_ep_length)
-            self.logger.record(
-                    "eval/video",
-                    Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
-                    exclude=("stdout", "log", "json", "csv"),
-                )
+            # self.logger.record(
+            #         "eval/video",
+            #         Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
+            #         exclude=("stdout", "log", "json", "csv"),
+            #     )
             self.logger.record("eval/collisions_acceptable", mean_collisions_acceptable)
             self.logger.record("eval/collisions_unacceptable", mean_collisions_unacceptable)
             if len(self._is_success_buffer) > 0:

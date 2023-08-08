@@ -99,7 +99,7 @@ class CustomEvalCallback(EventCallback):
         self._collisions_buffer.append(self.eval_env.get_attr("collisions", 0)[0])
 
     def _master_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-        self._log_collisions(_locals, _globals)
+#        self._log_collisions(_locals, _globals)
         self._log_success_callback(_locals, _globals)
         self._log_rewards_callback(_locals, _globals)
 
@@ -117,7 +117,7 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict["condition_number_reward"] = []
         self._reward_dict["velocity_reward"] = []
         self._reward_dict["orientation_reward"] = []
-
+        print(self.render)
         episode_rewards, episode_lengths = evaluate_policy(
             self.model,
             self.eval_env,
@@ -133,14 +133,14 @@ class CustomEvalCallback(EventCallback):
 
 
 if __name__ == "__main__":
-    './meshes_and_urdf/urdf/trees/train',
-    eval_env_kwargs =  {"renders" : False, "tree_urdf_path" :  './meshes_and_urdf/urdf/trees/test', "tree_obj_path" : './meshes_and_urdf/meshes/trees/test', "action_dim" :6,
-                "maxSteps" : 600, "movement_reward_scale" : 1, "action_scale" :0, "distance_reward_scale" :0,
+   # './meshes_and_urdf/urdf/trees/train',
+    eval_env_kwargs =  {"renders" : True, "tree_urdf_path" :  './meshes_and_urdf/urdf/trees/envy/test', "tree_obj_path" : './meshes_and_urdf/meshes/trees/envy/test', "action_dim" :6,
+                "maxSteps" : 300, "movement_reward_scale" : 1, "action_scale" :2, "distance_reward_scale" :0,
                 "condition_reward_scale" :0, "terminate_reward_scale" : 5, "collision_reward_scale" : -0.01, 
-                "slack_reward_scale" :-0.0001, "num_points" : 50, "orientation_reward_scale" : 2,  "name":"evalenv"}
+                "slack_reward_scale" :-0.0001, "num_points" : 50, "orientation_reward_scale" : 2,  "name":"evalenv", "use_optical_flow": True}
 
     eval_env = Monitor(PruningEnv(**eval_env_kwargs))
-    load_path = "./logs/best_model.zip"
+    load_path = "./logs/run/best_model.zip"
     model = RecurrentPPOAE.load(load_path)
     eval = CustomEvalCallback(eval_env, model)
     eval.eval_policy()

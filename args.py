@@ -84,12 +84,12 @@ args_dict = {
     },
     'COLLISION_REWARD_SCALE': {
         'type': float,
-        'default': -0.01,
+        'default': -0.005,
         'help': 'scaling factor for the collision reward'
     },
     'SLACK_REWARD_SCALE': {
         'type': float,
-        'default': -0.01,
+        'default': -0.001,
         'help': 'scaling factor for the slack reward'
     },
     'ORIENTATION_REWARD_SCALE': {
@@ -105,7 +105,7 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 400,
+        'default': 200,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
@@ -115,7 +115,7 @@ args_dict = {
     },
     'BATCH_SIZE': {
         'type': int,
-        'default': 64,
+        'default': 128,
         'help': 'batch size'
     },
     'LEARNING_RATE': {
@@ -142,12 +142,12 @@ args_dict = {
     },
     'EVAL_EPISODES': {
         'type': int,
-        'default': 50,
+        'default': 20,
         'help': 'number of episodes to run during evaluation'
     },
     'EVAL_POINTS': {
         'type': int,
-        'default': 50,
+        'default': 20,
         'help': 'number of points to sample in a tree during evaluation'
     },  
     'TESTING': {
@@ -162,5 +162,9 @@ args_dict = {
     'LOAD_PATH':{
         'type':str,
         'default':None
-        }   
+        },
+    'USE_OPTICAL_FLOW':{
+        'type':bool,
+        'default':True
+        },
 }
