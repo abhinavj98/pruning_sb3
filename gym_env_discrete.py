@@ -16,21 +16,30 @@ from torchvision.models.optical_flow import raft_small
 from torchvision.models.optical_flow import Raft_Small_Weights
 import torch as th
 import torchvision.transforms.functional as F
-
+import os
 # Global URDF path pointing to robot and supports URDF
 ROBOT_URDF_PATH = "meshes_and_urdf/urdf/ur5e_with_camera.urdf"
 SUPPORT_AND_POST_PATH = "meshes_and_urdf/urdf/supports_and_post.urdf"
 
 
 class OpticalFlow:
-    def __init__(self, size = (224, 224)):
-        self.device = "cpu"#"cuda" if th.cuda.is_available() else "cpu"
+    def __init__(self, size = (224, 224), subprocess = False, shared_var = (None, None)):
+        self.device = "cuda" if th.cuda.is_available() else "cpu"
         weights = Raft_Small_Weights.DEFAULT
         self.transforms = weights.transforms()
         model = raft_small(weights=Raft_Small_Weights.DEFAULT, progress=False).to(self.device)
         self.model = model.eval()
         self.size = size
+        self.subprocess = subprocess
+        self.shared_queue, self.shared_dict = shared_var
         print("raft model loaded")
+        if self.subprocess:
+            while True:
+                rgb, previous_rgb, pid = self.shared_queue.get()
+                optical_flow = self.calculate_optical_flow(rgb, previous_rgb)
+                self.shared_dict[pid] = optical_flow
+
+
 
     def _preprocess(self, img1, img2):
 
@@ -81,11 +90,16 @@ class PruningEnv(gym.Env):
                  slack_reward_scale=1,
                  orientation_reward_scale=1,
                  use_optical_flow=False,
+                 shared_var = (None, None),
                  ):
         super(PruningEnv, self).__init__()
 
         assert tree_urdf_path != None
         assert tree_obj_path != None
+        self.shared_queue = shared_var[0]
+        self.shared_dict = shared_var[1]
+        self.pid = os.getpid()
+        # self.shared_dict[self.pid] = None
         # Pybullet GUI variables
         self.renders = renders
         self.render_mode = 'rgb_array'
@@ -103,8 +117,8 @@ class PruningEnv(gym.Env):
         self.terminated = None
         self.terminate_on_singularity = terminate_on_singularity
         self.use_optical_flow = use_optical_flow
-        if self.use_optical_flow:
-            self.optical_flow_model = OpticalFlow()
+        # if self.use_optical_flow:
+        #     self.optical_flow_model = OpticalFlow()
         # Reward variables
         self.movement_reward_scale = movement_reward_scale
         self.distance_reward_scale = distance_reward_scale
@@ -215,7 +229,7 @@ class PruningEnv(gym.Env):
     def setup_ur5_arm(self):
         self.end_effector_index = 7
         flags = self.con.URDF_USE_SELF_COLLISION
-        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 1], [0, 0, 0, 1], flags=flags)
+        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 1.2], [0, 0, 0, 1], flags=flags)
 
         self.num_joints = self.con.getNumJoints(self.ur5)
         self.control_joints = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint",
@@ -242,10 +256,11 @@ class PruningEnv(gym.Env):
                 self.con.setJointMotorControl2(self.ur5, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0, force=0)
             self.joints[info.name] = info
 
-        self.init_joint_angles = (-1.57, -1.57, 1.80, -3.14, -1.57, -1.57)
+        self.init_joint_angles = (-1.57, -np.pi*3/4, 1.80, -3.14*3/4, -1.57, -1.57)
         self.set_joint_angles(self.init_joint_angles)
         for i in range(1000):
             self.con.stepSimulation()
+        print("Condirion number of jacobian: ", self.get_condition_number())
         self.init_pos = self.con.getLinkState(self.ur5, self.end_effector_index)
         self.joint_velocities = np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
         self.joint_angles = self.init_joint_angles
@@ -256,31 +271,58 @@ class PruningEnv(gym.Env):
         # wall_folder = os.path.join('models', 'wall_textures') #TODO: Replace all static paths with os.path.join
         self.wall_texture = self.con.loadTexture(
             "C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/textures/bark_willow_02/bark_willow_02_diff_4k.jpg")  # C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/textures/leaves-dead.png")
-        self.wall_dim = [4, 0.01, 1.5]
-        wall_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=self.wall_dim,
+        self.floor_dim = [0.01, 5, 5]
+        floor_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
                                               )
-        wall_col = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=self.wall_dim,
+        floor_col = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
                                                  )
 
-        self.wall_id = self.con.loadURDF(
-            "C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/meshes/plane/plane.urdf")  # , [0,0,0], list(self.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])))
+        self.floor_id =  self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=floor_viz,
+                                                     baseCollisionShapeIndex=floor_col, basePosition=[0, 0, 0],
+                                                     baseOrientation=list(
+                                                         self.con.getQuaternionFromEuler([0,np.pi/2,0])))
+#self.con.loadURDF(
+            # "C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/meshes/plane/plane.urdf")  # , [0,0,0], list(self.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])))
 
-        side_wall_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=[0.01, 10, 7.5],
+        wall_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=[0.01, 5, 5],
                                                    )
-        side_wall_col = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=[0.01, 10, 7.5],
+        wall_col = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=[0.01,  5, 5],
                                                       )
-        self.side_wall_id = self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=side_wall_viz,
-                                                     baseCollisionShapeIndex=side_wall_col, basePosition=[5, -2, 7.5],
+        self.wall_id = self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=wall_viz,
+                                                     baseCollisionShapeIndex=wall_col, basePosition=[0, -2, 5],
                                                      baseOrientation=list(
                                                          self.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])))
 
+        side_wall_viz_1 = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
+                                               )
+        side_wall_col_1 = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
+                                                  )
+
+        self.side_wall_1_id = self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=side_wall_viz_1,
+                                                 baseCollisionShapeIndex=side_wall_col_1, basePosition=[-5, 0, 5],
+                                                 baseOrientation=list(
+                                                     self.con.getQuaternionFromEuler([0, 0, 0])))
+        side_wall_viz_2 = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
+                                                        )
+        side_wall_col_2 = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
+                                                              )
+        self.side_wall_2_id = self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=side_wall_viz_2,
+                                                         baseCollisionShapeIndex=side_wall_col_2, basePosition=[5, 0, 5],
+                                                         baseOrientation=list(
+                                                              self.con.getQuaternionFromEuler([0, 0, 0])))
+        self.con.changeVisualShape(objectUniqueId=self.side_wall_1_id, linkIndex=-1,
+                                      textureUniqueId=self.wall_texture)
+        self.con.changeVisualShape(objectUniqueId=self.side_wall_2_id, linkIndex=-1,
+                                        textureUniqueId=self.wall_texture)
+
+
+        self.con.changeVisualShape(objectUniqueId=self.floor_id, linkIndex=-1,
+                                   textureUniqueId=self.wall_texture)
         self.con.changeVisualShape(objectUniqueId=self.wall_id, linkIndex=-1,
                                    textureUniqueId=self.wall_texture)
-        self.con.changeVisualShape(objectUniqueId=self.side_wall_id, linkIndex=-1,
-                                   textureUniqueId=self.wall_texture)
 
-        self.con.changeVisualShape(objectUniqueId=self.tree.tree_urdf, linkIndex=-1,
-                                   textureUniqueId=self.wall_texture)
+        # self.con.changeVisualShape(objectUniqueId=self.tree.tree_urdf, linkIndex=-1,
+        #                            textureUniqueId=self.wall_texture)
 
     def set_joint_angles(self, joint_angles):
         """Set joint angles using pybullet motor control"""
@@ -562,8 +604,14 @@ class PruningEnv(gym.Env):
             # if self.subprocvenv:
             #     self.rgb_queue.put(self.rgb)
             #     self.observation['depth'] = self.optical_flow_queue.get()
-            self.observation['depth'] = self.optical_flow_model.calculate_optical_flow(self.rgb,
-                                                                               self.prev_rgb)  # TODO: rename depth
+            self.shared_queue.put((self.rgb, self.prev_rgb, self.pid))
+            while not self.pid in self.shared_dict.keys():
+                pass
+            self.observation['depth'] = self.shared_dict[self.pid]
+            # self.shared_dict[self.pid] = None
+            del self.shared_dict[self.pid]
+            # self.observation['depth'] = self.optical_flow_model.calculate_optical_flow(self.rgb,
+                                                                             #  self.prev_rgb)  # TODO: rename depth
         else:
             self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis=0)
 
@@ -661,7 +709,7 @@ class PruningEnv(gym.Env):
 
         condition_number = self.get_condition_number()
         condition_number_reward = 0
-        if condition_number > 50 or (self.joint_velocities > 5).any():
+        if condition_number > 100 or (self.joint_velocities > 5).any():
             print('Too high condition number!')
             self.singularity_terminated = True
             condition_number_reward = -3  # TODO: Replace with an input argument
@@ -838,12 +886,12 @@ class Tree:
 
     def is_reachable(self, vertice, ur5):
         ur5_base_pos = np.array(self.env.get_current_pose()[0])
-        if "envy" in self.urdf_path:
-            if abs(vertice[0][0]) < 0.05:
-                return False
-        elif "ufo" in self.urdf_path:
-            if vertice[0][2] < 0.1:
-                return False
+        # if "envy" in self.urdf_path:
+        #     if abs(vertice[0][0]) < 0.05:
+        #         return False
+        # elif "ufo" in self.urdf_path:
+        #     if vertice[0][2] < 0.1:
+        #         return False
         dist = np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
         projection_length = np.linalg.norm(vertice[1])
         if dist >= 1 or projection_length < self.projection_mean * 0.7:
@@ -854,7 +902,7 @@ class Tree:
         ee_pos, _ = self.env.get_current_pose()
         dist = np.linalg.norm(np.array(ee_pos) - vertice[0], axis=-1)
         condition_number = self.env.get_condition_number()
-        if dist <= 0.05 and condition_number < 20:
+        if dist <= 0.05 and condition_number < 40:
             return True
         return False
 

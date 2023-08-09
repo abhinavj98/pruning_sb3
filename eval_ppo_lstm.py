@@ -14,7 +14,8 @@ from gym_env_discrete import PruningEnv
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
 from stable_baselines3.common.monitor import Monitor
 from PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
-
+import multiprocessing as mp
+from gym_env_discrete import OpticalFlow
 class CustomEvalCallback(EventCallback):
     """
     Callback for evaluating an agent.
@@ -133,11 +134,22 @@ class CustomEvalCallback(EventCallback):
 
 
 if __name__ == "__main__":
-   # './meshes_and_urdf/urdf/trees/train',
+    manager = mp.Manager()
+    # queue = multiprocessing.Queue()
+    shared_dict = manager.dict()
+    shared_queue = manager.Queue()
+    shared_var = (shared_queue, shared_dict)
+    ctx = mp.get_context("spawn")
+    process = ctx.Process(target=OpticalFlow, args=((224, 224), True, shared_var),
+                          daemon=True)  # type: ignore[attr-defined]
+    # pytype: enable=attribute-error
+    process.start()
+
+    # './meshes_and_urdf/urdf/trees/train',
     eval_env_kwargs =  {"renders" : True, "tree_urdf_path" :  './meshes_and_urdf/urdf/trees/envy/test', "tree_obj_path" : './meshes_and_urdf/meshes/trees/envy/test', "action_dim" :6,
                 "maxSteps" : 300, "movement_reward_scale" : 1, "action_scale" :2, "distance_reward_scale" :0,
                 "condition_reward_scale" :0, "terminate_reward_scale" : 5, "collision_reward_scale" : -0.01, 
-                "slack_reward_scale" :-0.0001, "num_points" : 50, "orientation_reward_scale" : 2,  "name":"evalenv", "use_optical_flow": True}
+                "slack_reward_scale" :-0.0001, "num_points" : 50, "orientation_reward_scale" : 2,  "name":"evalenv", "use_optical_flow": True, "shared_var": (shared_queue, shared_dict)}
 
     eval_env = Monitor(PruningEnv(**eval_env_kwargs))
     load_path = "./logs/run/best_model.zip"

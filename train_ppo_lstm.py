@@ -24,6 +24,8 @@ import random
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
 from wandb.integration.sb3 import WandbCallback
+import multiprocessing as mp
+from gym_env_discrete import OpticalFlow
 
 # Add arguments to the parser based on the dictionary
 for arg_name, arg_params in args_dict.items():
@@ -107,7 +109,18 @@ def set_seed(seed: int = 42) -> None:
 
 #set_seed(np.random.randint(0,1000))
 if __name__ == "__main__":
+
     init_wandb()
+    manager = mp.Manager()
+    # queue = multiprocessing.Queue()
+    shared_dict = manager.dict()
+    shared_queue = manager.Queue()
+    shared_var = (shared_queue, shared_dict)
+    ctx = mp.get_context("spawn")
+    process = ctx.Process(target=OpticalFlow, args=((224,224), True, shared_var), daemon=True)  # type: ignore[attr-defined]
+        # pytype: enable=attribute-error
+    process.start()
+
     if args.LOAD_PATH:
         load_path = "./logs/{}/best_model.zip".format(args.LOAD_PATH)#./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
     else:
@@ -115,12 +128,12 @@ if __name__ == "__main__":
     train_env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
                     "maxSteps" : args.MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
                     "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE,
-                    "slack_reward_scale" : args.SLACK_REWARD_SCALE, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE, "use_optical_flow": args.USE_OPTICAL_FLOW}
+                    "slack_reward_scale" : args.SLACK_REWARD_SCALE, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE, "use_optical_flow": args.USE_OPTICAL_FLOW, "shared_var": (shared_queue, shared_dict) }
 
     eval_env_kwargs =  {"renders" : False, "tree_urdf_path" :  args.TREE_TEST_URDF_PATH, "tree_obj_path" :  args.TREE_TEST_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
                     "maxSteps" : args.EVAL_MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
                     "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE,
-                    "slack_reward_scale" : args.SLACK_REWARD_SCALE, "num_points" : args.EVAL_POINTS, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE,  "name":"evalenv", "use_optical_flow": args.USE_OPTICAL_FLOW}
+                    "slack_reward_scale" : args.SLACK_REWARD_SCALE, "num_points" : args.EVAL_POINTS, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE,  "name":"evalenv", "use_optical_flow": args.USE_OPTICAL_FLOW, "shared_var": (shared_queue, shared_dict)}
 
     #env = make_vec_env(PruningEnv, env_kwargs = train_env_kwargs, n_envs = args.N_ENVS)
     env = make_vec_env(PruningEnv, env_kwargs=train_env_kwargs, n_envs=args.N_ENVS, vec_env_cls=SubprocVecEnv)
