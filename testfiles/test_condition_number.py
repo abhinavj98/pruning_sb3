@@ -3,7 +3,7 @@
 # ((0.13449451327323914, -0.5022636651992798, 0.5729073882102966), (0.08234550355528829, 0.08149129879013207, -0.7017672940054546, 0.7029232186590406))
 # ((0.13449475169181824, -0.5022648572921753, 0.5729056596755981)
 import sys
-sys.path.append("/Users/abhinav/Desktop/gradstuff/research/tree_pruning_rl")
+sys.path.append("C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3")
 from gym_env_discrete import PruningEnv
 from PPOAE.models import *
 import numpy as np

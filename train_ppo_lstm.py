@@ -141,11 +141,11 @@ if __name__ == "__main__":
     new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
     env.logger = new_logger
     #eval_env = Monitor(PruningEnv(**eval_env_kwargs))
-    eval_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = 1)#args.N_ENVS)
+    eval_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = 2)#args.N_ENVS)
 
         # record_env = Monitor(PruningEnv(**eval_env_kwargs))
         # eval_env = SubprocVecEnv([lambda: eval_env])
-    record_env = None#make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = 1)
+    record_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = 1)
     # eval_env = DummyVecEnv([lambda: eval_env])
     # eval_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, n_envs = 1)
     eval_env.logger = new_logger
