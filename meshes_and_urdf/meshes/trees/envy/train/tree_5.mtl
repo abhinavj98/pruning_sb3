@@ -10,6 +10,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.450000
 d 1.000000
 illum 2
-map_Bump../../../../meshes_and_urdf/textures/bark_willow/bark_willow_nor_gl_4k.exr
-map_Kd../../../../meshes_and_urdf/textures/bark_willow/bark_willow_diff_4k.jpg
-map_Ns../../../../meshes_and_urdf/textures/bark_willow/bark_willow_rough_4k.exr
+map_Bump ../../../../textures/bark_willow/bark_willow_nor_gl_4k.exr
+map_Kd ../../../../textures/bark_willow/bark_willow_diff_4k.jpg
+map_Ns ../../../../textures/bark_willow/bark_willow_rough_4k.exr
