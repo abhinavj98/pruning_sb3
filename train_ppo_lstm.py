@@ -106,17 +106,20 @@ def set_seed(seed: int = 42) -> None:
     print(f"Random seed set as {seed}")
 
 
-
+import os
 #set_seed(np.random.randint(0,1000))
 if __name__ == "__main__":
-
+    
     init_wandb()
     manager = mp.Manager()
     # queue = multiprocessing.Queue()
     shared_dict = manager.dict()
     shared_queue = manager.Queue()
     shared_var = (shared_queue, shared_dict)
-    ctx = mp.get_context("spawn")
+    if os.name == "posix":
+        ctx = mp.get_context("forkserver")
+    else:
+        ctx = mp.get_context("spawn")
     process = ctx.Process(target=OpticalFlow, args=((224,224), True, shared_var), daemon=True)  # type: ignore[attr-defined]
         # pytype: enable=attribute-error
     process.start()

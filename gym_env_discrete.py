@@ -269,8 +269,12 @@ class PruningEnv(gym.Env):
 
     def create_background(self):
         # wall_folder = os.path.join('models', 'wall_textures') #TODO: Replace all static paths with os.path.join
-        self.wall_texture = self.con.loadTexture(
-            "C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/textures/bark_willow_02/bark_willow_02_diff_4k.jpg")  # C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/textures/leaves-dead.png")
+        import os
+        if os.name == "posix": 
+           self.wall_texture = self.con.loadTexture(
+            "meshes_and_urdf/textures/bark_willow_02/bark_willow_02_diff_4k.jpg")
+        else:
+           self.wall_texture = self.con.loadTexture("C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/textures/leaves-dead.png")
         self.floor_dim = [0.01, 5, 5]
         floor_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
                                               )
