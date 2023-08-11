@@ -39,7 +39,7 @@ args_dict = {
     #Gym envirionment parameters
     'N_ENVS': {
         'type': int,
-        'default': 8,
+        'default': 4,
         'help': 'number of parallel environments to run'
     },
     'RENDER': {
@@ -137,17 +137,17 @@ args_dict = {
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 5000,
+        'default': 30000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {
         'type': int,
-        'default': 20,
+        'default': 10,
         'help': 'number of episodes to run during evaluation'
     },
     'EVAL_POINTS': {
         'type': int,
-        'default': 20,
+        'default': 10,
         'help': 'number of points to sample in a tree during evaluation'
     },  
     'TESTING': {

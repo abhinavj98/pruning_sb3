@@ -185,7 +185,7 @@ class PruningEnv(gym.Env):
         self.height = height
         self.width = width
         self.proj_mat = self.con.computeProjectionMatrixFOV(
-            fov=42, aspect=width / height, nearVal=self.near_val,
+            fov=60, aspect=width / height, nearVal=self.near_val,
             farVal=self.far_val)
 
         # Tree parameters
@@ -256,7 +256,7 @@ class PruningEnv(gym.Env):
                 self.con.setJointMotorControl2(self.ur5, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0, force=0)
             self.joints[info.name] = info
 
-        self.init_joint_angles = (-1.57, -np.pi*3/4, 1.80, -3.14*3/4, -1.57, -1.57)
+        self.init_joint_angles = (-1.57, -np.pi/2, 1.80, -3.14, -1.57, -1.57)
         self.set_joint_angles(self.init_joint_angles)
         for i in range(1000):
             self.con.stepSimulation()
@@ -859,11 +859,11 @@ class Tree:
         self.get_reachable_points(self.env.ur5)
         # dump reachable points to file using pickle
         # Uncomment to visualize sphere at each reachable point
-        # self.active()
-        # for i in self.reachable_points:
-        #     print(i)
-        #     visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.02,rgbaColor =[1,0,0,1])
-        #     self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0],i[0][1],i[0][2]], [0,0,0,1])
+        self.active()
+        for i in self.reachable_points:
+            print(i)
+            visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.02,rgbaColor =[1,0,0,1])
+            self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0],i[0][1],i[0][2]], [0,0,0,1])
 
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         # if pkl path exists else create

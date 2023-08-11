@@ -150,9 +150,11 @@ if __name__ == "__main__":
                 "maxSteps" : 300, "movement_reward_scale" : 1, "action_scale" :2, "distance_reward_scale" :0,
                 "condition_reward_scale" :0, "terminate_reward_scale" : 5, "collision_reward_scale" : -0.01, 
                 "slack_reward_scale" :-0.0001, "num_points" : 50, "orientation_reward_scale" : 2,  "name":"evalenv", "use_optical_flow": True, "shared_var": (shared_queue, shared_dict)}
-
+    device = "cuda" if th.cuda.is_available() else "cpu"
+    print(device)
     eval_env = Monitor(PruningEnv(**eval_env_kwargs))
     load_path = "./logs/run/best_model.zip"
     model = RecurrentPPOAE.load(load_path)
-    eval = CustomEvalCallback(eval_env, model)
-    eval.eval_policy()
+    evaluate_policy(model, eval_env, n_eval_episodes=1, render=False, deterministic=True)
+    # eval = CustomEvalCallback(eval_env, model)
+    # eval.eval_policy()

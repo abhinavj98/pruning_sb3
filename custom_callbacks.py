@@ -324,16 +324,16 @@ class CustomEvalCallback(EventCallback):
                 1, (255,0,0), 2, cv2.LINE_AA)
             screen_copy = cv2.putText(screen_copy, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-            screen_copy = cv2.putText(screen_copy, "Current: "+str(self.eval_env.get_attr("achieved_pos", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen_copy = cv2.putText(screen_copy, "Current: "+str(self.record_env.get_attr("achieved_pos", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX,
                 1, (255,0,0), 2, cv2.LINE_AA)
-            screen_copy = cv2.putText(screen_copy, "Goal: "+str(self.eval_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen_copy = cv2.putText(screen_copy, "Goal: "+str(self.record_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
                 1, (255,0,0), 2, cv2.LINE_AA)
             with th.no_grad():
                 prediction = self.model.policy.predicted_cosine_sim
                 # print(self.model.policy.latent_vf)
-            screen_copy = cv2.putText(screen_copy, "Orientation: "+str(self.eval_env.get_attr("cosine_sim", 0)[0]) + " Predicted: "+str(prediction), (0,200), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen_copy = cv2.putText(screen_copy, "Orientation: "+str(self.record_env.get_attr("cosine_sim", 0)[0]) + " Predicted: "+str(prediction), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-            screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.eval_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX, 
+            screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.record_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX,
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             self._screens_buffer.append(screen_copy.transpose(2, 0, 1))
             print("Saving screen")
@@ -343,7 +343,7 @@ class CustomEvalCallback(EventCallback):
         self._collisions_unacceptable_buffer.append(self.eval_env.get_attr("collisions_unacceptable", 0)[0])
 
     def _master_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-        #self._grab_screen_callback(_locals, _globals)
+        # self._grab_screen_callback(_locals, _globals)
         self._log_collisions(_locals, _globals)
         self._log_success_callback(_locals, _globals)
         self._log_rewards_callback(_locals, _globals)
@@ -378,6 +378,8 @@ class CustomEvalCallback(EventCallback):
             self._reward_dict["velocity_reward"] = []
             self._reward_dict["orientation_reward"] = []
             print("Evaluating")
+            import time
+            start = time.time()
             episode_rewards, episode_lengths = evaluate_policy(
                 self.model,
                 self.eval_env,
@@ -388,16 +390,18 @@ class CustomEvalCallback(EventCallback):
                 warn=self.warn,
                 callback=self._master_callback,
             )
-            # _, _ = evaluate_policy(
-            #     self.model,
-            #     self.record_env,
-            #     n_eval_episodes=1,
-            #     render=self.render,
-            #     deterministic=self.deterministic,
-            #     return_episode_rewards=False,
-            #     warn=self.warn,
-            #     callback=self._grab_screen_callback,
-            # )
+            _, _ = evaluate_policy(
+                self.model,
+                self.record_env,
+                n_eval_episodes=1,
+                render=self.render,
+                deterministic=self.deterministic,
+                return_episode_rewards=False,
+                warn=self.warn,
+                callback=self._grab_screen_callback,
+            )
+            end = time.time()
+            print("Evaluation took: ", end-start)
 
             if self.log_path is not None:
                 self.evaluations_timesteps.append(self.num_timesteps)
@@ -430,11 +434,11 @@ class CustomEvalCallback(EventCallback):
             # Add to current Logger
             self.logger.record("eval/mean_reward", float(mean_reward))
             self.logger.record("eval/mean_ep_length", mean_ep_length)
-            # self.logger.record(
-            #         "eval/video",
-            #         Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
-            #         exclude=("stdout", "log", "json", "csv"),
-            #     )
+            self.logger.record(
+                    "eval/video",
+                    Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
+                    exclude=("stdout", "log", "json", "csv"),
+                )
             self.logger.record("eval/collisions_acceptable", mean_collisions_acceptable)
             self.logger.record("eval/collisions_unacceptable", mean_collisions_unacceptable)
             if len(self._is_success_buffer) > 0:
@@ -468,5 +472,5 @@ class CustomEvalCallback(EventCallback):
             # Trigger callback after every evaluation, if needed
             if self.callback is not None:
                 continue_training = continue_training and self._on_event()
-
+            print("Done evaluating")
         return continue_training
