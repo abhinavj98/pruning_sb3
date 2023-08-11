@@ -229,7 +229,7 @@ class PruningEnv(gym.Env):
     def setup_ur5_arm(self):
         self.end_effector_index = 7
         flags = self.con.URDF_USE_SELF_COLLISION
-        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 1.2], [0, 0, 0, 1], flags=flags)
+        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 1.1], [0, 0, 0, 1], flags=flags)
 
         self.num_joints = self.con.getNumJoints(self.ur5)
         self.control_joints = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint",
@@ -855,11 +855,11 @@ class Tree:
         self.get_reachable_points(self.env.ur5)
         # dump reachable points to file using pickle
         # Uncomment to visualize sphere at each reachable point
-        self.active()
-        for i in self.reachable_points:
-            print(i)
-            visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.02,rgbaColor =[1,0,0,1])
-            self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0],i[0][1],i[0][2]], [0,0,0,1])
+        # self.active()
+        # for i in self.reachable_points:
+        #     print(i)
+        #     visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.02,rgbaColor =[1,0,0,1])
+        #     self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0],i[0][1],i[0][2]], [0,0,0,1])
 
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         # if pkl path exists else create
