@@ -513,6 +513,13 @@ class PruningEnv(gym.Env):
 
     def step(self, action):
         # remove debug line
+
+        previous_pose = self.get_current_pose()
+        # convert two tuples into one array
+
+        self.previous_pose = np.hstack((previous_pose[0], previous_pose[1]))
+        self.prev_joint_velocities = self.joint_velocities
+        self.prev_rgb = self.rgb
         self.con.removeUserDebugItem(self.debug_line)
         self.action = action
 
@@ -578,12 +585,7 @@ class PruningEnv(gym.Env):
         The observations are the current position, the goal position, the current orientation, the current depth image, the current joint angles and the current joint velocities    
         """
         self.prev_action = self.action
-        previous_pose = self.get_current_pose()
-        # convert two tuples into one array
 
-        self.previous_pose = np.hstack((previous_pose[0], previous_pose[1]))
-        self.prev_joint_velocities = self.joint_velocities
-        self.prev_rgb = self.rgb
 
         tool_pos, tool_orient = self.get_current_pose()
         self.achieved_pos = np.array(tool_pos).astype(np.float32)
@@ -611,7 +613,7 @@ class PruningEnv(gym.Env):
             self.shared_queue.put((self.rgb, self.prev_rgb, self.pid))
             while not self.pid in self.shared_dict.keys():
                 pass
-            self.observation['depth'] = self.shared_dict[self.pid]
+            self.observation['depth'] = self.shared_dict[self.pid]*10
             # self.shared_dict[self.pid] = None
             del self.shared_dict[self.pid]
             # self.observation['depth'] = self.optical_flow_model.calculate_optical_flow(self.rgb,

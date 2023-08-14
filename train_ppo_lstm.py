@@ -167,7 +167,7 @@ if __name__ == "__main__":
                                            "in_channels": (2 if args.USE_OPTICAL_FLOW else 1),},
             "optimizer_class" : th.optim.Adam,
             "log_std_init" : args.LOG_STD_INIT,
-            "net_arch" : dict(qf=[args.EMB_SIZE*2, args.EMB_SIZE, args.EMB_SIZE//2], pi=[args.EMB_SIZE*2, args.EMB_SIZE, args.EMB_SIZE//2]),
+            "net_arch" : dict(qf=[args.EMB_SIZE*2, args.EMB_SIZE], pi=[args.EMB_SIZE*2, args.EMB_SIZE]),
             "share_features_extractor" : True,
             "n_lstm_layers" : 2,
             }
