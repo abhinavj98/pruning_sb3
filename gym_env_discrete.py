@@ -17,6 +17,7 @@ from torchvision.models.optical_flow import Raft_Small_Weights
 import torch as th
 import torchvision.transforms.functional as F
 import os
+
 # Global URDF path pointing to robot and supports URDF
 ROBOT_URDF_PATH = "meshes_and_urdf/urdf/ur5e_with_camera.urdf"
 SUPPORT_AND_POST_PATH = "meshes_and_urdf/urdf/supports_and_post.urdf"
@@ -34,12 +35,12 @@ class OpticalFlow:
         self.shared_queue, self.shared_dict = shared_var
         print("raft model loaded")
         if self.subprocess:
-            while True:
-                rgb, previous_rgb, pid = self.shared_queue.get()
-                optical_flow = self.calculate_optical_flow(rgb, previous_rgb)
-                self.shared_dict[pid] = optical_flow
-
-
+            self._run_subprocess()
+    def _run_subprocess(self):
+        while True:
+            rgb, previous_rgb, pid = self.shared_queue.get()
+            optical_flow = self.calculate_optical_flow(rgb, previous_rgb)
+            self.shared_dict[pid] = optical_flow
 
     def _preprocess(self, img1, img2):
 
@@ -90,6 +91,7 @@ class PruningEnv(gym.Env):
                  slack_reward_scale=1,
                  orientation_reward_scale=1,
                  use_optical_flow=False,
+                 optical_flow_subproc = False,
                  shared_var = (None, None),
                  ):
         super(PruningEnv, self).__init__()
@@ -117,9 +119,13 @@ class PruningEnv(gym.Env):
         self.terminated = None
         self.terminate_on_singularity = terminate_on_singularity
         self.use_optical_flow = use_optical_flow
-        # if self.use_optical_flow:
+        self.optical_flow_subproc = optical_flow_subproc
+        if self.use_optical_flow:
+            if not self.optical_flow_subproc:
+                self.optical_flow_model = OpticalFlow(subprocess = False)
         #     self.optical_flow_model = OpticalFlow()
         # Reward variables
+
         self.movement_reward_scale = movement_reward_scale
         self.distance_reward_scale = distance_reward_scale
         self.condition_reward_scale = condition_reward_scale
@@ -610,18 +616,23 @@ class PruningEnv(gym.Env):
             # if self.subprocvenv:
             #     self.rgb_queue.put(self.rgb)
             #     self.observation['depth'] = self.optical_flow_queue.get()
-            self.shared_queue.put((self.rgb, self.prev_rgb, self.pid))
-            while not self.pid in self.shared_dict.keys():
-                pass
-            self.observation['depth'] = self.shared_dict[self.pid]*10
-            # self.shared_dict[self.pid] = None
-            del self.shared_dict[self.pid]
+            if self.optical_flow_subproc:
+                self.shared_queue.put((self.rgb, self.prev_rgb, self.pid))
+                while not self.pid in self.shared_dict.keys():
+                    pass
+                optical_flow = self.shared_dict[self.pid]
+                self.observation['depth'] = optical_flow
+                # self.shared_dict[self.pid] = None
+                del self.shared_dict[self.pid]
+            else:
+                optical_flow = self.optical_flow_model.calculate_optical_flow(self.rgb,self.prev_rgb)
+                self.observation['depth'] = optical_flow
             # self.observation['depth'] = self.optical_flow_model.calculate_optical_flow(self.rgb,
                                                                              #  self.prev_rgb)  # TODO: rename depth
         else:
             self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis=0)
 
-        self.observation['cosine_sim'] = np.array(self.cosine_sim).astype(np.float32).reshape(1, )
+        self.observation['cosine_sim'] = np.array(self.cosine_sim).astype(np.float32).reshape(1, ) #DO NOT PASS THIS AS STATE - JUST HERE FOR COSINE SIM PREDICTOR
         self.observation['joint_angles'] = self.joint_angles - self.init_joint_angles
         self.observation['joint_velocities'] = self.joint_velocities
         self.observation['prev_action'] = self.prev_action

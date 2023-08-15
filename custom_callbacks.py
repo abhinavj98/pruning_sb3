@@ -39,12 +39,12 @@ class CustomTrainCallback(BaseCallback):
         # to have access to the parent object
         self.parent = None  # type: Optional[BaseCallback]
         self._screens_buffer = []
-        self.running_mean_std_joint_velocities = RunningMeanStd(shape=(6,))
-        self.running_mean_std_cur_pos = RunningMeanStd(shape=(3,))
-        self.running_mean_std_cur_or = RunningMeanStd(shape=(4,))
-        self.running_mean_std_goal_pos = RunningMeanStd(shape=(3,))
-        self.running_mean_std_joint_angles = RunningMeanStd(shape=(6,))
-        self.running_mean_std_depth = RunningMeanStd(shape=(1,))
+        # self.running_mean_std_joint_velocities = RunningMeanStd(shape=(6,))
+        # self.running_mean_std_cur_pos = RunningMeanStd(shape=(3,))
+        # self.running_mean_std_cur_or = RunningMeanStd(shape=(4,))
+        # self.running_mean_std_goal_pos = RunningMeanStd(shape=(3,))
+        # self.running_mean_std_joint_angles = RunningMeanStd(shape=(6,))
+        # self.running_mean_std_depth = RunningMeanStd(shape=(1,))
         self._reward_dict = {}
 
 
