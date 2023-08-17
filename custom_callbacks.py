@@ -68,7 +68,8 @@ class CustomTrainCallback(BaseCallback):
         self._reward_dict["slack_reward"] = []
         self._reward_dict["condition_number_reward"] = []
         self._reward_dict["velocity_reward"] = []
-        self._reward_dict["orientation_reward"] = []
+        self._reward_dict["perpendicular_orientation_reward"] = []
+        self._reward_dict["pointing_orientation_reward"] = []
         return True
 
 
@@ -90,7 +91,8 @@ class CustomTrainCallback(BaseCallback):
             self._reward_dict["slack_reward"].append(infos[0]["slack_reward"])
             self._reward_dict["condition_number_reward"].append(infos[0]["condition_number_reward"])
             self._reward_dict["velocity_reward"].append(infos[0]["velocity_reward"])
-            self._reward_dict["orientation_reward"].append(infos[0]["orientation_reward"])
+            self._reward_dict["perpendicular_orientation_reward"].append(infos[0]["perpendicular_orientation_reward"])
+            self._reward_dict["pointing_orientation_reward"].append(infos[0]["pointing_orientation_reward"])
 
         # self.logger.record("rollout/movement_reward", infos[0]["movement_reward"])
         # self.logger.record("rollout/distance_reward", infos[0]["distance_reward"])
@@ -154,7 +156,8 @@ class CustomTrainCallback(BaseCallback):
         self.logger.record("rollout/slack_reward", np.mean(self._reward_dict["slack_reward"]))
         self.logger.record("rollout/condition_number_reward", np.mean(self._reward_dict["condition_number_reward"]))
         self.logger.record("rollout/velocity_reward", np.mean(self._reward_dict["velocity_reward"]))
-        self.logger.record("rollout/orientation_reward", np.mean(self._reward_dict["orientation_reward"]))
+        self.logger.record("rollout/perpendicular_orientation_reward", np.mean(self._reward_dict["perpendicular_orientation_reward"]))
+        self.logger.record("rollout/pointing_orientation_reward", np.mean(self._reward_dict["pointing_orientation_reward"]))
         # self.logger.record("train/singularit_terminated", info["total_reward"])
         # Get rollout buffer
         # rollout_buffer = self.locals["rollout_buffer"]
@@ -306,8 +309,9 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict["slack_reward"].append(infos["slack_reward"])
         self._reward_dict["condition_number_reward"].append(infos["condition_number_reward"])
         self._reward_dict["velocity_reward"].append(infos["velocity_reward"])
-        self._reward_dict["orientation_reward"].append(infos["orientation_reward"])
-        
+        self._reward_dict["perpendicular_orientation_reward"].append(infos["perpendicular_orientation_reward"])
+        self._reward_dict["pointing_orientation_reward"].append(infos["pointing_orientation_reward"])
+
     def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         """
         Renders the environment in its current state, recording the screen in the captured `screens` list
@@ -336,7 +340,7 @@ class CustomEvalCallback(EventCallback):
             screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.record_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX,
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             self._screens_buffer.append(screen_copy.transpose(2, 0, 1))
-            print("Saving screen")
+            # print("Saving screen")
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         self._collisions_acceptable_buffer.append(self.eval_env.get_attr("collisions_acceptable", 0)[0])
@@ -376,7 +380,8 @@ class CustomEvalCallback(EventCallback):
             self._reward_dict["slack_reward"] = []
             self._reward_dict["condition_number_reward"] = []
             self._reward_dict["velocity_reward"] = []
-            self._reward_dict["orientation_reward"] = []
+            self._reward_dict["perpendicular_orientation_reward"] = []
+            self._reward_dict["pointing_orientation_reward"] = []
             print("Evaluating")
             import time
             start = time.time()
@@ -452,7 +457,8 @@ class CustomEvalCallback(EventCallback):
             self.logger.dump(self.num_timesteps)
             self.logger.record("eval/condition_number_reward", np.mean(self._reward_dict["condition_number_reward"]))
             self.logger.record("eval/velocity_reward", np.mean(self._reward_dict["velocity_reward"]))
-            self.logger.record("eval/orientation_reward", np.mean(self._reward_dict["orientation_reward"])) 
+            self.logger.record("eval/perpendicular_orientation_reward", np.mean(self._reward_dict["perpendicular_orientation_reward"]))
+            self.logger.record("eval/pointing_orientation_reward", np.mean(self._reward_dict["pointing_orientation_reward"]))
             self.logger.record("eval/movement_reward", np.mean(self._reward_dict["movement_reward"]))
             self.logger.record("eval/distance_reward", np.mean(self._reward_dict["distance_reward"]))
             self.logger.record("eval/terminate_reward", np.mean(self._reward_dict["terminate_reward"]))

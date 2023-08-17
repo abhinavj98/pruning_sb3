@@ -19,7 +19,7 @@ import torchvision.transforms.functional as F
 import os
 
 # Global URDF path pointing to robot and supports URDF
-ROBOT_URDF_PATH = "meshes_and_urdf/urdf/ur5e_with_camera.urdf"
+ROBOT_URDF_PATH = "meshes_and_urdf/urdf/ur5e/ur5e_cutter_new_calibrated_precise_level.urdf"#"meshes_and_urdf/urdf/ur5e_with_camera.urdf"#
 SUPPORT_AND_POST_PATH = "meshes_and_urdf/urdf/supports_and_post.urdf"
 
 
@@ -89,7 +89,8 @@ class PruningEnv(gym.Env):
                  terminate_reward_scale=1,
                  collision_reward_scale=1,
                  slack_reward_scale=1,
-                 orientation_reward_scale=1,
+                 perpendicular_orientation_reward_scale=1,
+                 pointing_orientation_reward_scale=1,
                  use_optical_flow=False,
                  optical_flow_subproc = False,
                  shared_var = (None, None),
@@ -132,7 +133,8 @@ class PruningEnv(gym.Env):
         self.terminate_reward_scale = terminate_reward_scale
         self.collision_reward_scale = collision_reward_scale
         self.slack_reward_scale = slack_reward_scale
-        self.orientation_reward_scale = orientation_reward_scale
+        self.perpendicular_orientation_reward_scale = perpendicular_orientation_reward_scale
+        self.pointing_orientation_reward_scale = pointing_orientation_reward_scale
         self.sum_reward = 0
 
         # Set up pybullet
@@ -142,7 +144,7 @@ class PruningEnv(gym.Env):
             self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
 
         self.con.setTimeStep(5. / 240.)
-        self.con.setGravity(0, 0, -10)
+        self.con.setGravity(0, 0, 0)
         self.con.setRealTimeSimulation(False)
 
         self.con.resetDebugVisualizerCamera(cameraDistance=1.06, cameraYaw=-120.3, cameraPitch=-12.48,
@@ -218,8 +220,10 @@ class PruningEnv(gym.Env):
 
         # Debug parameters
         self.debug_line = -1
-        self.debug_cur_or = -1
-        self.debug_des_or = -1
+        self.debug_cur_point = -1
+        self.debug_des_point = -1
+        self.debug_cur_perp = -1
+        self.debug_des_perp = -1
         self.debug_branch = -1
 
     def reset_env_variables(self):
@@ -233,9 +237,11 @@ class PruningEnv(gym.Env):
         self.collisions_unacceptable = 0
 
     def setup_ur5_arm(self):
-        self.end_effector_index = 7
+
+        self.camera_link_index = 12
+        self.end_effector_index = 12
         flags = self.con.URDF_USE_SELF_COLLISION
-        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 1.1], [0, 0, 0, 1], flags=flags)
+        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 0.], [0, 0, 0, 1], flags=flags)
 
         self.num_joints = self.con.getNumJoints(self.ur5)
         self.control_joints = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint",
@@ -255,6 +261,7 @@ class PruningEnv(gym.Env):
             jointUpperLimit = info[9]
             jointMaxForce = info[10]
             jointMaxVelocity = info[11]
+            # print("Joint Name: ", jointName, "Joint ID: ", jointID)
             controllable = True if jointName in self.control_joints else False
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
                                    jointMaxVelocity, controllable)
@@ -262,15 +269,22 @@ class PruningEnv(gym.Env):
                 self.con.setJointMotorControl2(self.ur5, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0, force=0)
             self.joints[info.name] = info
 
-        self.init_joint_angles = (-1.57, -np.pi/2, 1.80, -3.14, -1.57, -1.57)
+        #TO SET CUTTER DISABLE COLLISIONS WITH SELF
+        self.con.setCollisionFilterPair(self.ur5, self.ur5, 9, 11, 0)
+        self.con.setCollisionFilterPair(self.ur5, self.ur5, 8, 11, 0)
+        self.con.setCollisionFilterPair(self.ur5, self.ur5, 10, 11, 0)
+        self.con.setCollisionFilterPair(self.ur5, self.ur5, 7, 11, 0)
+        self.con.setCollisionFilterPair(self.ur5, self.ur5, 6, 11, 0)
+
+        self.init_joint_angles = (-np.pi/2, -2., 2.16, -3.14, -1.57, np.pi)
         self.set_joint_angles(self.init_joint_angles)
         for i in range(1000):
             self.con.stepSimulation()
-        print("Condirion number of jacobian: ", self.get_condition_number())
+
         self.init_pos = self.con.getLinkState(self.ur5, self.end_effector_index)
         self.joint_velocities = np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
         self.joint_angles = self.init_joint_angles
-        self.achieved_pos = self.get_current_pose()[0]
+        self.achieved_pos = self.get_current_pose(self.end_effector_index)[0]
         self.previous_pose = np.array([0, 0, 0, 0, 0, 0, 0]).astype(np.float32)
 
     def create_background(self):
@@ -385,7 +399,7 @@ class PruningEnv(gym.Env):
 
     def get_joint_angles(self):
         """Return joint angles"""
-        j = self.con.getJointStates(self.ur5, [1, 2, 3, 4, 5, 6])
+        j = self.con.getJointStates(self.ur5, [3,4,5,6,7,8])
         joints = [i[0] for i in j]
         return joints
 
@@ -424,21 +438,21 @@ class PruningEnv(gym.Env):
         )
         return joint_angles
 
-    def get_current_pose(self):
+    def get_current_pose(self, index):
         """Returns current pose of the end effector. Pos wrt end effector, orientation wrt world"""
-        linkstate = self.con.getLinkState(self.ur5, self.end_effector_index, computeForwardKinematics=True)
+        linkstate = self.con.getLinkState(self.ur5, index, computeForwardKinematics=True)
         position, orientation = linkstate[4], linkstate[1]  # Position wrt end effector, orientation wrt COM
         return position, orientation
 
     def set_camera(self):
         """Take the current pose of the end effector and set the camera to that pose"""
-        pose, orientation = self.get_current_pose()
-        CAMERA_BASE_OFFSET = np.array([-0.0, 0., 0.])  # TODO: Change camera position
+        pose, orientation = self.get_current_pose(self.camera_link_index)
+        CAMERA_BASE_OFFSET = np.array([0.01, 0.005, 0.01 ])  # TODO: Change camera position
         pose = pose + CAMERA_BASE_OFFSET
         rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
         # Initial vectors
-        init_camera_vector = np.array([1, 0, 0])  #
-        init_up_vector = np.array([0, 0, 1])  #
+        init_camera_vector = np.array([0, 0, 1])  #
+        init_up_vector = np.array([0, 1, 0])  #
         # Rotated vectors
         camera_vector = rot_mat.dot(init_camera_vector)
         up_vector = rot_mat.dot(init_up_vector)
@@ -464,7 +478,7 @@ class PruningEnv(gym.Env):
 
     def get_rgbd_at_cur_pose(self):
         """Get RGBD image at current pose"""
-        cur_p = self.get_current_pose()
+        # cur_p = self.get_current_pose(self.camera_link_index)
         rgbd = self.set_camera()
         rgb, depth = self.seperate_rgbd_rgb_d(rgbd)
         depth = depth.astype(np.float32)
@@ -483,8 +497,10 @@ class PruningEnv(gym.Env):
         # Remove debug items
         self.con.removeUserDebugItem(self.debug_branch)
         self.con.removeUserDebugItem(self.debug_line)
-        self.con.removeUserDebugItem(self.debug_cur_or)
-        self.con.removeUserDebugItem(self.debug_des_or)
+        self.con.removeUserDebugItem(self.debug_cur_point)
+        self.con.removeUserDebugItem(self.debug_des_point)
+        self.con.removeUserDebugItem(self.debug_des_perp)
+        self.con.removeUserDebugItem(self.debug_cur_perp)
         # Sample new tree if reset_counter is a multiple of randomize_tree_count
         if self.reset_counter % self.randomize_tree_count == 0:
             self.tree = random.sample(self.trees, 1)[0]
@@ -520,7 +536,7 @@ class PruningEnv(gym.Env):
     def step(self, action):
         # remove debug line
 
-        previous_pose = self.get_current_pose()
+        previous_pose = self.get_current_pose(self.end_effector_index)
         # convert two tuples into one array
 
         self.previous_pose = np.hstack((previous_pose[0], previous_pose[1]))
@@ -593,7 +609,7 @@ class PruningEnv(gym.Env):
         self.prev_action = self.action
 
 
-        tool_pos, tool_orient = self.get_current_pose()
+        tool_pos, tool_orient = self.get_current_pose(self.end_effector_index)
         self.achieved_pos = np.array(tool_pos).astype(np.float32)
         self.achieved_or = np.array(tool_orient).astype(np.float32)
 
@@ -621,7 +637,7 @@ class PruningEnv(gym.Env):
                 while not self.pid in self.shared_dict.keys():
                     pass
                 optical_flow = self.shared_dict[self.pid]
-                self.observation['depth'] = optical_flow
+                self.observation['depth'] = (optical_flow - optical_flow.min())/optical_flow.max()
                 # self.shared_dict[self.pid] = None
                 del self.shared_dict[self.pid]
             else:
@@ -655,7 +671,7 @@ class PruningEnv(gym.Env):
         condition_number = np.linalg.cond(jacobian)
         return condition_number
 
-    def compute_orientation_reward(self, achieved_pos, desired_pos, achieved_or, previous_pos, previous_or,
+    def compute_pointing_orientation_reward(self, achieved_pos, desired_pos, achieved_or, previous_pos, previous_or,
                                    branch_vector):
         # Orientation reward is computed as the dot product between the current orientation and the perpedicular vector to the end effector and goal pos vector
         # This is to encourage the end effector to be perpendicular to the branch
@@ -668,21 +684,51 @@ class PruningEnv(gym.Env):
         rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
         rot_mat_prev = np.array(self.con.getMatrixFromQuaternion(previous_or)).reshape(3, 3)
         # Initial vectors
-        init_vector = np.array([1, 0, 0])
+        init_vector = np.array([0, 0, 1])
         camera_vector = rot_mat.dot(init_vector)
         camera_vector_prev = rot_mat_prev.dot(init_vector)
-
-        self.con.removeUserDebugItem(self.debug_cur_or)
-        self.con.removeUserDebugItem(self.debug_des_or)
-        self.debug_des_or = self.con.addUserDebugLine(achieved_pos, achieved_pos + perpendicular_vector, [1, 0, 0], 2)
-        self.debug_cur_or = self.con.addUserDebugLine(self.achieved_pos, self.achieved_pos + 0.1 * camera_vector,
-                                                      [0, 1, 0], 1)
+        OFFSET = np.array([0, 0, 0])
+        # self.con.removeUserDebugItem(self.debug_cur_point)
+        # self.con.removeUserDebugItem(self.debug_des_point)
+        # self.debug_des_point = self.con.addUserDebugLine(achieved_pos + OFFSET, achieved_pos+OFFSET + perpendicular_vector, [1, 0, 0], 2)
+        # self.debug_cur_point = self.con.addUserDebugLine(achieved_pos, achieved_pos + 0.1 * camera_vector,
+        #                                               [0, 1, 0], 1)
         orientation_reward_prev = np.dot(camera_vector_prev, perpendicular_vector_prev) / (
                 np.linalg.norm(camera_vector_prev) * np.linalg.norm(perpendicular_vector_prev))
         orientation_reward = np.dot(camera_vector, perpendicular_vector) / (
                 np.linalg.norm(camera_vector) * np.linalg.norm(perpendicular_vector))
         # print("Orientation reward: ", orientation_reward)
         return (orientation_reward - orientation_reward_prev), orientation_reward
+
+    def compute_perpendicular_orientation_reward(self, achieved_pos, desired_pos, achieved_or, previous_pos, previous_or,
+                                   branch_vector):
+        # Orientation reward is computed as the dot product between the current orientation and the perpedicular vector to the end effector and goal pos vector
+        # This is to encourage the end effector to be perpendicular to the branch
+
+        # Perpendicular vector to branch vector
+        # perpendicular_vector = compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector + desired_pos)
+        # perpendicular_vector_prev = compute_perpendicular_projection(previous_pos, desired_pos,
+        #                                                              branch_vector + desired_pos)
+        # Get vector for current orientation of end effector
+        rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
+        rot_mat_prev = np.array(self.con.getMatrixFromQuaternion(previous_or)).reshape(3, 3)
+        # Initial vectors
+        init_vector = np.array([1, 0, 0])
+        camera_vector = rot_mat.dot(init_vector)
+        camera_vector_prev = rot_mat_prev.dot(init_vector)
+        OFFSET = np.array([0, 0, 0])
+        self.con.removeUserDebugItem(self.debug_cur_perp)
+        self.con.removeUserDebugItem(self.debug_des_perp)
+        self.debug_des_perp = self.con.addUserDebugLine(achieved_pos, achieved_pos + branch_vector, [1, 1, 0], 2)
+        self.debug_cur_perp = self.con.addUserDebugLine(achieved_pos, achieved_pos + 0.1 * camera_vector,
+                                                      [0, 1, 1], 1)
+        #Check anti parallel case as well
+        orientation_reward_prev = np.dot(camera_vector_prev, branch_vector) / (
+                np.linalg.norm(camera_vector_prev) * np.linalg.norm(branch_vector))
+        orientation_reward = np.dot(camera_vector, branch_vector) / (
+                np.linalg.norm(camera_vector) * np.linalg.norm(branch_vector))
+        # print("Orientation reward: ", orientation_reward)
+        return (orientation_reward - orientation_reward_prev), abs(orientation_reward)
 
     def compute_reward(self, desired_goal, achieved_pose, previous_pose,
                        info):  # achieved_pos, achieved_or, desired_pos, previous_pos, info):
@@ -694,6 +740,8 @@ class PruningEnv(gym.Env):
         desired_pos = desired_goal
         previous_pos = previous_pose[:3]
         previous_or = previous_pose[3:]
+        # There will be two different types of achieved positions, one for the end effector and one for the camera
+
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
         self.delta_movement = float(goal_reward(achieved_pos, previous_pos, desired_pos))
@@ -707,17 +755,31 @@ class PruningEnv(gym.Env):
         reward_info['distance_reward'] = distance_reward
         reward += distance_reward
         # if self.target_dist<0.2:
-        self.orientation_reward_unscaled, self.cosine_sim = self.compute_orientation_reward(achieved_pos, desired_pos,
+
+        self.pointing_orientation_reward_unscaled, self.orientation_point_value = self.compute_pointing_orientation_reward(achieved_pos, desired_pos,
                                                                                             achieved_or, previous_pos,
                                                                                             previous_or,
                                                                                             self.tree_goal_branch)
         # else:
         #     self.orientation_reward_unscaled = 0
         #     self.cosine_sim = 0
-        orientation_reward = (self.orientation_reward_unscaled) * self.orientation_reward_scale
+        pointing_orientation_reward = (self.pointing_orientation_reward_unscaled) * self.pointing_orientation_reward_scale
 
-        reward_info['orientation_reward'] = orientation_reward
-        reward += orientation_reward
+        reward_info['pointing_orientation_reward'] = pointing_orientation_reward
+        reward += pointing_orientation_reward
+
+        self.perpendicular_orientation_reward_unscaled, self.orientation_perp_value = self.compute_perpendicular_orientation_reward(
+            achieved_pos, desired_pos,
+            achieved_or, previous_pos,
+            previous_or,
+            self.tree_goal_branch)
+        # else:
+        #     self.orientation_reward_unscaled = 0
+        #     self.cosine_sim = 0
+        perpendicular_orientation_reward = (self.perpendicular_orientation_reward_unscaled) * self.perpendicular_orientation_reward_scale
+
+        reward_info['perpendicular_orientation_reward'] = perpendicular_orientation_reward
+        reward += perpendicular_orientation_reward
         # print('Orientation reward: ', orientation_reward)
         # camera_vector = camera_vector/np.linalg.norm(camera_vector)
         # perpendicular_vector = perpendicular_vector/np.linalg.norm(perpendicular_vector)
@@ -736,7 +798,7 @@ class PruningEnv(gym.Env):
         reward_info['condition_number_reward'] = condition_number_reward
         terminate_reward = 0
         if self.target_dist < self.learning_param and (
-                orientation_reward == 0 or self.cosine_sim > 0.95):  # and approach_velocity < 0.05:
+                self.orientation_perp_value > 0.9):  # and approach_velocity < 0.05:
             self.terminated = True
             terminate_reward = 1 * self.terminate_reward_scale
             reward += terminate_reward
@@ -902,7 +964,7 @@ class Tree:
         return np.array(vertex_w_transform[0])
 
     def is_reachable(self, vertice, ur5):
-        ur5_base_pos = np.array(self.env.get_current_pose()[0])
+        ur5_base_pos = np.array(self.env.get_current_pose(self.env.end_effector_index)[0])
         # if "envy" in self.urdf_path:
         #     if abs(vertice[0][0]) < 0.05:
         #         return False
@@ -916,7 +978,7 @@ class Tree:
         j_angles = self.env.calculate_ik(vertice[0], None)
         self.env.set_joint_angles(j_angles)
         self.env.con.stepSimulation()
-        ee_pos, _ = self.env.get_current_pose()
+        ee_pos, _ = self.env.get_current_pose(self.env.end_effector_index)
         dist = np.linalg.norm(np.array(ee_pos) - vertice[0], axis=-1)
         condition_number = self.env.get_condition_number()
         if dist <= 0.05 and condition_number < 40:

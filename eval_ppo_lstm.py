@@ -94,7 +94,8 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict["slack_reward"].append(infos["slack_reward"])
         self._reward_dict["condition_number_reward"].append(infos["condition_number_reward"])
         self._reward_dict["velocity_reward"].append(infos["velocity_reward"])
-        self._reward_dict["orientation_reward"].append(infos["orientation_reward"])
+        self._reward_dict["pointing_orientation_reward"].append(infos["pointing_orientation_reward"])
+        self._reward_dict["perpendicular_orientation_reward"].append(infos["perpendicular_orientation_reward"])
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         self._collisions_buffer.append(self.eval_env.get_attr("collisions", 0)[0])

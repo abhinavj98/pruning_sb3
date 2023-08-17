@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
-
+import sys
+sys.path.append("..")
 import numpy as np
 import torch as th
 from gymnasium import spaces
@@ -17,7 +18,7 @@ from stable_baselines3.common.utils import zip_strict
 from torch import nn
 from sb3_contrib.common.recurrent.type_aliases import RNNStates
 
-from stable_baselines3.common.running_mean_std import RunningMeanStd
+from running_mean_std import RunningMeanStd
 
 class RecurrentActorCriticPolicy(ActorCriticPolicy):
     """
@@ -155,13 +156,13 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
 
     def _normalize_using_running_mean_std(self, x, running_mean_std):
-        mean = th.tensor(running_mean_std.mean, dtype=th.float32).to(self.device)
-        std = th.sqrt(th.tensor(running_mean_std.var, dtype=th.float32)).to(self.device)
+        mean = running_mean_std.mean.to(self.device, dtype=th.float32)
+        std = th.sqrt(running_mean_std.var).to(self.device, dtype = th.float32)
         return (x - mean) / std
 
     def _unnormalize_using_running_mean_std(self, x, running_mean_std):
-        mean = th.tensor(running_mean_std.mean, dtype=th.float32).to(self.device)
-        std = th.sqrt(th.tensor(running_mean_std.var, dtype=th.float32)).to(self.device)
+        mean = running_mean_std.mean.to(self.device, dtype=th.float32)
+        std = th.sqrt(running_mean_std.var).to(self.device, dtype=th.float32)
         return x*std + mean
     def _build_mlp_extractor(self) -> None:
         """
