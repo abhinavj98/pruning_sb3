@@ -144,7 +144,7 @@ if __name__ == "__main__":
     new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
     env.logger = new_logger
     #eval_env = Monitor(PruningEnv(**eval_env_kwargs))
-    eval_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = 2)#args.N_ENVS)
+    eval_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = 1)#args.N_ENVS)
 
         # record_env = Monitor(PruningEnv(**eval_env_kwargs))
         # eval_env = SubprocVecEnv([lambda: eval_env])
@@ -176,9 +176,10 @@ if __name__ == "__main__":
     if not load_path:
         model = RecurrentPPOAE(policy, env, policy_kwargs = policy_kwargs, learning_rate = exp_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
     else:
-        model = RecurrentPPOAE.load(load_path, env = env)
-        model.num_timesteps = 100000
-        model._num_timesteps_at_start = 100000
+        load_dict = {"learning_rate": exp_schedule(args.LEARNING_RATE), "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE), "learning_rate_logstd": linear_schedule(0.01)}
+        model = RecurrentPPOAE.load(load_path, env = env, custom_objects=load_dict)
+        model.num_timesteps = 300000
+        model._num_timesteps_at_start = 300000
         print("LOADED MODEL")
     model.set_logger(new_logger)
     print("Using device: ", utils.get_device())

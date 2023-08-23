@@ -58,14 +58,14 @@
         <color rgba="0.7 0.7 0.7 1.0"/>
       </material>
     </visual>
-    <collision>
-<!--	  <origin rpy="0.0 0.0 0.0" xyz="-0.02 0.0 0.0"/>-->
-	  <origin rpy="0.0 0.0 0.0" xyz="0 0.0 -0.3786"/>
-      <geometry>
-<!--        <box size="0.04 0.5 0.5"/>-->
-        <box size="0.5 0.5 0.75711"/>
-      </geometry>
-    </collision>
+<!--    <collision>-->
+<!--&lt;!&ndash;	  <origin rpy="0.0 0.0 0.0" xyz="-0.02 0.0 0.0"/>&ndash;&gt;-->
+<!--	  <origin rpy="0.0 0.0 0.0" xyz="0 0.0 -0.3786"/>-->
+<!--      <geometry>-->
+<!--&lt;!&ndash;        <box size="0.04 0.5 0.5"/>&ndash;&gt;-->
+<!--        <box size="0.5 0.5 0.75711"/>-->
+<!--      </geometry>-->
+<!--    </collision>-->
     <inertial>
       <mass value="4.0"/>
       <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>

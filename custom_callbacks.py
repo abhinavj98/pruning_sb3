@@ -321,24 +321,33 @@ class CustomEvalCallback(EventCallback):
         """
         episode_counts = _locals["episode_counts"][0]
         if episode_counts == 0:
-            screen = np.array(self.record_env.render())*255
+            render = np.array(self.record_env.render())*255
+            render = cv2.resize(render, (512, 512), interpolation=cv2.INTER_NEAREST)
+            rgb = np.array(self.record_env.get_attr("rgb")[0])*255
+            rgb = cv2.resize(rgb, (512, 512), interpolation=cv2.INTER_NEAREST)
+            screen = np.concatenate((render, rgb), axis=1)
             screen_copy = screen.reshape((screen.shape[0], screen.shape[1], 3)).astype(np.uint8)
-            screen_copy = cv2.resize(screen_copy, (1124, 768), interpolation=cv2.INTER_NEAREST)
+            # screen_copy = cv2.resize(screen_copy, (1124, 768), interpolation=cv2.INTER_NEAREST)
             screen_copy = cv2.putText(screen_copy, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
-                1, (255,0,0), 2, cv2.LINE_AA)
+                0.5, (255,0,0), 2, cv2.LINE_AA)
             screen_copy = cv2.putText(screen_copy, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
-                0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+                0.35, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             screen_copy = cv2.putText(screen_copy, "Current: "+str(self.record_env.get_attr("achieved_pos", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX,
-                1, (255,0,0), 2, cv2.LINE_AA)
+                0.5, (255,0,0), 2, cv2.LINE_AA)
             screen_copy = cv2.putText(screen_copy, "Goal: "+str(self.record_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
-                1, (255,0,0), 2, cv2.LINE_AA)
+                0.5, (255,0,0), 2, cv2.LINE_AA)
             with th.no_grad():
                 prediction = self.model.policy.predicted_cosine_sim
                 # print(self.model.policy.latent_vf)
-            screen_copy = cv2.putText(screen_copy, "Orientation: "+str(self.record_env.get_attr("cosine_sim", 0)[0]) + " Predicted: "+str(prediction), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
+            screen_copy = cv2.putText(screen_copy, "Orientation Perpendicular: "+str(self.record_env.get_attr("orientation_perp_value", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-            screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.record_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX,
-                0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+            screen_copy = cv2.putText(screen_copy, "Orientation Pointing: " + str(
+                self.record_env.get_attr("orientation_point_value", 0)[0]), (0, 230),
+                                      cv2.FONT_HERSHEY_SIMPLEX,
+                                      0.35, (255, 0, 0), 2, cv2.LINE_AA)  # str(_locals['actions'])
+
+            screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.record_env.get_attr("target_dist", 0)[0])), (0,260), cv2.FONT_HERSHEY_SIMPLEX,
+                0.35, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             self._screens_buffer.append(screen_copy.transpose(2, 0, 1))
             # print("Saving screen")
 

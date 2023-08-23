@@ -39,7 +39,7 @@ args_dict = {
     #Gym envirionment parameters
     'N_ENVS': {
         'type': int,
-        'default': 4,
+        'default': 5,
         'help': 'number of parallel environments to run'
     },
     'RENDER': {
@@ -64,7 +64,7 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 5,
+        'default': 4,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
@@ -94,12 +94,12 @@ args_dict = {
     },
     'POINTING_ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default':8,
+        'default':4,
         'help': 'scaling factor for the orientation reward'
     },
     'PERPENDICULAR_ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 8,
+        'default': 4,
         'help': 'scaling factor for the orientation reward'
     },
     #Training parameters

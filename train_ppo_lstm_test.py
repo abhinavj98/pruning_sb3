@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
 
     if args.LOAD_PATH:
-        load_path = "./logs/best_model.zip"#"./logs/{}/best_model.zip".format(args.LOAD_PATH)#./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
+        load_path = "logs/run/best_model.zip"  #"./logs/{}/best_model.zip".format(args.LOAD_PATH)#./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
     else:
         load_path = None
     train_env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
@@ -141,14 +141,15 @@ if __name__ == "__main__":
     record_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = 1)
     eval_env.logger = new_logger
     # Use deterministic actions for evaluation
-    eval_callback = CustomEvalCallback(eval_env, record_env, best_model_save_path="./logs/",
-                                 log_path="./logs/", eval_freq=args.EVAL_FREQ,
+    eval_callback = CustomEvalCallback(eval_env, record_env, best_model_save_path="./logs/test",
+                                 log_path="./logs/test", eval_freq=args.EVAL_FREQ,
                                  deterministic=True, render=False,  n_eval_episodes = args.EVAL_EPISODES)
     # It will check your custom environment and output additional warnings if needed
     # check_env(env)
 
     # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
     custom_callback = CustomTrainCallback()
+
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
         "features_extractor_kwargs": {"features_dim": args.STATE_DIM,
