@@ -519,7 +519,7 @@ class PruningEnv(gym.Env):
                                                       [random_point[0][0], random_point[0][1], random_point[0][2]],
                                                       [0, 0, 0, 1])
         self.set_joint_angles(self.init_joint_angles)
-        self.set_joint_angles(self.calculate_ik((random_point[0][0],  self.init_pos[0][1], random_point[0][2]), self.init_pos[1]))
+        #self.set_joint_angles(self.calculate_ik((random_point[0][0],  self.init_pos[0][1], random_point[0][2]), self.init_pos[1]))
         for i in range(500):
             self.con.stepSimulation()
         self.tree_goal_pos = random_point[0]

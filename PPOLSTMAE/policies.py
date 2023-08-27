@@ -275,7 +275,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         return actions, values, log_prob, RNNStates(lstm_states_pi, lstm_states_vf)
     
     
-    def extract_features(self, obs: th.Tensor) -> tuple[th.Tensor, th.Tensor]:
+    def extract_features(self, obs: th.Tensor):# -> tuple[th.Tensor, th.Tensor]:
         """
         Preprocess the observation if needed and extract features.
 
