@@ -178,8 +178,8 @@ if __name__ == "__main__":
     else:
         load_dict = {"learning_rate": exp_schedule(args.LEARNING_RATE), "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE), "learning_rate_logstd": linear_schedule(0.01)}
         model = RecurrentPPOAE.load(load_path, env = env, custom_objects=load_dict)
-        model.num_timesteps = 300000
-        model._num_timesteps_at_start = 300000
+        model.num_timesteps = 1_000_000
+        model._num_timesteps_at_start = 1_000_000
         print("LOADED MODEL")
     model.set_logger(new_logger)
     print("Using device: ", utils.get_device())

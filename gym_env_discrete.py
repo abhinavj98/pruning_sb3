@@ -519,7 +519,7 @@ class PruningEnv(gym.Env):
                                                       [random_point[0][0], random_point[0][1], random_point[0][2]],
                                                       [0, 0, 0, 1])
         self.set_joint_angles(self.init_joint_angles)
-        #self.set_joint_angles(self.calculate_ik((random_point[0][0],  self.init_pos[0][1], random_point[0][2]), self.init_pos[1]))
+        self.set_joint_angles(self.calculate_ik((random_point[0][0],  self.init_pos[0][1], random_point[0][2]), self.init_pos[1]))
         for i in range(500):
             self.con.stepSimulation()
         self.tree_goal_pos = random_point[0]
@@ -640,7 +640,7 @@ class PruningEnv(gym.Env):
                 while not self.pid in self.shared_dict.keys():
                     pass
                 optical_flow = self.shared_dict[self.pid]
-                self.observation['depth'] = (optical_flow - optical_flow.min())/optical_flow.max()
+                self.observation['depth'] = (optical_flow - optical_flow.min())/(optical_flow.max() + 1e-6)
                 # self.shared_dict[self.pid] = None
                 del self.shared_dict[self.pid]
             else:
@@ -799,9 +799,11 @@ class PruningEnv(gym.Env):
             condition_number_reward = np.abs(1 / condition_number) * self.condition_reward_scale
         reward += condition_number_reward
         reward_info['condition_number_reward'] = condition_number_reward
+
+        is_collision, collision_info = self.check_collisions()
         terminate_reward = 0
         if self.target_dist < self.learning_param and (
-                self.orientation_perp_value > 0.9):  # and approach_velocity < 0.05:
+                self.orientation_perp_value > 0.9) and (self.orientation_point_value > 0.9) and is_collision:  # and approach_velocity < 0.05:
             self.terminated = True
             terminate_reward = 1 * self.terminate_reward_scale
             reward += terminate_reward
@@ -810,7 +812,6 @@ class PruningEnv(gym.Env):
 
         # check collisions:
         collision_reward = 0
-        is_collision, collision_info = self.check_collisions()
         if is_collision:
             if collision_info['collisions_acceptable']:
                 collision_reward = 1 * self.collision_reward_scale

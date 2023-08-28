@@ -39,7 +39,7 @@ args_dict = {
     #Gym envirionment parameters
     'N_ENVS': {
         'type': int,
-        'default': 8,
+        'default': 4,
         'help': 'number of parallel environments to run'
     },
     'RENDER': {
