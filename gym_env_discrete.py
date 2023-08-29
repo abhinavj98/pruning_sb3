@@ -448,7 +448,7 @@ class PruningEnv(gym.Env):
         """Take the current pose of the end effector and set the camera to that pose"""
         pose, orientation = self.get_current_pose(self.camera_link_index)
         CAMERA_BASE_OFFSET = np.array([0.01, 0.005, 0.01 ])  # TODO: Change camera position
-        pose = pose + CAMERA_BASE_OFFSET
+        pose = pose
         rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
         # Initial vectors
         init_camera_vector = np.array([0, 0, 1])  #
