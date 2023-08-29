@@ -802,12 +802,17 @@ class PruningEnv(gym.Env):
 
         is_collision, collision_info = self.check_collisions()
         terminate_reward = 0
-        if self.target_dist < self.learning_param and (
-                self.orientation_perp_value > 0.9) and (self.orientation_point_value > 0.9) and is_collision:  # and approach_velocity < 0.05:
-            self.terminated = True
-            terminate_reward = 1 * self.terminate_reward_scale
-            reward += terminate_reward
-            print('Successful!')
+        if self.target_dist < self.learning_param and is_collision:
+            if (self.orientation_perp_value > 0.9) and (self.orientation_point_value > 0.9):  # and approach_velocity < 0.05:
+                self.terminated = True
+                terminate_reward = 1 * self.terminate_reward_scale
+                reward += terminate_reward
+                print('Successful!')
+            else:
+                self.terminated = False
+                terminate_reward = -1
+                reward += terminate_reward
+                print('Unsuccessful!')
         reward_info['terminate_reward'] = terminate_reward
 
         # check collisions:
