@@ -71,7 +71,7 @@ class PruningEnv(gym.Env):
     def __init__(self,
                  renders=False,
                  maxSteps=500,
-                 learning_param=0.05,
+                 learning_param=0.03,
                  tree_urdf_path=None,
                  tree_obj_path=None,
                  tree_count=9999,
@@ -233,6 +233,7 @@ class PruningEnv(gym.Env):
         self.sum_reward = 0
         self.terminated = False
         self.singularity_terminated = False
+        self.wrong_success = False
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
 
@@ -510,7 +511,7 @@ class PruningEnv(gym.Env):
 
         # Sample new point
         random_point = random.sample(self.tree.reachable_points, 1)[0]
-        if "eval" in self.name:
+        if "record" in self.name:
             """Display red sphere during evaluation"""
             self.con.removeBody(self.sphereUid)
             colSphereId = -1
@@ -660,9 +661,10 @@ class PruningEnv(gym.Env):
         # NOTE: need to call compute_reward before this to check termination!
         time_limit_exceeded = self.stepCounter > self.maxSteps
         singularity_achieved = self.singularity_terminated
+        wrong_success = self.wrong_success
         goal_achieved = self.terminated
-        c = (self.singularity_terminated == True or self.terminated == True or self.stepCounter > self.maxSteps)
-        terminate_info = {"time_limit_exceeded": time_limit_exceeded, "singularity_achieved": singularity_achieved,
+        c = (self.wrong_success == True or self.singularity_terminated == True or self.terminated == True or self.stepCounter > self.maxSteps)
+        terminate_info = {"time_limit_exceeded": time_limit_exceeded, "singularity_achieved": singularity_achieved, "wrong_success": wrong_success,
                           "goal_achieved": goal_achieved}
         return c, terminate_info
 
@@ -809,7 +811,7 @@ class PruningEnv(gym.Env):
                 reward += terminate_reward
                 print('Successful!')
             else:
-                self.terminated = False
+                self.wrong_success = True
                 terminate_reward = -1
                 reward += terminate_reward
                 print('Unsuccessful!')
