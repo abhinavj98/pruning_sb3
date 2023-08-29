@@ -131,6 +131,19 @@ if __name__ == "__main__":
                     "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE,
                     "slack_reward_scale" : args.SLACK_REWARD_SCALE, "num_points" : args.EVAL_POINTS, "pointing_orientation_reward_scale" : args.POINTING_ORIENTATION_REWARD_SCALE, "perpendicular_orientation_reward_scale" : args.PERPENDICULAR_ORIENTATION_REWARD_SCALE, "name":"evalenv","optical_flow_subproc": True, "use_optical_flow": args.USE_OPTICAL_FLOW, "shared_var": (shared_queue, shared_dict) }
 
+    record_env_kwargs = {"renders": False, "tree_urdf_path": args.TREE_TEST_URDF_PATH,
+                     "tree_obj_path": args.TREE_TEST_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
+                     "maxSteps": args.EVAL_MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
+                     "action_scale": args.ACTION_SCALE, "distance_reward_scale": args.DISTANCE_REWARD_SCALE,
+                     "condition_reward_scale": args.CONDITION_REWARD_SCALE,
+                     "terminate_reward_scale": args.TERMINATE_REWARD_SCALE,
+                     "collision_reward_scale": args.COLLISION_REWARD_SCALE,
+                     "slack_reward_scale": args.SLACK_REWARD_SCALE, "num_points": args.EVAL_POINTS,
+                     "pointing_orientation_reward_scale": args.POINTING_ORIENTATION_REWARD_SCALE,
+                     "perpendicular_orientation_reward_scale": args.PERPENDICULAR_ORIENTATION_REWARD_SCALE,
+                     "name": "recordenv", "use_optical_flow": args.USE_OPTICAL_FLOW, "optical_flow_subproc": True,
+                     "shared_var": (shared_queue, shared_dict)}
+
     env = make_vec_env(PruningEnv, env_kwargs = train_env_kwargs, n_envs = args.N_ENVS, vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
     env.logger = new_logger
@@ -138,7 +151,7 @@ if __name__ == "__main__":
 
     # record_env = Monitor(PruningEnv(**eval_env_kwargs))
     # eval_env = DummyVecEnv([lambda: eval_env])
-    record_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = 1)
+    record_env = make_vec_env(PruningEnv, env_kwargs = record_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = 1)
     eval_env.logger = new_logger
     # Use deterministic actions for evaluation
     eval_callback = CustomEvalCallback(eval_env, record_env, best_model_save_path="./logs/test",

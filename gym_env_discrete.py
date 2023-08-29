@@ -515,7 +515,7 @@ class PruningEnv(gym.Env):
             """Display red sphere during evaluation"""
             self.con.removeBody(self.sphereUid)
             colSphereId = -1
-            visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=0.02, rgbaColor=[1, 0, 0, 1])
+            visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=0.005, rgbaColor=[1, 0, 0, 1])
             self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId,
                                                       [random_point[0][0], random_point[0][1], random_point[0][2]],
                                                       [0, 0, 0, 1])
