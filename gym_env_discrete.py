@@ -519,7 +519,7 @@ class PruningEnv(gym.Env):
             self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId,
                                                       [random_point[0][0], random_point[0][1], random_point[0][2]],
                                                       [0, 0, 0, 1])
-        self.set_joint_angles(self.init_joint_angles)
+        # self.set_joint_angles(self.init_joint_angles)
         self.set_joint_angles(self.calculate_ik((random_point[0][0],  self.init_pos[0][1], random_point[0][2]), self.init_pos[1]))
         for i in range(500):
             self.con.stepSimulation()
@@ -891,6 +891,7 @@ class Tree:
         self.vertex_and_projection = []
         self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
         self.projection_mean = 0
+        self.init_xyz = self.env.get_current_pose(self.env.end_effector_index)[0]
         # if pickled file exists load an return
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         if not os.path.exists('./pkl/' + str(path_component[3])):
@@ -901,11 +902,21 @@ class Tree:
                 self.reachable_points = pickle.load(f)
             print('Loaded reachable points from pickle file ', self.urdf_path[:-5] + '_reachable_points.pkl')
             print("Number of reachable points: ", len(self.reachable_points))
+            # Uncomment to visualize sphere at each reachable point
+            # self.active()
+            # for num,i in enumerate(self.reachable_points):
+            #     # print(i)
+            #     if num%100 == 0:
+            #         visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.005,
+            #                                                        rgbaColor=[1, 0, 0, 1])
+            #         self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
+            #                                                       [0, 0, 0, 1])
+
             return
         # Find the two longest edges of the face
         # Add their mid-points and perpendicular projection to the smallest side as a point and branch
 
-        for face in self.tree_obj.mesh_list[0].faces:
+        for num, face in enumerate(self.tree_obj.mesh_list[0].faces):
             # Order the sides of the face by length
             ab = (
                 face[0], face[1],
@@ -939,20 +950,28 @@ class Tree:
                 ((self.transformed_vertices[ab[0]] + self.transformed_vertices[ab[1]]) / 2, perpendicular_projection))
             self.projection_mean += np.linalg.norm(perpendicular_projection)
             self.projection_mean += np.linalg.norm(perpendicular_projection)
+            # if num % 10 == 0:
+            #     visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.005,
+            #                                                    rgbaColor=[1, 0, 0, 1])
+            #     self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [self.vertex_and_projection[-1][0][0],self.vertex_and_projection[-1][0][1],self.vertex_and_projection[-1][0][2]],
+            #                                                   [0, 0, 0, 1])
 
         self.projection_mean = self.projection_mean / len(self.vertex_and_projection)
         self.num_points = num_points
         self.get_reachable_points(self.env.ur5)
         # dump reachable points to file using pickle
-        # Uncomment to visualize sphere at each reachable point
-        # self.active()
-        # for i in self.reachable_points:
-        #     print(i)
-        #     visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.02,rgbaColor =[1,0,0,1])
-        #     self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0],i[0][1],i[0][2]], [0,0,0,1])
 
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         # if pkl path exists else create
+        # Uncomment to visualize sphere at each reachable point
+        # self.active()
+        # for num,i in enumerate(self.reachable_points):
+        #     # print(i)
+        #     if num%100 == 0:
+        #         visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.005,
+        #                                                        rgbaColor=[1, 0, 0, 1])
+        #         self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
+        #                                                       [0, 0, 0, 1])
 
         with open(pkl_path, 'wb') as f:
             pickle.dump(self.reachable_points, f)
@@ -975,24 +994,37 @@ class Tree:
         return np.array(vertex_w_transform[0])
 
     def is_reachable(self, vertice, ur5):
-        ur5_base_pos = np.array(self.env.get_current_pose(self.env.end_effector_index)[0])
-        # if "envy" in self.urdf_path:
-        #     if abs(vertice[0][0]) < 0.05:
-        #         return False
+        ur5_base_pos = self.init_xyz#np.array(self.env.get_current_pose(self.env.end_effector_index)[0])
+        if "envy" in self.urdf_path:
+            if abs(vertice[0][0]) < 0.05:
+                return False
         # elif "ufo" in self.urdf_path:
         #     if vertice[0][2] < 0.1:
         #         return False
         dist = np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
         projection_length = np.linalg.norm(vertice[1])
-        if dist >= 1 or projection_length < self.projection_mean * 0.7:
+        if dist >= 1 or projection_length < self.projection_mean*1.2:
             return False
-        j_angles = self.env.calculate_ik(vertice[0], None)
+        #Check if start point reachable
+
+        j_angles = self.env.calculate_ik((vertice[0][0], self.env.init_pos[0][1], self.env.init_pos[0][2]), self.env.init_pos[1])
+
         self.env.set_joint_angles(j_angles)
-        self.env.con.stepSimulation()
+        for i in range(100):
+            self.env.con.stepSimulation()
+        # ee_pos, _ = self.env.get_current_pose(self.env.end_effector_index)
+        start_condition_number = self.env.get_condition_number()
+        # print(start_condition_number)
+        #Check if goal reachable
+        j_angles = self.env.calculate_ik(vertice[0], None)
+
+        self.env.set_joint_angles(j_angles)
+        for i in range(100):
+            self.env.con.stepSimulation()
         ee_pos, _ = self.env.get_current_pose(self.env.end_effector_index)
         dist = np.linalg.norm(np.array(ee_pos) - vertice[0], axis=-1)
         condition_number = self.env.get_condition_number()
-        if dist <= 0.05 and condition_number < 40:
+        if dist <= 0.05 and condition_number < 40 and start_condition_number < 20:
             return True
         return False
 
