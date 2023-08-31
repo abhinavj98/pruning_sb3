@@ -447,6 +447,7 @@
   <link name="cutpoint">
     <visual>
       <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+
       <geometry>
         <sphere radius="0.000001" />
       </geometry>
@@ -461,8 +462,10 @@
     </inertial>
   </link>
   <joint name="cutpoint" type="fixed">
-    <origin rpy="0 0 0" xyz="0 0 0"/>  <!-- Left down out -->
-    <parent link="endpoint"/>
+<!-- <origin rpy="0 0 0" xyz="-0.06325 0.01 0.18"/>-->
+
+   <origin rpy="0 0 0" xyz="0 0.01 0.05"/>
+  <parent link="endpoint"/>
     <child link="cutpoint"/>
   </joint>
 <!--  <link name="cutter_mouth">-->

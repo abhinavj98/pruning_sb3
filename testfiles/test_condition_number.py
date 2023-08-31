@@ -41,29 +41,29 @@ while True:
     action = get_key_pressed(env)
     #if action is wasd, then move the robot
     if ord('a') in action:
-        val = np.array([0.2,0,0,0,0,0])
+        val = np.array([0.05,0,0,0,0,0])
     elif ord('d') in action:
-        val = np.array([-0.2,0,0,0,0,0])
+        val = np.array([-0.05,0,0,0,0,0])
     elif ord('s') in action:
-        val = np.array([0,0.2,0,0,0,0])
+        val = np.array([0,0.05,0,0,0,0])
     elif ord('w') in action:
-        val = np.array([0,-0.2,0,0,0,0])
+        val = np.array([0,-0.05,0,0,0,0])
     elif ord('q') in action:
-        val = np.array([0,0,0.2,0,0,0])
+        val = np.array([0,0,0.05,0,0,0])
     elif ord('e') in action:
-        val = np.array([0,0,-0.2,0,0,0])
+        val = np.array([0,0,-0.05,0,0,0])
     elif ord('z') in action:
-        val = np.array([0,0,0,0.2,0,0])
+        val = np.array([0,0,0,0.05,0,0])
     elif ord('c') in action:
-        val = np.array([0,0,0,-0.2,0,0])
+        val = np.array([0,0,0,-0.05,0,0])
     elif ord('x') in action:
-        val = np.array([0,0,0,0,0.2,0])
+        val = np.array([0,0,0,0,0.05,0])
     elif ord('v') in action:
-        val = np.array([0,0,0,0,-0.2,0])
+        val = np.array([0,0,0,0,-0.05,0])
     elif ord('r') in action:
-        val = np.array([0,0,0,0,0,0.2])
+        val = np.array([0,0,0,0,0,0.05])
     elif ord('f') in action:
-        val = np.array([0,0,0,0,0,-0.2])
+        val = np.array([0,0,0,0,0,-0.05])
     elif ord('t') in action:
         env.reset()
     else:
@@ -74,11 +74,12 @@ while True:
     # print(infos)
     # print(observation['desired_goal'], observation['achieved_goal'])
     # env.render()
-    jacobian = env.con.calculateJacobian(env.ur5, env.end_effector_index, [0,0,0], env.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
-    jacobian = np.vstack(jacobian)
-    condition_number = np.linalg.cond(jacobian)
-    print(condition_number, 1/condition_number)
-    print(env.get_joint_angles())
+    # jacobian = env.con.calculateJacobian(env.ur5, env.end_effector_index, [0,0,0], env.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
+    # jacobian = np.vstack(jacobian)
+    # condition_number = np.linalg.cond(jacobian)
+    # print(condition_number, 1/condition_number)
+    # print(env.get_joint_angles())
+    print(env.target_dist)
     
         
 """

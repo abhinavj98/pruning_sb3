@@ -240,7 +240,7 @@ class PruningEnv(gym.Env):
     def setup_ur5_arm(self):
 
         self.camera_link_index = 12
-        self.end_effector_index = 12
+        self.end_effector_index = 13
         flags = self.con.URDF_USE_SELF_COLLISION
         self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 0.], [0, 0, 0, 1], flags=flags)
 
@@ -266,6 +266,7 @@ class PruningEnv(gym.Env):
             controllable = True if jointName in self.control_joints else False
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
                                    jointMaxVelocity, controllable)
+            print(jointID, jointName)
             if info.type == "REVOLUTE":
                 self.con.setJointMotorControl2(self.ur5, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0, force=0)
             self.joints[info.name] = info
@@ -448,7 +449,7 @@ class PruningEnv(gym.Env):
     def set_camera(self):
         """Take the current pose of the end effector and set the camera to that pose"""
         pose, orientation = self.get_current_pose(self.camera_link_index)
-        CAMERA_BASE_OFFSET = np.array([0.01, 0.005, 0.01 ])  # TODO: Change camera position
+        # CAMERA_BASE_OFFSET = np.array([0.01, 0.005, 0.01 ])  # TODO: Change camera position
         pose = pose
         rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
         # Initial vectors
@@ -693,11 +694,11 @@ class PruningEnv(gym.Env):
         camera_vector = rot_mat.dot(init_vector)
         camera_vector_prev = rot_mat_prev.dot(init_vector)
         OFFSET = np.array([0, 0, 0])
-        # self.con.removeUserDebugItem(self.debug_cur_point)
-        # self.con.removeUserDebugItem(self.debug_des_point)
-        # self.debug_des_point = self.con.addUserDebugLine(achieved_pos + OFFSET, achieved_pos+OFFSET + perpendicular_vector, [1, 0, 0], 2)
-        # self.debug_cur_point = self.con.addUserDebugLine(achieved_pos, achieved_pos + 0.1 * camera_vector,
-        #                                               [0, 1, 0], 1)
+        self.con.removeUserDebugItem(self.debug_cur_point)
+        self.con.removeUserDebugItem(self.debug_des_point)
+        self.debug_des_point = self.con.addUserDebugLine(achieved_pos + OFFSET, achieved_pos+OFFSET + perpendicular_vector, [1, 0, 0], 2)
+        self.debug_cur_point = self.con.addUserDebugLine(achieved_pos, achieved_pos + 0.1 * camera_vector,
+                                                      [0, 1, 0], 1)
         orientation_reward_prev = np.dot(camera_vector_prev, perpendicular_vector_prev) / (
                 np.linalg.norm(camera_vector_prev) * np.linalg.norm(perpendicular_vector_prev))
         orientation_reward = np.dot(camera_vector, perpendicular_vector) / (
@@ -722,11 +723,11 @@ class PruningEnv(gym.Env):
         camera_vector = rot_mat.dot(init_vector)
         camera_vector_prev = rot_mat_prev.dot(init_vector)
         OFFSET = np.array([0, 0, 0])
-        self.con.removeUserDebugItem(self.debug_cur_perp)
-        self.con.removeUserDebugItem(self.debug_des_perp)
-        self.debug_des_perp = self.con.addUserDebugLine(achieved_pos, achieved_pos + branch_vector, [1, 1, 0], 2)
-        self.debug_cur_perp = self.con.addUserDebugLine(achieved_pos, achieved_pos + 0.1 * camera_vector,
-                                                      [0, 1, 1], 1)
+        # self.con.removeUserDebugItem(self.debug_cur_perp)
+        # self.con.removeUserDebugItem(self.debug_des_perp)
+        # self.debug_des_perp = self.con.addUserDebugLine(achieved_pos, achieved_pos + branch_vector, [1, 1, 0], 2)
+        # self.debug_cur_perp = self.con.addUserDebugLine(achieved_pos, achieved_pos + 0.1 * camera_vector,
+        #                                               [0, 1, 1], 1)
         #Check anti parallel case as well
         orientation_reward_prev = np.dot(camera_vector_prev, branch_vector) / (
                 np.linalg.norm(camera_vector_prev) * np.linalg.norm(branch_vector))
@@ -804,17 +805,21 @@ class PruningEnv(gym.Env):
 
         is_collision, collision_info = self.check_collisions()
         terminate_reward = 0
+        print(self.orientation_perp_value, self.orientation_point_value)
         if self.target_dist < self.learning_param and is_collision:
-            if (self.orientation_perp_value > 0.9) and (self.orientation_point_value > 0.9):  # and approach_velocity < 0.05:
+            print(collision_info)
+            if (self.orientation_perp_value > 0.7) and (self.orientation_point_value > 0.7):  # and approach_velocity < 0.05:
                 self.terminated = True
                 terminate_reward = 1 * self.terminate_reward_scale
                 reward += terminate_reward
                 print('Successful!')
             else:
+
                 self.wrong_success = True
-                terminate_reward = -1
-                reward += terminate_reward
+                # terminate_reward = -1
+                reward += -1
                 print('Unsuccessful!')
+
         reward_info['terminate_reward'] = terminate_reward
 
         # check collisions:
