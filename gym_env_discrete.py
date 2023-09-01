@@ -642,7 +642,7 @@ class PruningEnv(gym.Env):
                 while not self.pid in self.shared_dict.keys():
                     pass
                 optical_flow = self.shared_dict[self.pid]
-                self.observation['depth'] = (optical_flow - optical_flow.min())/(optical_flow.max() + 1e-6)
+                self.observation['depth'] = (optical_flow - optical_flow.min())/(optical_flow.max() - optical_flow.min() + 1e-6)
                 # self.shared_dict[self.pid] = None
                 del self.shared_dict[self.pid]
             else:
