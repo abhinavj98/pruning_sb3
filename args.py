@@ -64,7 +64,7 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 5,
+        'default': 3,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
@@ -99,7 +99,7 @@ args_dict = {
     },
     'PERPENDICULAR_ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': 4,
         'help': 'scaling factor for the orientation reward'
     },
     #Training parameters
@@ -130,12 +130,12 @@ args_dict = {
     },
     'LEARNING_RATE_AE': {
         'type': float,
-        'default': 0.00025,
+        'default': 0.00005,
         'help': 'learning rate for the autoencoder'
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -7,
+        'default': -4,
         'help': 'initial value for the log standard deviation'
     },
 
