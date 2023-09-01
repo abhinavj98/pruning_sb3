@@ -642,7 +642,7 @@ class PruningEnv(gym.Env):
                 while not self.pid in self.shared_dict.keys():
                     pass
                 optical_flow = self.shared_dict[self.pid]
-                self.observation['depth'] = (optical_flow - optical_flow.min())/(optical_flow.max() + 1e-6)
+                self.observation['depth'] = (optical_flow - optical_flow.min())/(optical_flow.max() - optical_flow.min() + 1e-6)
                 # self.shared_dict[self.pid] = None
                 del self.shared_dict[self.pid]
             else:
@@ -805,7 +805,7 @@ class PruningEnv(gym.Env):
 
         is_collision, collision_info = self.check_collisions()
         terminate_reward = 0
-        print(self.orientation_perp_value, self.orientation_point_value)
+        # print(self.orientation_perp_value, self.orientation_point_value)
         if self.target_dist < self.learning_param and is_collision:
             print(collision_info)
             if (self.orientation_perp_value > 0.7) and (self.orientation_point_value > 0.7):  # and approach_velocity < 0.05:
@@ -817,7 +817,7 @@ class PruningEnv(gym.Env):
 
                 self.wrong_success = True
                 # terminate_reward = -1
-                reward += -1
+                reward += -0.3
                 print('Unsuccessful!')
 
         reward_info['terminate_reward'] = terminate_reward
