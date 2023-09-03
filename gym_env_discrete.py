@@ -71,7 +71,7 @@ class PruningEnv(gym.Env):
     def __init__(self,
                  renders=False,
                  maxSteps=500,
-                 learning_param=0.03,
+                 learning_param=0.05,
                  tree_urdf_path=None,
                  tree_obj_path=None,
                  tree_count=9999,
@@ -168,7 +168,8 @@ class PruningEnv(gym.Env):
                                            shape=(6,), dtype=np.float32),
             'prev_action': spaces.Box(low=-1., high=1.,
                                       shape=(self.action_dim,), dtype=np.float32),
-            'cosine_sim': spaces.Box(low=-1., high=1., shape=(1,), dtype=np.float32)
+            'cosine_sim': spaces.Box(low=-1., high=1., shape=(1,), dtype=np.float32),
+            'close_to_goal': spaces.Discrete(2),
         })
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
 
@@ -236,6 +237,7 @@ class PruningEnv(gym.Env):
         self.wrong_success = False
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
+        self.target_dist = 1
 
     def setup_ur5_arm(self):
 
@@ -556,11 +558,12 @@ class PruningEnv(gym.Env):
         for i in range(5):
             self.con.stepSimulation()
             # if self.renders: time.sleep(5./240.) 
-        self.get_extended_observation()
+
 
         reward, reward_infos = self.compute_reward(self.desired_pos, np.hstack((self.achieved_pos, self.achieved_or)),
                                                    self.previous_pose,
                                                    None)
+        self.get_extended_observation()
         self.sum_reward += reward
         self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
         done, terminate_info = self.is_task_done()
@@ -657,6 +660,10 @@ class PruningEnv(gym.Env):
         self.observation['joint_angles'] = self.joint_angles - self.init_joint_angles
         self.observation['joint_velocities'] = self.joint_velocities
         self.observation['prev_action'] = self.prev_action
+        if self.target_dist < self.learning_param:
+            self.observation['close_to_goal'] = np.array(1).astype(np.float32).reshape(1, )
+        else:
+            self.observation['close_to_goal'] = np.array(0).astype(np.float32).reshape(1, )
 
     def is_task_done(self):
         # NOTE: need to call compute_reward before this to check termination!
