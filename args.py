@@ -33,7 +33,7 @@ args_dict = {
     },
     'STATE_DIM': {
         'type': int,
-        'default': 72+21,
+        'default': 72+22,
         'help': 'dimension of the state space'
     },
     #Gym envirionment parameters
@@ -64,7 +64,7 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 3,
+        'default': 6,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
