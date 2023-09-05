@@ -70,6 +70,7 @@ while True:
         val = np.array([0,0,0,0,0,0])
  
     observation, reward, terminated, truncated, infos = env.step(val)
+    print()
     # print(env.get_current_pose())
     # print(infos)
     # print(observation['desired_goal'], observation['achieved_goal'])
