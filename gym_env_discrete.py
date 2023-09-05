@@ -169,7 +169,7 @@ class PruningEnv(gym.Env):
             'prev_action': spaces.Box(low=-1., high=1.,
                                       shape=(self.action_dim,), dtype=np.float32),
             'cosine_sim': spaces.Box(low=-1., high=1., shape=(1,), dtype=np.float32),
-            'close_to_goal': spaces.Discrete(2),
+            'close_to_goal': spaces.Box(low=0., high=1., shape=(1,), dtype=np.float32),
         })
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
 
@@ -710,7 +710,7 @@ class PruningEnv(gym.Env):
                 np.linalg.norm(camera_vector_prev) * np.linalg.norm(perpendicular_vector_prev))
         orientation_reward = np.dot(camera_vector, perpendicular_vector) / (
                 np.linalg.norm(camera_vector) * np.linalg.norm(perpendicular_vector))
-        # print("Orientation reward: ", orientation_reward)
+        # print("Pointing Orientation reward: ", orientation_reward - orientation_reward_prev, orientation_reward)
         return (orientation_reward - orientation_reward_prev), orientation_reward
 
     def compute_perpendicular_orientation_reward(self, achieved_pos, desired_pos, achieved_or, previous_pos, previous_or,
@@ -740,8 +740,8 @@ class PruningEnv(gym.Env):
                 np.linalg.norm(camera_vector_prev) * np.linalg.norm(branch_vector))
         orientation_reward = np.dot(camera_vector, branch_vector) / (
                 np.linalg.norm(camera_vector) * np.linalg.norm(branch_vector))
-        # print("Orientation reward: ", orientation_reward)
-        return (orientation_reward - orientation_reward_prev), abs(orientation_reward)
+        # print("Orientation reward: ", abs(orientation_reward) - abs(orientation_reward_prev), orientation_reward)
+        return (abs(orientation_reward) - abs(orientation_reward_prev)), abs(orientation_reward)
 
     def compute_reward(self, desired_goal, achieved_pose, previous_pose,
                        info):  # achieved_pos, achieved_or, desired_pos, previous_pos, info):
@@ -822,9 +822,9 @@ class PruningEnv(gym.Env):
                 print('Successful!')
             else:
 
-                self.wrong_success = True
+                # self.wrong_success = True
                 # terminate_reward = -1
-                reward += -0.3
+                # reward += -0.3
                 print('Unsuccessful!')
 
         reward_info['terminate_reward'] = terminate_reward
