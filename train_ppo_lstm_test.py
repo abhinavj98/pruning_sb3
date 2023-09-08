@@ -1,30 +1,26 @@
-from tabnanny import verbose
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Callable, Union
 
 from PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from custom_callbacks import CustomEvalCallback, CustomTrainCallback
 from PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
 from gym_env_discrete import PruningEnv
-from PPOAE.models import AutoEncoder
-#import subprocvecenv
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from models import AutoEncoder
+# import subprocvecenv
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
-from stable_baselines3.common.env_checker import check_env
-from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common import utils
 import numpy as np
-import cv2
-from stable_baselines3.common.logger import configure
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.monitor import Monitor
 import torch as th
 import argparse
 # from args import args_dict
 from args_test import args_dict
 import random
 import multiprocessing as mp
-from gym_env_discrete import OpticalFlow
-from stable_baselines3.common.vec_env import VecExtractDictObs, VecMonitor
+from optical_flow import OpticalFlow
+
+from helpers import init_wandb, linear_schedule, exp_schedule, optical_flow_create_shared_vars
+
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
 
@@ -36,132 +32,72 @@ for arg_name, arg_params in args_dict.items():
 args = parser.parse_args()
 print(args)
 
-import wandb
-import os
-import json
-if os.path.exists("./keys.json"):
-   with open("./keys.json") as f:
-     os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
-
-# wandb.init(
-#     # set the wandb project where this run will be logged
-#     project="test-ppo",
-#     sync_tensorboard = True,
-#     # track hyperparameters and run metadata
-#     config=args
-# )
-
-def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
-    """
-    Linear learning rate schedule.
-    :param initial_value: (float or str)
-    :return: (function)
-    """
-    if isinstance(initial_value, str):
-        initial_value = float(initial_value)
-
-    def func(progress_remaining: float) -> float:
-        """
-        Progress will decrease from 1 (beginning) to 0
-        :param progress_remaining: (float)
-        :return: (float)
-        """
-        return progress_remaining * initial_value
-
-    return func
-
-def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
-    """
-    Linear learning rate schedule.
-    :param initial_value: (float or str)
-    :return: (function)
-    """
-    if isinstance(initial_value, str):
-        initial_value = float(initial_value)
-
-    def func(progress_remaining: float) -> float:
-        """
-        Progress will decrease from 1 (beginning) to 0
-        :param progress_remaining: (float)
-        :return: (float)
-        """
-        return (progress_remaining)**2 * initial_value
-
-    return func
-
-
-def set_seed(seed: int = 42) -> None:
-    np.random.seed(seed)
-    random.seed(seed)
-    th.manual_seed(seed)
-    th.cuda.manual_seed(seed)
-    # When running on the CuDNN backend, two further options must be set
-    th.backends.cudnn.deterministic = True
-    th.backends.cudnn.benchmark = False
-    # Set a fixed value for the hash seed
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    print(f"Random seed set as {seed}")
-
-
 if __name__ == "__main__":
-#set_seed(np.random.randint(0,1000))
-    manager = mp.Manager()
-    # queue = multiprocessing.Queue()
-    shared_dict = manager.dict()
-    shared_queue = manager.Queue()
-    shared_var = (shared_queue, shared_dict)
-    # ctx = mp.get_context("spawn")
-    process = mp.Process(target=OpticalFlow, args=((224, 224), True, shared_var),
-                          daemon=True)  # type: ignore[attr-defined]
-    # pytype: enable=attribute-error
-    process.start()
-
+    #TODO: put in args
+    optical_flow_subproc = True
+    if args.USE_OPTICAL_FLOW and optical_flow_subproc:
+        shared_var = optical_flow_create_shared_vars()
+    else:
+        shared_var = (None, None)
 
     if args.LOAD_PATH:
-        load_path = "logs/run/best_model.zip"  #"./logs/{}/best_model.zip".format(args.LOAD_PATH)#./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
+        load_path = "logs/run/best_model.zip"  # "./logs/{}/best_model.zip".format(args.LOAD_PATH)#./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
     else:
         load_path = None
-    train_env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
-                    "maxSteps" : args.MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
-                    "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE,
-                    "slack_reward_scale" : args.SLACK_REWARD_SCALE, "pointing_orientation_reward_scale" : args.POINTING_ORIENTATION_REWARD_SCALE, "perpendicular_orientation_reward_scale" : args.PERPENDICULAR_ORIENTATION_REWARD_SCALE,"tree_count":1, "use_optical_flow": args.USE_OPTICAL_FLOW,"optical_flow_subproc": True, "shared_var": (shared_queue, shared_dict) }
+    train_env_kwargs = {"renders": args.RENDER, "tree_urdf_path": args.TREE_TRAIN_URDF_PATH,
+                        "tree_obj_path": args.TREE_TRAIN_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
+                        "max_steps": args.MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
+                        "action_scale": args.ACTION_SCALE, "distance_reward_scale": args.DISTANCE_REWARD_SCALE,
+                        "condition_reward_scale": args.CONDITION_REWARD_SCALE,
+                        "terminate_reward_scale": args.TERMINATE_REWARD_SCALE,
+                        "collision_reward_scale": args.COLLISION_REWARD_SCALE,
+                        "slack_reward_scale": args.SLACK_REWARD_SCALE,
+                        "pointing_orientation_reward_scale": args.POINTING_ORIENTATION_REWARD_SCALE,
+                        "perpendicular_orientation_reward_scale": args.PERPENDICULAR_ORIENTATION_REWARD_SCALE,
+                        "tree_count": 1, "use_optical_flow": args.USE_OPTICAL_FLOW, "optical_flow_subproc": True,
+                        "shared_var": shared_var}
 
-    eval_env_kwargs =  {"renders" : False, "tree_urdf_path" :  args.TREE_TEST_URDF_PATH, "tree_obj_path" :  args.TREE_TEST_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
-                    "maxSteps" : args.EVAL_MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
-                    "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE,
-                    "slack_reward_scale" : args.SLACK_REWARD_SCALE, "num_points" : args.EVAL_POINTS, "pointing_orientation_reward_scale" : args.POINTING_ORIENTATION_REWARD_SCALE, "perpendicular_orientation_reward_scale" : args.PERPENDICULAR_ORIENTATION_REWARD_SCALE, "name":"evalenv","optical_flow_subproc": True, "use_optical_flow": args.USE_OPTICAL_FLOW, "shared_var": (shared_queue, shared_dict) }
+    eval_env_kwargs = {"renders": False, "tree_urdf_path": args.TREE_TEST_URDF_PATH,
+                       "tree_obj_path": args.TREE_TEST_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
+                       "max_steps": args.EVAL_MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
+                       "action_scale": args.ACTION_SCALE, "distance_reward_scale": args.DISTANCE_REWARD_SCALE,
+                       "condition_reward_scale": args.CONDITION_REWARD_SCALE,
+                       "terminate_reward_scale": args.TERMINATE_REWARD_SCALE,
+                       "collision_reward_scale": args.COLLISION_REWARD_SCALE,
+                       "slack_reward_scale": args.SLACK_REWARD_SCALE, "num_points": args.EVAL_POINTS,
+                       "pointing_orientation_reward_scale": args.POINTING_ORIENTATION_REWARD_SCALE,
+                       "perpendicular_orientation_reward_scale": args.PERPENDICULAR_ORIENTATION_REWARD_SCALE,
+                       "name": "evalenv", "optical_flow_subproc": True, "use_optical_flow": args.USE_OPTICAL_FLOW,
+                       "shared_var": shared_var}
 
     record_env_kwargs = {"renders": False, "tree_urdf_path": args.TREE_TEST_URDF_PATH,
-                     "tree_obj_path": args.TREE_TEST_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
-                     "maxSteps": args.EVAL_MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
-                     "action_scale": args.ACTION_SCALE, "distance_reward_scale": args.DISTANCE_REWARD_SCALE,
-                     "condition_reward_scale": args.CONDITION_REWARD_SCALE,
-                     "terminate_reward_scale": args.TERMINATE_REWARD_SCALE,
-                     "collision_reward_scale": args.COLLISION_REWARD_SCALE,
-                     "slack_reward_scale": args.SLACK_REWARD_SCALE, "num_points": args.EVAL_POINTS,
-                     "pointing_orientation_reward_scale": args.POINTING_ORIENTATION_REWARD_SCALE,
-                     "perpendicular_orientation_reward_scale": args.PERPENDICULAR_ORIENTATION_REWARD_SCALE,
-                     "name": "recordenv", "use_optical_flow": args.USE_OPTICAL_FLOW, "optical_flow_subproc": True,
-                     "shared_var": (shared_queue, shared_dict)}
+                         "tree_obj_path": args.TREE_TEST_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
+                         "max_steps": args.EVAL_MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
+                         "action_scale": args.ACTION_SCALE, "distance_reward_scale": args.DISTANCE_REWARD_SCALE,
+                         "condition_reward_scale": args.CONDITION_REWARD_SCALE,
+                         "terminate_reward_scale": args.TERMINATE_REWARD_SCALE,
+                         "collision_reward_scale": args.COLLISION_REWARD_SCALE,
+                         "slack_reward_scale": args.SLACK_REWARD_SCALE, "num_points": args.EVAL_POINTS,
+                         "pointing_orientation_reward_scale": args.POINTING_ORIENTATION_REWARD_SCALE,
+                         "perpendicular_orientation_reward_scale": args.PERPENDICULAR_ORIENTATION_REWARD_SCALE,
+                         "name": "recordenv", "use_optical_flow": args.USE_OPTICAL_FLOW, "optical_flow_subproc": True,
+                         "shared_var": shared_var}
 
-    env = make_vec_env(PruningEnv, env_kwargs = train_env_kwargs, n_envs = args.N_ENVS, vec_env_cls=SubprocVecEnv)
-    new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
+    env = make_vec_env(PruningEnv, env_kwargs=train_env_kwargs, n_envs=args.N_ENVS, vec_env_cls=SubprocVecEnv)
+    new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
-    eval_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = args.N_ENVS)
-
-    # record_env = Monitor(PruningEnv(**eval_env_kwargs))
-    # eval_env = DummyVecEnv([lambda: eval_env])
-    record_env = make_vec_env(PruningEnv, env_kwargs = record_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs = 1)
+    eval_env = make_vec_env(PruningEnv, env_kwargs=eval_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs=args.N_ENVS)
+    record_env = make_vec_env(PruningEnv, env_kwargs=record_env_kwargs, vec_env_cls=SubprocVecEnv, n_envs=1)
     eval_env.logger = new_logger
     # Use deterministic actions for evaluation
     eval_callback = CustomEvalCallback(eval_env, record_env, best_model_save_path="./logs/test",
-                                 log_path="./logs/test", eval_freq=args.EVAL_FREQ,
-                                 deterministic=True, render=False,  n_eval_episodes = args.EVAL_EPISODES)
+                                       log_path="./logs/test", eval_freq=args.EVAL_FREQ,
+                                       deterministic=True, render=False, n_eval_episodes=args.EVAL_EPISODES)
     # It will check your custom environment and output additional warnings if needed
     # check_env(env)
 
     # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
-    custom_callback = CustomTrainCallback()
+    train_callback = CustomTrainCallback()
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
@@ -178,21 +114,18 @@ if __name__ == "__main__":
 
     # model = RecurrentPPOAE(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
     if load_path:
-         model = RecurrentPPOAE.load(load_path, env)
-         model.num_timesteps = 100000
-         model._num_timesteps_at_start = 100000
-         print(model.num_timesteps)
+        model = RecurrentPPOAE.load(load_path, env)
+        model.num_timesteps = 100000
+        model._num_timesteps_at_start = 100000
+        print(model.num_timesteps)
     else:
-        model = RecurrentPPOAE(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
+        model = RecurrentPPOAE(policy, env, policy_kwargs=policy_kwargs,
+                               learning_rate=linear_schedule(args.LEARNING_RATE),
+                               learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),
+                               learning_rate_logstd=linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH,
+                               batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
 
-
-    # model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),\
-    #               n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS )
-    # print(model.policy.parameters)
-    # if load_path:
-    #     model.load(load_path)
     model.set_logger(new_logger)
     print("Using device: ", utils.get_device())
 
-    # env.reset()
-    model.learn(10000000, callback=[custom_callback, eval_callback], progress_bar = False, reset_num_timesteps=False)
+    model.learn(10000000, callback=[train_callback, eval_callback], progress_bar=False, reset_num_timesteps=False)

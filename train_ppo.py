@@ -1,18 +1,10 @@
-from tabnanny import verbose
-
-
 from PPOAE.policies import ActorCriticWithAePolicy
 from custom_callbacks import CustomEvalCallback, CustomTrainCallback
 from PPOAE.ppo_ae import PPOAE
 from gym_env_discrete import PruningEnv
-from PPOAE.models import *
+from pruning_sb3.models import *
 
-from stable_baselines3.common.env_checker import check_env
-from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common import utils
-import numpy as np
-import cv2
-from stable_baselines3.common.logger import configure
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 # PARSE ARGUMENTS

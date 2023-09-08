@@ -1,5 +1,5 @@
 args_dict = {
-    #File paths
+    # File paths
     'TREE_TRAIN_URDF_PATH': {
         'type': str,
         'default': './meshes_and_urdf/urdf/trees/envy/train',
@@ -20,7 +20,7 @@ args_dict = {
         'default': './meshes_and_urdf/meshes/trees/envy/test',
         'help': 'path to the test OBJ file for the tree environment'
     },
-    #PPO parameters
+    # PPO parameters
     'EMB_SIZE': {
         'type': int,
         'default': 128,
@@ -33,13 +33,13 @@ args_dict = {
     },
     'STATE_DIM': {
         'type': int,
-        'default': 72+22,
+        'default': 72 + 25,
         'help': 'dimension of the state space'
     },
-    #Gym envirionment parameters
+    # Gym envirionment parameters
     'N_ENVS': {
         'type': int,
-        'default': 4,
+        'default': 8,
         'help': 'number of parallel environments to run'
     },
     'RENDER': {
@@ -49,27 +49,27 @@ args_dict = {
     },
     'MAX_STEPS': {
         'type': int,
-        'default': 400,
+        'default': 250,
         'help': 'maximum number of steps per episode'
     },
     'EVAL_MAX_STEPS': {
         'type': int,
-        'default': 400,
+        'default': 250,
         'help': 'maximum number of steps per episode during evaluation'
     },
     'ACTION_SCALE': {
         'type': float,
-        'default': 1,
+        'default': 10,
         'help': 'scaling factor for the action space'
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 6,
+        'default': 7,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
         'type': float,
-        'default': 0,#1/70,
+        'default': 0,  # 1/70,
         'help': 'scaling factor for the distance reward'
     },
     'CONDITION_REWARD_SCALE': {
@@ -89,12 +89,12 @@ args_dict = {
     },
     'SLACK_REWARD_SCALE': {
         'type': float,
-        'default': -0.001,
+        'default': -0.002,
         'help': 'scaling factor for the slack reward'
     },
     'POINTING_ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default':2,
+        'default': 2,
         'help': 'scaling factor for the orientation reward'
     },
     'PERPENDICULAR_ORIENTATION_REWARD_SCALE': {
@@ -102,7 +102,7 @@ args_dict = {
         'default': 4,
         'help': 'scaling factor for the orientation reward'
     },
-    #Training parameters
+    # Training parameters
     'TOTAL_TIMESTEPS': {
         'type': int,
         'default': 5000000,
@@ -110,12 +110,12 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 400,
+        'default': 500,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
         'type': int,
-        'default': 10,
+        'default': 5,
         'help': 'number of epochs to train for'
     },
     'BATCH_SIZE': {
@@ -125,7 +125,7 @@ args_dict = {
     },
     'LEARNING_RATE': {
         'type': float,
-        'default': 0.000025,
+        'default': 0.00005,
         'help': 'learning rate'
     },
     'LEARNING_RATE_AE': {
@@ -135,14 +135,14 @@ args_dict = {
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -4,
+        'default': -7,
         'help': 'initial value for the log standard deviation'
     },
 
-    #Evaluation parameters
+    # Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 30000,
+        'default': 15000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {
@@ -154,22 +154,22 @@ args_dict = {
         'type': int,
         'default': 10,
         'help': 'number of points to sample in a tree during evaluation'
-    },  
+    },
     'TESTING': {
         'type': bool,
         'default': False,
         'help': 'whether to run in testing mode'
     },
-   'NAME' : {
-	'type':str,
-	'default': 'run'
-	},
-    'LOAD_PATH':{
-        'type':str,
-        'default':None
-        },
-    'USE_OPTICAL_FLOW':{
-        'type':bool,
-        'default':True
-        },
+    'NAME': {
+        'type': str,
+        'default': 'run'
+    },
+    'LOAD_PATH': {
+        'type': str,
+        'default': None
+    },
+    'USE_OPTICAL_FLOW': {
+        'type': bool,
+        'default': False
+    },
 }

@@ -30,7 +30,7 @@ for arg_name, arg_params in args_dict.items():
 args = parser.parse_args()
 print(args)
 env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR}
-env = PruningEnv(**env_kwargs, tree_count=1)
+env = PruningEnv(**env_kwargs, tree_count=10)
 
 
 # env.reset()
@@ -68,19 +68,19 @@ while True:
         env.reset()
     else:
         val = np.array([0,0,0,0,0,0])
- 
+    print(val)
     observation, reward, terminated, truncated, infos = env.step(val)
-    print()
+
     # print(env.get_current_pose())
     # print(infos)
     # print(observation['desired_goal'], observation['achieved_goal'])
     # env.render()
-    # jacobian = env.con.calculateJacobian(env.ur5, env.end_effector_index, [0,0,0], env.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
-    # jacobian = np.vstack(jacobian)
-    # condition_number = np.linalg.cond(jacobian)
-    # print(condition_number, 1/condition_number)
-    # print(env.get_joint_angles())
-    print(env.target_dist)
+    jacobian = env.con.calculateJacobian(env.ur5, env.end_effector_index, [0,0,0], env.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
+    jacobian = np.vstack(jacobian)
+    condition_number = np.linalg.cond(jacobian)
+    print(condition_number, 1/condition_number, env.init_pos)
+    # # print(env.get_joint_angles())
+    # print(env.target_dist)
     
         
 """

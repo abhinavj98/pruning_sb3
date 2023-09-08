@@ -15,7 +15,9 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is
 from stable_baselines3.common.monitor import Monitor
 from PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
 import multiprocessing as mp
-from gym_env_discrete import OpticalFlow
+from pruning_sb3.optical_flow import OpticalFlow
+
+
 class CustomEvalCallback(EventCallback):
     """
     Callback for evaluating an agent.
