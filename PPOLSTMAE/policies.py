@@ -146,12 +146,10 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
                 num_layers=n_lstm_layers,
                 **self.lstm_kwargs,
             )
-        self.running_mean_var_cosinesim = RunningMeanStd(shape=(1,1))
+
         self.running_mean_var_oflow = RunningMeanStd(shape=(1,1))
         # Setup optimizer with initial learning rate
-        # self.optimizer = self.optimizer_class(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
-        self.cosine_sim_prediction_head = nn.Sequential(nn.Linear(lstm_hidden_size, 128), nn.ReLU(), nn.Linear(128, 1))
-        self.optimizer = self.optimizer_class([*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters(), *self.cosine_sim_prediction_head.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.optimizer = self.optimizer_class([*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
         self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
         self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
 
@@ -288,7 +286,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
 
         image_features = self.features_extractor(self._normalize_using_running_mean_std(obs['depth'], self.running_mean_var_oflow))
         # print(obs['achieved_goal'].shape, obs['close_to_goal'].shape)
-        features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'], image_features[0]],  dim = 1).to(th.float32)
+        features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'], image_features[0], obs['close_to_goal'], obs['relative_distance']],  dim = 1).to(th.float32)
         # print(features.shape)
 
         return features, self._unnormalize_using_running_mean_std(image_features[1], self.running_mean_var_oflow)
@@ -351,12 +349,6 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         latent_vf = self.mlp_extractor.forward_critic(latent_vf)
         return self.value_net(latent_vf)
     
-    def predict_cosine_sim(
-             self, obs: th.Tensor,lstm_states: RNNStates, episode_starts: th.Tensor):
-        features, _ = self.extract_features(obs)
-        latent_pi, _ = self._process_sequence(features, lstm_states, episode_starts, self.lstm_actor)
-        latent_pi = latent_pi.detach()
-        return self._unnormalize_using_running_mean_std(self.cosine_sim_prediction_head(latent_pi), self.running_mean_var_cosinesim)
     def evaluate_actions(
         self, obs: th.Tensor, actions: th.Tensor, lstm_states: RNNStates, episode_starts: th.Tensor
     ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
@@ -375,7 +367,6 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         # Calculate running mean and var for observation normalization
 
         self.running_mean_var_oflow.update(obs['depth'].reshape(-1, 1))
-        self.running_mean_var_cosinesim.update(obs['cosine_sim'])
         # Preprocess the observation if needed
         features, recon = self.extract_features(obs)
         if self.share_features_extractor:
@@ -389,15 +380,13 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             latent_vf = latent_pi.detach()
         else:
             latent_vf = self.critic(vf_features)
-        cosine_sim_features = latent_vf
         latent_pi = self.mlp_extractor.forward_actor(latent_pi)
         latent_vf = self.mlp_extractor.forward_critic(latent_vf)
 
         distribution = self._get_action_dist_from_latent(latent_pi)
         log_prob = distribution.log_prob(actions)
         values = self.value_net(latent_vf)
-        cosine_sim_pediction = self._unnormalize_using_running_mean_std(self.cosine_sim_prediction_head(cosine_sim_features), self.running_mean_var_cosinesim)
-        return values, log_prob, distribution.entropy(), recon, cosine_sim_pediction
+        return values, log_prob, distribution.entropy(), recon
     
     @staticmethod
     def init_weights(module: nn.Module, gain: float = 1) -> None:
@@ -477,7 +466,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             actions, states = self._predict(
                 observation, lstm_states=states, episode_starts=episode_starts, deterministic=deterministic
             )
-            self.predicted_cosine_sim = self.predict_cosine_sim(observation, lstm_states=states, episode_starts=episode_starts).cpu().numpy()[0]
+
             states = (states[0].cpu().numpy(), states[1].cpu().numpy())
 
         # Convert to numpy

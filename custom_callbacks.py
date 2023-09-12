@@ -336,9 +336,6 @@ class CustomEvalCallback(EventCallback):
                 0.5, (255,0,0), 2, cv2.LINE_AA)
             screen_copy = cv2.putText(screen_copy, "Goal: "+str(self.record_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
                 0.5, (255,0,0), 2, cv2.LINE_AA)
-            with th.no_grad():
-                prediction = self.model.policy.predicted_cosine_sim
-                # print(self.model.policy.latent_vf)
             screen_copy = cv2.putText(screen_copy, "Orientation Perpendicular: "+str(self.record_env.get_attr("orientation_perp_value", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             screen_copy = cv2.putText(screen_copy, "Orientation Pointing: " + str(

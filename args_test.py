@@ -37,7 +37,7 @@ args_dict = {
     },
     'STATE_DIM': {
         'type': int,
-        'default': 72+22,
+        'default': 72+25,
         'help': 'dimension of the state space'
     },
     #Gym envirionment parameters

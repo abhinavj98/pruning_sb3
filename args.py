@@ -1,5 +1,5 @@
 args_dict = {
-    #File paths
+    # File paths
     'TREE_TRAIN_URDF_PATH': {
         'type': str,
         'default': './meshes_and_urdf/urdf/trees/envy/train',
@@ -20,7 +20,7 @@ args_dict = {
         'default': './meshes_and_urdf/meshes/trees/envy/test',
         'help': 'path to the test OBJ file for the tree environment'
     },
-    #PPO parameters
+    # PPO parameters
     'EMB_SIZE': {
         'type': int,
         'default': 128,
@@ -33,10 +33,10 @@ args_dict = {
     },
     'STATE_DIM': {
         'type': int,
-        'default': 72+21,
+        'default': 72 + 25,
         'help': 'dimension of the state space'
     },
-    #Gym envirionment parameters
+    # Gym envirionment parameters
     'N_ENVS': {
         'type': int,
         'default': 8,
@@ -69,7 +69,7 @@ args_dict = {
     },
     'DISTANCE_REWARD_SCALE': {
         'type': float,
-        'default': 0,#1/70,
+        'default': 0,  # 1/70,
         'help': 'scaling factor for the distance reward'
     },
     'CONDITION_REWARD_SCALE': {
@@ -89,7 +89,7 @@ args_dict = {
     },
     'SLACK_REWARD_SCALE': {
         'type': float,
-        'default': -0.005,
+        'default': -0.002,
         'help': 'scaling factor for the slack reward'
     },
     'POINTING_ORIENTATION_REWARD_SCALE': {
@@ -102,7 +102,7 @@ args_dict = {
         'default': 3.5,
         'help': 'scaling factor for the orientation reward'
     },
-    #Training parameters
+    # Training parameters
     'TOTAL_TIMESTEPS': {
         'type': int,
         'default': 5000000,
@@ -139,10 +139,10 @@ args_dict = {
         'help': 'initial value for the log standard deviation'
     },
 
-    #Evaluation parameters
+    # Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 10000,
+        'default': 15000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {
@@ -154,22 +154,22 @@ args_dict = {
         'type': int,
         'default': 20,
         'help': 'number of points to sample in a tree during evaluation'
-    },  
+    },
     'TESTING': {
         'type': bool,
         'default': False,
         'help': 'whether to run in testing mode'
     },
-   'NAME' : {
-	'type':str,
-	'default': 'run'
-	},
-    'LOAD_PATH':{
-        'type':str,
-        'default':None
-        },
-    'USE_OPTICAL_FLOW':{
-        'type':bool,
-        'default':True
-        },
+    'NAME': {
+        'type': str,
+        'default': 'run'
+    },
+    'LOAD_PATH': {
+        'type': str,
+        'default': None
+    },
+    'USE_OPTICAL_FLOW': {
+        'type': bool,
+        'default': False
+    },
 }

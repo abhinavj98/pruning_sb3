@@ -1,25 +1,18 @@
-from tabnanny import verbose
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Callable, Union
 
 from SACAE.policies import SACPolicy
 from custom_callbacks import CustomEvalCallback, CustomTrainCallback
 from SACAE.sac_ae import SAC
 from gym_env_discrete import PruningEnv
-from PPOAE.models import AutoEncoder
+from pruning_sb3.models import AutoEncoder
 
-from stable_baselines3.common.env_checker import check_env
-from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common import utils
-import numpy as np
-import cv2
-from stable_baselines3.common.logger import configure
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 import torch as th
 import argparse
 from args import args_dict
 
-from stable_baselines3 import HerReplayBuffer
 #from args_copy import args_dict
 #TODO
 # 1. Add a way to save the model
