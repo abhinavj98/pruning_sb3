@@ -812,7 +812,7 @@ class PruningEnv(gym.Env):
                 self.collisions_acceptable += 1
                 # print('Collision acceptable!')
             elif collision_info['collisions_unacceptable']:
-                collision_reward = 100 * self.collision_reward_scale
+                collision_reward = 1 * self.collision_reward_scale
                 self.collisions_unacceptable += 1
                 # print('Collision unacceptable!')
 

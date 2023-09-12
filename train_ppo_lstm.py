@@ -108,19 +108,15 @@ if __name__ == "__main__":
     policy = RecurrentActorCriticPolicy
 
     if not load_path:
-        model = RecurrentPPOAE(policy, env, policy_kwargs=policy_kwargs, learning_rate=exp_schedule(args.LEARNING_RATE),
-                               learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),
-                               learning_rate_logstd=linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH,
-                               batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
+        model = RecurrentPPOAE(policy, env, use_sde = True, policy_kwargs = policy_kwargs, learning_rate = exp_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
     else:
-        load_dict = {"learning_rate": exp_schedule(args.LEARNING_RATE),
-                     "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE),
-                     "learning_rate_logstd": linear_schedule(0.01)}
-        model = RecurrentPPOAE.load(load_path, env=env, custom_objects=load_dict)
-        model.num_timesteps = 1_000_000
-        model._num_timesteps_at_start = 1_000_000
+        load_dict = {"learning_rate": exp_schedule(args.LEARNING_RATE), "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE), "learning_rate_logstd": linear_schedule(0.01)}
+        model = RecurrentPPOAE.load(load_path, env = env, custom_objects=load_dict)
+        model.num_timesteps = 2_000_000
+        model._num_timesteps_at_start = 2_000_000
         print("LOADED MODEL")
     model.set_logger(new_logger)
     print("Using device: ", utils.get_device())
 
-    model.learn(5000000, callback=[train_callback, eval_callback], progress_bar=False, reset_num_timesteps=False)
+    # env.reset()
+    model.learn(7000000, callback=[custom_callback, eval_callback], progress_bar = False, reset_num_timesteps=False)
