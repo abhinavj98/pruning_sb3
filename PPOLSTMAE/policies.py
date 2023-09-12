@@ -288,7 +288,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
 
         image_features = self.features_extractor(self._normalize_using_running_mean_std(obs['depth'], self.running_mean_var_oflow))
         # print(obs['achieved_goal'].shape, obs['close_to_goal'].shape)
-        features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'], image_features[0], obs['close_to_goal']],  dim = 1).to(th.float32)
+        features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'], image_features[0]],  dim = 1).to(th.float32)
         # print(features.shape)
 
         return features, self._unnormalize_using_running_mean_std(image_features[1], self.running_mean_var_oflow)

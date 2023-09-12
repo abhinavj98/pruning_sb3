@@ -33,7 +33,7 @@ args_dict = {
     },
     'STATE_DIM': {
         'type': int,
-        'default': 72+22,
+        'default': 72+21,
         'help': 'dimension of the state space'
     },
     #Gym envirionment parameters
@@ -49,22 +49,22 @@ args_dict = {
     },
     'MAX_STEPS': {
         'type': int,
-        'default': 400,
+        'default': 250,
         'help': 'maximum number of steps per episode'
     },
     'EVAL_MAX_STEPS': {
         'type': int,
-        'default': 400,
+        'default': 250,
         'help': 'maximum number of steps per episode during evaluation'
     },
     'ACTION_SCALE': {
         'type': float,
-        'default': 1,
+        'default': 5,
         'help': 'scaling factor for the action space'
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 6,
+        'default': 8,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
@@ -89,17 +89,17 @@ args_dict = {
     },
     'SLACK_REWARD_SCALE': {
         'type': float,
-        'default': -0.001,
+        'default': -0.005,
         'help': 'scaling factor for the slack reward'
     },
     'POINTING_ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default':2,
+        'default':2.5,
         'help': 'scaling factor for the orientation reward'
     },
     'PERPENDICULAR_ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 4,
+        'default': 3.5,
         'help': 'scaling factor for the orientation reward'
     },
     #Training parameters
@@ -110,12 +110,12 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 400,
+        'default': 250,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
         'type': int,
-        'default': 10,
+        'default': 3,
         'help': 'number of epochs to train for'
     },
     'BATCH_SIZE': {
@@ -125,24 +125,24 @@ args_dict = {
     },
     'LEARNING_RATE': {
         'type': float,
-        'default': 0.000025,
+        'default': 0.000005,
         'help': 'learning rate'
     },
     'LEARNING_RATE_AE': {
         'type': float,
-        'default': 0.00005,
+        'default': 0.000005,
         'help': 'learning rate for the autoencoder'
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -4,
+        'default': -7,
         'help': 'initial value for the log standard deviation'
     },
 
     #Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 30000,
+        'default': 10000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {

@@ -169,7 +169,7 @@ class PruningEnv(gym.Env):
             'prev_action': spaces.Box(low=-1., high=1.,
                                       shape=(self.action_dim,), dtype=np.float32),
             'cosine_sim': spaces.Box(low=-1., high=1., shape=(1,), dtype=np.float32),
-            'close_to_goal': spaces.Box(low=0., high=1., shape=(1,), dtype=np.float32),
+            #'close_to_goal': spaces.Box(low=0., high=1., shape=(1,), dtype=np.float32),
         })
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
 
@@ -560,10 +560,10 @@ class PruningEnv(gym.Env):
             # if self.renders: time.sleep(5./240.) 
 
 
+        self.get_extended_observation()
         reward, reward_infos = self.compute_reward(self.desired_pos, np.hstack((self.achieved_pos, self.achieved_or)),
                                                    self.previous_pose,
                                                    None)
-        self.get_extended_observation()
         self.sum_reward += reward
         self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
         done, terminate_info = self.is_task_done()
@@ -660,10 +660,10 @@ class PruningEnv(gym.Env):
         self.observation['joint_angles'] = self.joint_angles - self.init_joint_angles
         self.observation['joint_velocities'] = self.joint_velocities
         self.observation['prev_action'] = self.prev_action
-        if self.target_dist < self.learning_param:
-            self.observation['close_to_goal'] = np.array(1).astype(np.float32).reshape(1, )
-        else:
-            self.observation['close_to_goal'] = np.array(0).astype(np.float32).reshape(1, )
+        #if self.target_dist < self.learning_param:
+         #   self.observation['close_to_goal'] = np.array(1.).astype(np.float32).reshape(1, )
+       # else:
+        #    self.observation['close_to_goal'] = np.array(0.).astype(np.float32).reshape(1, )
 
     def is_task_done(self):
         # NOTE: need to call compute_reward before this to check termination!
@@ -804,7 +804,7 @@ class PruningEnv(gym.Env):
         if condition_number > 100 or (self.joint_velocities > 5).any():
             print('Too high condition number!')
             self.singularity_terminated = True
-            condition_number_reward = -3  # TODO: Replace with an input argument
+            condition_number_reward = -1 # TODO: Replace with an input argument
         elif self.terminate_on_singularity:
             condition_number_reward = np.abs(1 / condition_number) * self.condition_reward_scale
         reward += condition_number_reward
@@ -837,7 +837,7 @@ class PruningEnv(gym.Env):
                 self.collisions_acceptable += 1
                 # print('Collision acceptable!')
             elif collision_info['collisions_unacceptable']:
-                collision_reward = 100 * self.collision_reward_scale
+                collision_reward = 1 * self.collision_reward_scale
                 self.collisions_unacceptable += 1
                 # print('Collision unacceptable!')
 
