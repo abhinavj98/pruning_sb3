@@ -110,7 +110,7 @@ args_dict = {
     },
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 500,
+        'default': 250,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {

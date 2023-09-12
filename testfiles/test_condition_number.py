@@ -5,7 +5,7 @@
 import sys
 sys.path.append("C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3")
 from gym_env_discrete import PruningEnv
-from PPOAE.models import *
+from models import *
 import numpy as np
 import cv2
 import random
@@ -30,7 +30,7 @@ for arg_name, arg_params in args_dict.items():
 args = parser.parse_args()
 print(args)
 env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR}
-env = PruningEnv(**env_kwargs, tree_count=10)
+env = PruningEnv(**env_kwargs, tree_count=1)
 
 
 # env.reset()

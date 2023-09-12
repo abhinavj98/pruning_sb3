@@ -150,7 +150,7 @@ class PruningEnv(gym.Env):
         pos = None
         scale = None
         if "envy" in self.tree_urdf_path:
-            pos = np.array([0, -0.8, 0])
+            pos = np.array([0, -0.7, 0])
             scale = 1
         elif "ufo" in self.tree_urdf_path:
             pos = np.array([-0.5, -0.8, -0.3])
@@ -324,19 +324,25 @@ class PruningEnv(gym.Env):
         velocities = []
         indexes = []
         forces = []
-
+        singularity = False
+        if (abs(joint_velocities) > 0.25).any():
+            singularity = True
+            joint_velocities = np.clip(joint_velocities,-np.pi/4, np.pi/4)
         for i, name in enumerate(self.control_joints):
             joint = self.joints[name]
             velocities.append(joint_velocities[i])
             indexes.append(joint.id)
             forces.append(joint.maxForce)
-
+        # print(joint_velocities)
+        # if (joint_velocities > 1).any():
+        #     input()
         maxForce = 500
         self.con.setJointMotorControlArray(self.ur5,
                                            indexes,
                                            controlMode=self.con.VELOCITY_CONTROL,
                                            targetVelocities=joint_velocities,
                                            )
+        return singularity
 
     def calculate_joint_velocities_from_end_effector_velocity(self,
                                                               end_effector_velocity: NDArray[Shape['6, 1'], Float]) -> \
@@ -387,7 +393,7 @@ class PruningEnv(gym.Env):
         joint_angles = self.con.calculateInverseKinematics(
             self.ur5, self.end_effector_index, position, orientation,
             jointDamping=[0.01] * 6, upperLimits=upper_limits,
-            lowerLimits=lower_limits, jointRanges=joint_ranges
+            lowerLimits=lower_limits, jointRanges=joint_ranges#, restPoses=self.init_joint_angles
         )
         return joint_angles
 
@@ -504,7 +510,7 @@ class PruningEnv(gym.Env):
 
         action = action * self.action_scale
         self.joint_velocities = self.calculate_joint_velocities_from_end_effector_velocity(action)
-        self.set_joint_velocities(self.joint_velocities)
+        singularity = self.set_joint_velocities(self.joint_velocities)
 
         for i in range(5):
             self.con.stepSimulation()
@@ -513,7 +519,7 @@ class PruningEnv(gym.Env):
         # Next 2 lines keep in the same order, need observations before reward
         self.set_extended_observation()
         reward, reward_infos = self.compute_reward(self.desired_pos, np.hstack((self.achieved_pos, self.achieved_or)),
-                                                   self.previous_pose,
+                                                   self.previous_pose, singularity,
                                                    None)
 
         self.sum_reward += reward
@@ -709,8 +715,8 @@ class PruningEnv(gym.Env):
         return (abs(orientation_reward) - abs(orientation_reward_prev)), abs(orientation_reward)
 
     def compute_reward(self, desired_goal: NDArray[Shape['3, 1'], Float], achieved_pose: NDArray[Shape['6, 1'], Float],
-                       previous_pose: NDArray[Shape['6, 1'], Float],
-                       info) -> Tuple[float, dict]:
+                       previous_pose: NDArray[Shape['6, 1'], Float], singularity: bool, info: dict) -> Tuple[float, dict]:
+
         reward = float(0)
         reward_info = {}
         # Give rewards better names, and appropriate scales
@@ -766,10 +772,10 @@ class PruningEnv(gym.Env):
 
         condition_number = self.get_condition_number()
         condition_number_reward = 0
-        if condition_number > 100 or (self.joint_velocities > 5).any():
+        if singularity:
             print('Too high condition number!')
-            self.singularity_terminated = True
-            condition_number_reward = -1 # TODO: Replace with an input argument
+            self.singularity_terminated = False
+            condition_number_reward = -0.005 # TODO: Replace with an input argument
         elif self.terminate_on_singularity:
             condition_number_reward = np.abs(1 / condition_number) * self.condition_reward_scale
         reward += condition_number_reward
@@ -977,7 +983,7 @@ class Tree:
 
     def active(self):
         print('Loading tree from ', self.urdf_path)
-        self.supports = self.env.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.8, 0],
+        self.supports = self.env.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.7, 0],
                                               list(self.env.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                               globalScaling=1)
         self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
