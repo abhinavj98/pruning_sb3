@@ -866,6 +866,8 @@ def compute_perpendicular_projection_vector(ab: NDArray[Shape['3, 1'], Float], b
     return projection
 
 
+
+#TODO: Make own file
 class Tree:
     """ Class representing a tree mesh. It is used to sample points on the surface of the tree."""
 
@@ -897,7 +899,7 @@ class Tree:
                 self.reachable_points = pickle.load(f)
             print('Loaded reachable points from pickle file ', self.urdf_path[:-5] + '_reachable_points.pkl')
             print("Number of reachable points: ", len(self.reachable_points))
-            # Uncomment to visualize sphere at each reachable point
+            # # Uncomment to visualize sphere at each reachable point
             # self.active()
             # for num, i in enumerate(self.reachable_points):
             #     # print(i)
@@ -906,6 +908,11 @@ class Tree:
             #                                                        rgbaColor=[1, 0, 0, 1])
             #         self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
             #                                                       [0, 0, 0, 1])
+            #         point = [i[0][0], i[0][1], i[0][2]]
+            #         normal_vec = i[2]
+            #         self.debug_branch = self.env.con.addUserDebugLine(point,
+            #                                                       point + 50 * normal_vec / np.linalg.norm(normal_vec),
+            #                                                       [1, 0, 0], 200)
 
             return
         # Find the two longest edges of the face
@@ -923,8 +930,12 @@ class Tree:
                 face[1], face[2],
                 np.linalg.norm(self.transformed_vertices[face[1]] - self.transformed_vertices[face[2]]))
             sides = [ab, ac, bc]
-            # normal_vec = np.cross(ab, ac)
-            # if np.dot(normal_vec, [0,-1,0]) < 0:
+            normal_vec = np.cross(self.transformed_vertices[ac[0]] - self.transformed_vertices[ac[1]],
+                                  self.transformed_vertices[bc[0]] - self.transformed_vertices[bc[1]])
+           #Only front facing faces
+            if np.dot(normal_vec, [0,1,0]) < 0:
+                continue
+                print(" is not pointing upwards")
             #     continue
             # argsort sorts in ascending order
             sorted_sides = np.argsort([x[2] for x in sides])
@@ -945,18 +956,25 @@ class Tree:
             # self.vertex_and_projection.append(
             #     ((self.transformed_vertices[ac[0]] + self.transformed_vertices[ac[1]]) / 2, perpendicular_projection))
             self.vertex_and_projection.append(
-                ((self.transformed_vertices[ab[0]] + self.transformed_vertices[ab[1]]) / 2, perpendicular_projection))
+                ((self.transformed_vertices[ab[0]] + self.transformed_vertices[ab[1]]) / 2, perpendicular_projection, normal_vec))
 
             # This projection mean is used to filter corner/flushed faces which do not correspond to a branch
             # Twice as each face has two point aded
             self.projection_sum_x += np.linalg.norm(perpendicular_projection)
             self.projection_sum_x2 += np.linalg.norm(perpendicular_projection) ** 2
-            # if num % 10 == 0:
-            #     visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.005,
+            # if num % 100 == 0:
+            #     self.active()
+            #     visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.001,
             #                                                    rgbaColor=[1, 0, 0, 1])
             #     self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [self.vertex_and_projection[-1][0][0],self.vertex_and_projection[-1][0][1],self.vertex_and_projection[-1][0][2]],
             #                                                   [0, 0, 0, 1])
+            #     point = self.vertex_and_projection[-1][0]
+            #     # point = (np.array(ac) + np.array(bc) + np.array(ab))/3  #(ac+bc+ab)/3
+            #     self.debug_branch = self.env.con.addUserDebugLine(point,
+            #                                                   point + 50 * normal_vec / np.linalg.norm(normal_vec),
+            #                                                   [1, 0, 0], 200)
 
+                # input("Press Enter to continue...")
         self.projection_mean = self.projection_sum_x / len(self.vertex_and_projection)
         self.projection_std = np.sqrt(
             self.projection_sum_x2 / len(self.vertex_and_projection) - self.projection_mean ** 2)
@@ -970,12 +988,12 @@ class Tree:
         # self.active()
         # for num,i in enumerate(self.reachable_points):
         #     # print(i)
-        #     if num%100 == 0:
+        #     if num%1 == 0:
         #         visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.005,
         #                                                        rgbaColor=[1, 0, 0, 1])
         #         self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
-        #                                                       [0, 0, 0, 1])
-
+        #                                               [0, 0, 0, 1])
+        #     input("Press Enter to continue...")
         with open(pkl_path, 'wb') as f:
             pickle.dump(self.reachable_points, f)
 
