@@ -104,8 +104,9 @@ if __name__ == "__main__":
         "net_arch": dict(qf=[args.EMB_SIZE * 2, args.EMB_SIZE], pi=[args.EMB_SIZE * 2, args.EMB_SIZE]),
         "share_features_extractor": True,
         "n_lstm_layers": 2,
-	"squash_output": True    
-}
+        "squash_output": True,
+    }
+>>>>>>> dead8a5 (sd)
     policy = RecurrentActorCriticPolicy
 
     if not load_path:
