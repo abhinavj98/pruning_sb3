@@ -785,9 +785,7 @@ class PruningEnv(gym.Env):
         terminate_reward = 0
         # print(self.orientation_perp_value, self.orientation_point_value)
         # TODO: Point of is collision within a target distance is substitute of touch the required branch. Can you make it better?
-        if self.target_dist < self.learning_param and is_collision and np.linalg.norm(
-                compute_perpendicular_projection(achieved_pos, desired_pos,
-                                                 self.tree_goal_branch + desired_pos)) < 0.02:
+        if self.target_dist < self.learning_param and is_collision: # and np.linalg.norm(
             print(collision_info)
             if (self.orientation_perp_value > 0.7) and (
                     self.orientation_point_value > 0.7):  # and approach_velocity < 0.05:

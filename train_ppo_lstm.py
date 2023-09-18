@@ -104,11 +104,12 @@ if __name__ == "__main__":
         "net_arch": dict(qf=[args.EMB_SIZE * 2, args.EMB_SIZE], pi=[args.EMB_SIZE * 2, args.EMB_SIZE]),
         "share_features_extractor": True,
         "n_lstm_layers": 2,
-    }
+	"squash_output": True    
+}
     policy = RecurrentActorCriticPolicy
 
     if not load_path:
-        model = RecurrentPPOAE(policy, env, use_sde = True, policy_kwargs = policy_kwargs, learning_rate = exp_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
+        model = RecurrentPPOAE(policy, env, use_sde = False, policy_kwargs = policy_kwargs, learning_rate = exp_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
     else:
         load_dict = {"learning_rate": exp_schedule(args.LEARNING_RATE), "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE), "learning_rate_logstd": linear_schedule(0.01)}
         model = RecurrentPPOAE.load(load_path, env = env, custom_objects=load_dict)
@@ -119,4 +120,4 @@ if __name__ == "__main__":
     print("Using device: ", utils.get_device())
 
     # env.reset()
-    model.learn(7000000, callback=[custom_callback, eval_callback], progress_bar = False, reset_num_timesteps=False)
+    model.learn(7000000, callback=[train_callback, eval_callback], progress_bar = False, reset_num_timesteps=False)

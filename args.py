@@ -125,12 +125,12 @@ args_dict = {
     },
     'LEARNING_RATE': {
         'type': float,
-        'default': 0.000005,
+        'default': 0.00005,
         'help': 'learning rate'
     },
     'LEARNING_RATE_AE': {
         'type': float,
-        'default': 0.000005,
+        'default': 0.00005,
         'help': 'learning rate for the autoencoder'
     },
     'LOG_STD_INIT': {
@@ -170,6 +170,6 @@ args_dict = {
     },
     'USE_OPTICAL_FLOW': {
         'type': bool,
-        'default': False
+        'default': True
     },
 }
