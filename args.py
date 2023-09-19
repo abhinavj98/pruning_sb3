@@ -108,6 +108,7 @@ args_dict = {
         'default': 5000000,
         'help': 'total number of timesteps to train for'
     },
+    #For logging purposes keep as multiple of episodelength
     'STEPS_PER_EPOCH': {
         'type': int,
         'default': 250,

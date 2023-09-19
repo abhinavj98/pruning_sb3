@@ -530,6 +530,8 @@ class PruningEnv(gym.Env):
 
         self.sum_reward += reward
         self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
+        self.stepCounter += 1
+
         done, terminate_info = self.is_task_done()
         truncated = terminate_info['time_limit_exceeded']
         terminated = terminate_info['goal_achieved'] or terminate_info['singularity_achieved']
@@ -544,8 +546,12 @@ class PruningEnv(gym.Env):
         if self.terminated is True:
             infos['is_success'] = True
             infos['episode'] = {"l": self.stepCounter, "r": self.sum_reward}  # type: ignore
+        if infos["TimeLimit.truncated"] or infos["is_success"]:
+            print("Episode Length: ", self.stepCounter)
+            infos["pointing_cosine_sim_error"] = self.orientation_point_value
+            infos["perpendicular_cosine_sim_error"] = self.orientation_perp_value
+            infos["euclidean_error"] = self.target_dist
 
-        self.stepCounter += 1
         # infos['episode'] = {"l": self.stepCounter,  "r": reward}
         infos.update(reward_infos)
         # return self.observation, reward, done, infos
@@ -644,7 +650,7 @@ class PruningEnv(gym.Env):
 
     def is_task_done(self) -> Tuple[bool, dict]:
         # NOTE: need to call compute_reward before this to check termination!
-        time_limit_exceeded = self.stepCounter > self.maxSteps
+        time_limit_exceeded = self.stepCounter >= self.maxSteps
         singularity_achieved = self.singularity_terminated
         wrong_success = self.wrong_success
         goal_achieved = self.terminated
@@ -790,7 +796,7 @@ class PruningEnv(gym.Env):
         if singularity:
             print('Too high condition number!')
             self.singularity_terminated = False
-            condition_number_reward = -0.005 # TODO: Replace with an input argument
+            condition_number_reward = 0 # TODO: Replace with an input argument
         elif self.terminate_on_singularity:
             condition_number_reward = np.abs(1 / condition_number) * self.condition_reward_scale
         reward += condition_number_reward

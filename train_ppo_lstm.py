@@ -106,7 +106,6 @@ if __name__ == "__main__":
         "n_lstm_layers": 2,
         "squash_output": True,
     }
->>>>>>> dead8a5 (sd)
     policy = RecurrentActorCriticPolicy
 
     if not load_path:

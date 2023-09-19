@@ -46,6 +46,7 @@ class CustomTrainCallback(BaseCallback):
         # self.running_mean_std_joint_angles = RunningMeanStd(shape=(6,))
         # self.running_mean_std_depth = RunningMeanStd(shape=(1,))
         self._reward_dict = {}
+        self._info_dict = {}
 
 
     def _on_training_start(self) -> None:
@@ -70,6 +71,9 @@ class CustomTrainCallback(BaseCallback):
         self._reward_dict["velocity_reward"] = []
         self._reward_dict["perpendicular_orientation_reward"] = []
         self._reward_dict["pointing_orientation_reward"] = []
+        self._info_dict["pointing_cosine_sim_error"] = []
+        self._info_dict["perpendicular_cosine_sim_error"] = []
+        self._info_dict["euclidean_error"] = []
         return True
 
 
@@ -84,16 +88,19 @@ class CustomTrainCallback(BaseCallback):
         """
         infos = self.locals["infos"]
         for i in range(len(infos)):
-            self._reward_dict["movement_reward"].append(infos[0]["movement_reward"])
-            self._reward_dict["distance_reward"].append(infos[0]["distance_reward"])
-            self._reward_dict["terminate_reward"].append(infos[0]["terminate_reward"])
-            self._reward_dict["collision_reward"].append(infos[0]["collision_reward"])
-            self._reward_dict["slack_reward"].append(infos[0]["slack_reward"])
-            self._reward_dict["condition_number_reward"].append(infos[0]["condition_number_reward"])
-            self._reward_dict["velocity_reward"].append(infos[0]["velocity_reward"])
-            self._reward_dict["perpendicular_orientation_reward"].append(infos[0]["perpendicular_orientation_reward"])
-            self._reward_dict["pointing_orientation_reward"].append(infos[0]["pointing_orientation_reward"])
-
+            self._reward_dict["movement_reward"].append(infos[i]["movement_reward"])
+            self._reward_dict["distance_reward"].append(infos[i]["distance_reward"])
+            self._reward_dict["terminate_reward"].append(infos[i]["terminate_reward"])
+            self._reward_dict["collision_reward"].append(infos[i]["collision_reward"])
+            self._reward_dict["slack_reward"].append(infos[i]["slack_reward"])
+            self._reward_dict["condition_number_reward"].append(infos[i]["condition_number_reward"])
+            self._reward_dict["velocity_reward"].append(infos[i]["velocity_reward"])
+            self._reward_dict["perpendicular_orientation_reward"].append(infos[i]["perpendicular_orientation_reward"])
+            self._reward_dict["pointing_orientation_reward"].append(infos[i]["pointing_orientation_reward"])
+            if infos[i]["TimeLimit.truncated"] or infos[i]["is_success"]:
+                self._info_dict["pointing_cosine_sim_error"].append(infos[i]["pointing_cosine_sim_error"])
+                self._info_dict["perpendicular_cosine_sim_error"].append(infos[i]["perpendicular_cosine_sim_error"])
+                self._info_dict["euclidean_error"].append(infos[i]["euclidean_error"])
         # self.logger.record("rollout/movement_reward", infos[0]["movement_reward"])
         # self.logger.record("rollout/distance_reward", infos[0]["distance_reward"])
         # self.logger.record("rollout/terminate_reward", infos[0]["terminate_reward"])
@@ -158,7 +165,10 @@ class CustomTrainCallback(BaseCallback):
         self.logger.record("rollout/velocity_reward", np.mean(self._reward_dict["velocity_reward"]))
         self.logger.record("rollout/perpendicular_orientation_reward", np.mean(self._reward_dict["perpendicular_orientation_reward"]))
         self.logger.record("rollout/pointing_orientation_reward", np.mean(self._reward_dict["pointing_orientation_reward"]))
-        # self.logger.record("train/singularit_terminated", info["total_reward"])
+        self.logger.record("rollout/pointing_cosine_sim_error", np.mean(self._info_dict["pointing_cosine_sim_error"]))
+        self.logger.record("rollout/perpendicular_cosine_sim_error", np.mean(self._info_dict["perpendicular_cosine_sim_error"]))
+        self.logger.record("rollout/euclidean_error", np.mean(self._info_dict["euclidean_error"]))
+
         # Get rollout buffer
         # rollout_buffer = self.locals["rollout_buffer"]
         # observation = rollout_buffer.get()
