@@ -104,10 +104,13 @@ class PruningEnv(gym.Env):
                                        shape=(3,), dtype=np.float32),
             'achieved_goal': spaces.Box(low=-5.,
                                         high=5.,
+                                        shape=(3,), dtype=np.float32),
+            'achieved_or': spaces.Box(low=-5.,
+                                        high=5.,
                                         shape=(6,), dtype=np.float32),
-            'joint_angles': spaces.Box(low=-2 * np.pi,
-                                       high=2 * np.pi,
-                                       shape=(6,), dtype=np.float32),
+            'joint_angles': spaces.Box(low=-1,
+                                       high=1,
+                                       shape=(12,), dtype=np.float32),
             'joint_velocities': spaces.Box(low=-6,
                                            high=6,
                                            shape=(6,), dtype=np.float32),
@@ -342,6 +345,8 @@ class PruningEnv(gym.Env):
                                            controlMode=self.con.VELOCITY_CONTROL,
                                            targetVelocities=joint_velocities,
                                            )
+
+
         return singularity
 
     def calculate_joint_velocities_from_end_effector_velocity(self,
@@ -514,6 +519,7 @@ class PruningEnv(gym.Env):
 
         for i in range(5):
             self.con.stepSimulation()
+            # print(self.con.getJointStateMultiDof(self.ur5, self.end_effector_index))
             # if self.renders: time.sleep(5./240.) 
 
         # Next 2 lines keep in the same order, need observations before reward
@@ -588,8 +594,14 @@ class PruningEnv(gym.Env):
         init_pos = np.array(self.init_pos[0]).astype(np.float32)
         init_or = np.array(self.init_pos[1]).astype(np.float32)
 
-        self.observation['achieved_goal'] = np.hstack((self.achieved_pos, np.array(
-            self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or))))
+        self.observation['achieved_goal'] = self.achieved_pos
+        #Convert orientation into 6D form for continuity
+        achieved_or_mat = np.array(self.con.getMatrixFromQuaternion(self.achieved_or)).reshape(3, 3)
+        # print(achieved_or_mat[:, :])
+        achieved_or_6d = achieved_or_mat[:, :2].reshape(6,).astype(np.float32)
+        self.observation['achieved_or'] = achieved_or_6d
+        # , np.array(
+        #     self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or))))
         self.observation['desired_goal'] = self.desired_pos
 
         # print(np.array(self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or)))
@@ -618,7 +630,10 @@ class PruningEnv(gym.Env):
 
         # self.observation['cosine_sim'] = np.array(self.cosine_sim).astype(np.float32).reshape(
         #     1, )  # DO NOT PASS THIS AS STATE - JUST HERE FOR COSINE SIM PREDICTOR
-        self.observation['joint_angles'] = self.joint_angles
+        #Convert joint angles to sin and cos
+        encoded_joint_angles = np.hstack((np.sin(self.joint_angles), np.cos(self.joint_angles)))
+        self.observation['joint_angles'] = encoded_joint_angles
+
         self.observation['joint_velocities'] = self.joint_velocities
         self.observation['prev_action'] = self.prev_action
         if self.target_dist < self.learning_param:
@@ -785,7 +800,7 @@ class PruningEnv(gym.Env):
         terminate_reward = 0
         # print(self.orientation_perp_value, self.orientation_point_value)
         # TODO: Point of is collision within a target distance is substitute of touch the required branch. Can you make it better?
-        if self.target_dist < self.learning_param and is_collision: # and np.linalg.norm(
+        if self.target_dist < self.learning_param and is_collision:
             print(collision_info)
             if (self.orientation_perp_value > 0.7) and (
                     self.orientation_point_value > 0.7):  # and approach_velocity < 0.05:

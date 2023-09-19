@@ -3,7 +3,7 @@
 # ((0.13449451327323914, -0.5022636651992798, 0.5729073882102966), (0.08234550355528829, 0.08149129879013207, -0.7017672940054546, 0.7029232186590406))
 # ((0.13449475169181824, -0.5022648572921753, 0.5729056596755981)
 import sys
-sys.path.append("C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3")
+sys.path.append(".")
 from gym_env_discrete import PruningEnv
 from models import *
 import numpy as np
@@ -70,6 +70,8 @@ while True:
         val = np.array([0,0,0,0,0,0])
     print(val)
     observation, reward, terminated, truncated, infos = env.step(val)
+    print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[6])
+    print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[7])
 
     # print(env.get_current_pose())
     # print(infos)
@@ -78,7 +80,7 @@ while True:
     jacobian = env.con.calculateJacobian(env.ur5, env.end_effector_index, [0,0,0], env.get_joint_angles(), [0,0,0,0,0,0], [0,0,0,0,0,0])
     jacobian = np.vstack(jacobian)
     condition_number = np.linalg.cond(jacobian)
-    print(condition_number, 1/condition_number, env.init_pos)
+    # print(condition_number, 1/condition_number, env.init_pos)
     # # print(env.get_joint_angles())
     # print(env.target_dist)
     
