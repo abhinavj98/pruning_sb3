@@ -49,12 +49,12 @@ args_dict = {
     },
     'MAX_STEPS': {
         'type': int,
-        'default': 250,
+        'default': 300,
         'help': 'maximum number of steps per episode'
     },
     'EVAL_MAX_STEPS': {
         'type': int,
-        'default': 250,
+        'default': 300,
         'help': 'maximum number of steps per episode during evaluation'
     },
     'ACTION_SCALE': {
@@ -84,7 +84,7 @@ args_dict = {
     },
     'COLLISION_REWARD_SCALE': {
         'type': float,
-        'default': -0.0005,
+        'default': -0.000,
         'help': 'scaling factor for the collision reward'
     },
     'SLACK_REWARD_SCALE': {
@@ -111,12 +111,12 @@ args_dict = {
     #For logging purposes keep as multiple of episodelength
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 250,
+        'default': 300,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
         'type': int,
-        'default': 3,
+        'default': 4,
         'help': 'number of epochs to train for'
     },
     'BATCH_SIZE': {
@@ -131,19 +131,19 @@ args_dict = {
     },
     'LEARNING_RATE_AE': {
         'type': float,
-        'default': 0.00005,
+        'default': 0.0001,
         'help': 'learning rate for the autoencoder'
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -7,
+        'default': -6,
         'help': 'initial value for the log standard deviation'
     },
 
     # Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 15000,
+        'default': 30000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {
