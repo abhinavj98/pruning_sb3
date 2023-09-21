@@ -535,7 +535,7 @@ class PruningEnv(gym.Env):
         terminated = terminate_info['goal_achieved'] or terminate_info['singularity_achieved']
 
         infos = {'is_success': False, "TimeLimit.truncated": False}  # type: ignore
-        if terminate_info['time_limit_exceeded']:
+        if False:#terminate_info['time_limit_exceeded']:
             infos["TimeLimit.truncated"] = True  # type: ignore
             infos["terminal_observation"] = self.observation  # type: ignore
 
@@ -635,7 +635,10 @@ class PruningEnv(gym.Env):
         self.observation['joint_angles'] = encoded_joint_angles
 
         self.observation['joint_velocities'] = self.joint_velocities
-        self.observation['prev_action'] = self.prev_action
+        #Action actually achieved
+        achieved_vel = np.array(self.con.getLinkState(self.ur5, self.end_effector_index, 1)[6])
+        achieved_ang_vel = np.array(self.con.getLinkState(self.ur5, self.end_effector_index, 1)[7])
+        self.observation['prev_action'] = np.hstack((achieved_vel, achieved_ang_vel))
         if self.target_dist < self.learning_param:
             self.observation['close_to_goal'] = np.array(1).astype(np.float32).reshape(1, )
         else:
@@ -906,9 +909,9 @@ class Tree:
         # if pickled file exists load and return
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         #TODO: Add reset variable so that even if present it recomputes
-        if not os.path.exists('./pkl/' + str(path_component[3])):
-            os.makedirs('./pkl/' + str(path_component[3]))
-        pkl_path = './pkl/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_reachable_points.pkl'
+        if not os.path.exists('./pkl2/' + str(path_component[3])):
+            os.makedirs('./pkl2/' + str(path_component[3]))
+        pkl_path = './pkl2/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_reachable_points.pkl'
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
                 self.reachable_points = pickle.load(f)
