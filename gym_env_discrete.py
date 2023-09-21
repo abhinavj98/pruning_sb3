@@ -541,12 +541,11 @@ class PruningEnv(gym.Env):
             infos["TimeLimit.truncated"] = True  # type: ignore
             infos["terminal_observation"] = self.observation  # type: ignore
 
-            infos['episode'] = {"l": self.stepCounter, "r": self.sum_reward}  # type: ignore
-
         if self.terminated is True:
             infos['is_success'] = True
+
+        if truncated or terminated:
             infos['episode'] = {"l": self.stepCounter, "r": self.sum_reward}  # type: ignore
-        if infos["TimeLimit.truncated"] or infos["is_success"]:
             print("Episode Length: ", self.stepCounter)
             infos["pointing_cosine_sim_error"] = self.orientation_point_value
             infos["perpendicular_cosine_sim_error"] = self.orientation_perp_value
