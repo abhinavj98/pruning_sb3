@@ -428,6 +428,7 @@
         <color rgba="1 0 0 0" />
       </material>
     </visual>
+
     <inertial>
       <origin rpy="0 0 0" xyz="1.0E-08 1.0E-08 1.0E-08"/>
       <mass value="1.0E-08"/>
@@ -437,6 +438,7 @@
   <joint name="endpoint" type="fixed">
 <!--    <origin rpy="0 0 0" xyz="0 0.09721 0.24210"/>  &lt;!&ndash; Left down out &ndash;&gt;-->
 <!--    <origin rpy="0 0 0" xyz="-0.00425 0.08971 0.24210"/> &lt;!&ndash;USE THIS ONE IF THE IK FOR BELOW DOESNT DO BETTER&ndash;&gt;-->
+<!--    <origin rpy="0 0 0" xyz="-0.063175 0 0.12864"/>-->
     <origin rpy="0 0 0" xyz="-0.063175 0 0.12864"/>
 <!--    <origin rpy="0 0 3.14159" xyz="-0.09425 -0.00511 0.09707"/>-->
 
@@ -464,13 +466,13 @@
   <joint name="cutpoint" type="fixed">
 <!-- <origin rpy="0 0 0" xyz="-0.06325 0.01 0.18"/>-->
 
-   <origin rpy="0 0 0" xyz="0 0.01 0.05"/>
+   <origin rpy="0 0 0" xyz="0 0.01 0.04"/>
   <parent link="endpoint"/>
     <child link="cutpoint"/>
   </joint>
-<!--  <link name="cutter_mouth">-->
+  <link name="cutter_mouth">
 <!--    <visual>-->
-<!--      <origin rpy="0 0 3.1416" xyz="0.0 0.0 0.0"/>-->
+<!--      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>-->
 <!--      <geometry>-->
 <!--        <mesh filename="ur5e/collision/cutter-mouth-collision.stl"/>-->
 <!--      </geometry>-->
@@ -478,12 +480,18 @@
 <!--        <color rgba="0 1 0 1" />-->
 <!--      </material>-->
 <!--    </visual>-->
-<!--  </link>-->
-<!--  <joint name="cutter_mouth" type="fixed">-->
-<!--    <origin rpy="0 0 0" xyz="0 0 0"/>  &lt;!&ndash; Left down out &ndash;&gt;-->
-<!--    <parent link="cutpoint"/>-->
-<!--    <child link="cutter_mouth"/>-->
-<!--  </joint>-->
+    <collision>
+        <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+        <geometry>
+            <mesh filename="ur5e/collision/cutter-mouth-collision.stl"/>
+        </geometry>
+    </collision>
+  </link>
+  <joint name="cutter_mouth" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0"/>  <!-- Left down out -->
+    <parent link="endpoint"/>
+    <child link="cutter_mouth"/>
+  </joint>
 
 
 <!--  <link name="cutter_obst">-->

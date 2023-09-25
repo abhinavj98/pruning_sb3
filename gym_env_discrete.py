@@ -193,6 +193,7 @@ class PruningEnv(gym.Env):
 
         self.camera_link_index = 12
         self.end_effector_index = 13
+        self.success_link_index = 14
         flags = self.con.URDF_USE_SELF_COLLISION
         self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 0.], [0, 0, 0, 1], flags=flags)
 
@@ -387,6 +388,18 @@ class PruningEnv(gym.Env):
                 # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
                 return True, collision_info
         return False, collision_info
+    def check_success_collision(self) -> bool:
+        """Check if there are any collisions between the robot and the environment
+        Returns: Dictionary with information about collisions (Acceptable and Unacceptable)
+        """
+        collisions_success = self.con.getContactPoints(bodyA=self.ur5, bodyB=self.tree.tree_urdf, linkIndexA=self.success_link_index)
+        for i in range(len(collisions_success)):
+            # print("collision")
+            if collisions_success[i][-6] < 0:
+                # collision_info["collisions_unacceptable"] = True
+                # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
+                return True
+        return False
 
     def calculate_ik(self, position: Tuple[float, float, float], orientation: Optional[Tuple[float, float, float, float]]) -> \
             Tuple[float, float, float, float, float, float]:
@@ -805,10 +818,12 @@ class PruningEnv(gym.Env):
         reward_info['condition_number_reward'] = condition_number_reward
 
         is_collision, collision_info = self.check_collisions()
+        is_success_collision = self.check_success_collision()
+        # print('Success collision: ', is_success_collision, is_collision)
         terminate_reward = 0
-        # print(self.orientation_perp_value, self.orientation_point_value)
+        # print(self.orientation_perp_value, self.orientation_point_value, self.target_dist)
         # TODO: Point of is collision within a target distance is substitute of touch the required branch. Can you make it better?
-        if self.target_dist < self.learning_param and is_collision:
+        if is_success_collision and self.target_dist < self.learning_param:
             print(collision_info)
             if (self.orientation_perp_value > 0.7) and (
                     self.orientation_point_value > 0.7):  # and approach_velocity < 0.05:
