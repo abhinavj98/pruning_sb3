@@ -30,6 +30,7 @@ if __name__ == "__main__":
     # TODO: put in args
     optical_flow_subproc = True
     if args.USE_OPTICAL_FLOW and optical_flow_subproc:
+        print("Using optical flow")
         shared_var = optical_flow_create_shared_vars()
     else:
         shared_var = (None, None)

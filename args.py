@@ -64,7 +64,7 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 8,
+        'default': 6,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
@@ -79,7 +79,7 @@ args_dict = {
     },
     'TERMINATE_REWARD_SCALE': {
         'type': float,
-        'default': 5,
+        'default': 0.5,
         'help': 'scaling factor for the terminate reward'
     },
     'COLLISION_REWARD_SCALE': {
@@ -99,7 +99,7 @@ args_dict = {
     },
     'PERPENDICULAR_ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default': 3.5,
+        'default':6,
         'help': 'scaling factor for the orientation reward'
     },
     # Training parameters
@@ -143,7 +143,7 @@ args_dict = {
     # Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 30000,
+        'default': 10000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {

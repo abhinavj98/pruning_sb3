@@ -68,10 +68,10 @@ while True:
         env.reset()
     else:
         val = np.array([0,0,0,0,0,0])
-    print(val)
+    # print(val)
     observation, reward, terminated, truncated, infos = env.step(val)
-    print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[6])
-    print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[7])
+    # print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[6])
+    # print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[7])
 
     # print(env.get_current_pose())
     # print(infos)

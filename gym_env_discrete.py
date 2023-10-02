@@ -81,6 +81,9 @@ class PruningEnv(gym.Env):
         self.perpendicular_orientation_reward_scale = perpendicular_orientation_reward_scale
         self.pointing_orientation_reward_scale = pointing_orientation_reward_scale
         self.sum_reward = 0.0
+        self.init_distance = 1
+        self.init_cosine_sim = 1
+        self.init_perp_cosine_sim = 1
 
         # Set up pybullet
         if self.renders:
@@ -171,6 +174,7 @@ class PruningEnv(gym.Env):
 
         # Debug parameters
         self.debug_line = -1
+        self.debug_line_1 = -1
         self.debug_cur_point = -1
         self.debug_des_point = -1
         self.debug_cur_perp = -1
@@ -191,7 +195,7 @@ class PruningEnv(gym.Env):
 
     def setup_ur5_arm(self) -> None:
 
-        self.camera_link_index = 12
+        self.camera_link_index = 11
         self.end_effector_index = 13
         self.success_link_index = 14
         flags = self.con.URDF_USE_SELF_COLLISION
@@ -424,17 +428,27 @@ class PruningEnv(gym.Env):
     # TODO: Better types for getCameraImage
     def get_image_at_curr_pose(self) -> List:
         """Take the current pose of the end effector and set the camera to that pose"""
+        CAMERA_BASE_OFFSET = np.array([-0.063179, 0.077119, 0.0420027])
         pose, orientation = self.get_current_pose(self.camera_link_index)
         # CAMERA_BASE_OFFSET = np.array([0.01, 0.005, 0.01 ])  # TODO: Change camera position
         pose = pose
+        tilt = -np.pi / 18
+        tilt_rot = np.array([[1, 0, 0], [0, np.cos(tilt), -np.sin(tilt)], [0, np.sin(tilt), np.cos(tilt)]])
+        tf = np.identity(4)
+        tf[:3, 3] = CAMERA_BASE_OFFSET
+        rot_tf = np.identity(4)
         rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+        rot_tf[:3, :3] = rot_mat
+        rot_tf[:3, 3] = pose
+        # cam_pos, cam_orient = self.con.multiplyTransforms(pose, [0,0,1,1], pose + CAMERA_BASE_OFFSET, orientation)
+        tf = rot_tf@tf
         # Initial vectors
-        init_camera_vector = np.array([0, 0, 1])  #
-        init_up_vector = np.array([0, 1, 0])  #
+        init_camera_vector = np.array([0, 0, 1])@tilt_rot  #
+        init_up_vector = np.array([0, 1, 0])@tilt_rot  #
         # Rotated vectors
         camera_vector = rot_mat.dot(init_camera_vector)
         up_vector = rot_mat.dot(init_up_vector)
-        view_matrix = self.con.computeViewMatrix(pose, pose + 0.1 * camera_vector, up_vector)
+        view_matrix = self.con.computeViewMatrix(tf[:3,3], tf[:3,3] + 0.1 * camera_vector, up_vector)
 
         return self.con.getCameraImage(self.width, self.height, viewMatrix=view_matrix, projectionMatrix=self.proj_mat,
                                        renderer=self.con.ER_BULLET_HARDWARE_OPENGL,
@@ -475,6 +489,7 @@ class PruningEnv(gym.Env):
         # Remove debug items
         self.con.removeUserDebugItem(self.debug_branch)
         self.con.removeUserDebugItem(self.debug_line)
+        self.con.removeUserDebugItem(self.debug_line_1)
         self.con.removeUserDebugItem(self.debug_cur_point)
         self.con.removeUserDebugItem(self.debug_des_point)
         self.con.removeUserDebugItem(self.debug_des_perp)
@@ -504,6 +519,10 @@ class PruningEnv(gym.Env):
         self.tree_goal_pos = random_point[0]
         self.tree_goal_branch = random_point[1]
         self.tree.active()
+        curr_pose = self.get_current_pose(self.end_effector_index)
+        self.init_distance = np.linalg.norm(self.tree_goal_pos - self.init_pos[0]) + 1e-4
+        self.init_cosine_sim = self.compute_pointing_cos_sim(curr_pose[0], self.tree_goal_pos, curr_pose[1], self.tree_goal_branch) + 1e-4
+        self.init_perp_cosine_sim = self.compute_perpendicular_cos_sim(curr_pose[1], self.tree_goal_branch) + 1e-4
 
         # Add debug branch
         self.debug_branch = self.con.addUserDebugLine(self.tree_goal_pos - 50 * self.tree_goal_branch,
@@ -524,6 +543,8 @@ class PruningEnv(gym.Env):
         self.prev_joint_velocities = self.joint_velocities
         self.prev_rgb = self.rgb
         self.con.removeUserDebugItem(self.debug_line)
+
+        self.con.removeUserDebugItem(self.debug_line_1)
         self.action = action
 
         action = action * self.action_scale
@@ -542,7 +563,7 @@ class PruningEnv(gym.Env):
                                                    None)
 
         self.sum_reward += reward
-        self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
+        # self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
         self.stepCounter += 1
 
         done, terminate_info = self.is_task_done()
@@ -694,29 +715,51 @@ class PruningEnv(gym.Env):
         # This is to encourage the end effector to be perpendicular to the branch
 
         # Perpendicular vector to branch vector
+        # perpendicular_vector = compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector + desired_pos)
+        # perpendicular_vector_prev = compute_perpendicular_projection(previous_pos, desired_pos,
+        #                                                              branch_vector + desired_pos)
+        # # Get vector for current orientation of end effector
+        # rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
+        # rot_mat_prev = np.array(self.con.getMatrixFromQuaternion(previous_or)).reshape(3, 3)
+        # # Initial vectors
+        # init_vector = np.array([0, 0, 1])
+        # camera_vector = rot_mat.dot(init_vector)
+        # camera_vector_prev = rot_mat_prev.dot(init_vector)
+        # OFFSET = np.array([0, 0, 0])
+        # self.con.removeUserDebugItem(self.debug_cur_point)
+        # self.con.removeUserDebugItem(self.debug_des_point)
+        # self.debug_des_point = self.con.addUserDebugLine(achieved_pos + OFFSET,
+        #                                                  achieved_pos + OFFSET + perpendicular_vector, [1, 0, 0], 2)
+        # self.debug_cur_point = self.con.addUserDebugLine(achieved_pos, achieved_pos + 0.1 * camera_vector,
+        #                                                  [0, 1, 0], 1)
+        # orientation_reward_prev = np.dot(camera_vector_prev, perpendicular_vector_prev) / (
+        #         np.linalg.norm(camera_vector_prev) * np.linalg.norm(perpendicular_vector_prev))
+        # orientation_reward = np.dot(camera_vector, perpendicular_vector) / (
+        #         np.linalg.norm(camera_vector) * np.linalg.norm(perpendicular_vector))
+        # # print("Pointing Orientation reward: ", orientation_reward - orientation_reward_prev, orientation_reward)
+        #
+        orientation_reward_prev = self.compute_pointing_cos_sim(previous_pos, desired_pos, previous_or, branch_vector)
+        orientation_reward = self.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or, branch_vector)
+        # print("Pointing Orientation reward: ", orientation_reward - orientation_reward_prev, orientation_reward)
+        return (orientation_reward - orientation_reward_prev), orientation_reward
+
+    def compute_pointing_cos_sim(self, achieved_pos: NDArray[Shape['3, 1'], Float],
+                                            desired_pos: NDArray[Shape['3, 1'], Float],
+                                            achieved_or: NDArray[Shape['4, 1'], Float],
+                                            branch_vector: NDArray[Shape['3, 1'], Float]) -> Tuple[float, float]:
+        # Orientation reward is computed as the dot product between the current orientation and the perpendicular vector to the end effector and goal pos vector
+        # This is to encourage the end effector to be perpendicular to the branch
+
+        # Perpendicular vector to branch vector
         perpendicular_vector = compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector + desired_pos)
-        perpendicular_vector_prev = compute_perpendicular_projection(previous_pos, desired_pos,
-                                                                     branch_vector + desired_pos)
-        # Get vector for current orientation of end effector
         rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
-        rot_mat_prev = np.array(self.con.getMatrixFromQuaternion(previous_or)).reshape(3, 3)
         # Initial vectors
         init_vector = np.array([0, 0, 1])
         camera_vector = rot_mat.dot(init_vector)
-        camera_vector_prev = rot_mat_prev.dot(init_vector)
-        OFFSET = np.array([0, 0, 0])
-        self.con.removeUserDebugItem(self.debug_cur_point)
-        self.con.removeUserDebugItem(self.debug_des_point)
-        self.debug_des_point = self.con.addUserDebugLine(achieved_pos + OFFSET,
-                                                         achieved_pos + OFFSET + perpendicular_vector, [1, 0, 0], 2)
-        self.debug_cur_point = self.con.addUserDebugLine(achieved_pos, achieved_pos + 0.1 * camera_vector,
-                                                         [0, 1, 0], 1)
-        orientation_reward_prev = np.dot(camera_vector_prev, perpendicular_vector_prev) / (
-                np.linalg.norm(camera_vector_prev) * np.linalg.norm(perpendicular_vector_prev))
-        orientation_reward = np.dot(camera_vector, perpendicular_vector) / (
+        pointing_cos_sim = np.dot(camera_vector, perpendicular_vector) / (
                 np.linalg.norm(camera_vector) * np.linalg.norm(perpendicular_vector))
         # print("Pointing Orientation reward: ", orientation_reward - orientation_reward_prev, orientation_reward)
-        return (orientation_reward - orientation_reward_prev), orientation_reward
+        return pointing_cos_sim
 
     def compute_perpendicular_orientation_reward(self, achieved_or: NDArray[Shape['4, 1'], Float],
                                                  previous_or: NDArray[Shape['4, 1'], Float],
@@ -730,25 +773,48 @@ class PruningEnv(gym.Env):
         # perpendicular_vector_prev = compute_perpendicular_projection(previous_pos, desired_pos,
         #                                                              branch_vector + desired_pos)
         # Get vector for current orientation of end effector
+        # rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
+        # rot_mat_prev = np.array(self.con.getMatrixFromQuaternion(previous_or)).reshape(3, 3)
+        # # Initial vectors
+        # init_vector = np.array([1, 0, 0])
+        # camera_vector = rot_mat.dot(init_vector)
+        # camera_vector_prev = rot_mat_prev.dot(init_vector)
+        # OFFSET = np.array([0, 0, 0])
+        # # self.con.removeUserDebugItem(self.debug_cur_perp)
+        # # self.con.removeUserDebugItem(self.debug_des_perp)
+        # # self.debug_des_perp = self.con.addUserDebugLine(achieved_pos, achieved_pos + branch_vector, [1, 1, 0], 2)
+        # # self.debug_cur_perp = self.con.addUserDebugLine(achieved_pos, achieved_pos + 0.1 * camera_vector,
+        # #                                               [0, 1, 1], 1)
+        # # Check antiparallel case as well
+        # orientation_reward_prev = np.dot(camera_vector_prev, branch_vector) / (
+        #         np.linalg.norm(camera_vector_prev) * np.linalg.norm(branch_vector))
+        # orientation_reward = np.dot(camera_vector, branch_vector) / (
+        #         np.linalg.norm(camera_vector) * np.linalg.norm(branch_vector))
+        cosine_sim_perp_prev = self.compute_perpendicular_cos_sim(previous_or, branch_vector)
+        cosine_sim_perp = self.compute_perpendicular_cos_sim(achieved_or, branch_vector)
+        # print("Orientation reward: ", abs(orientation_reward) - abs(orientation_reward_prev), orientation_reward)
+        # print("Perpendicular Orientation reward: ", abs(cosine_sim_perp) - abs(cosine_sim_perp_prev), abs(cosine_sim_perp))
+        return (abs(cosine_sim_perp) - abs(cosine_sim_perp_prev)), abs(cosine_sim_perp)
+
+    def compute_perpendicular_cos_sim(self, achieved_or: NDArray[Shape['4, 1'], Float],
+                                                 branch_vector: NDArray[Shape['3, 1'], Float]):
+        # Orientation reward is computed as the dot product between the current orientation and the perpendicular
+        # vector to the end effector and goal pos vector This is to encourage the end effector to be perpendicular to
+        # the branch
+
+        # Perpendicular vector to branch vector
+        # perpendicular_vector = compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector + desired_pos)
+        # perpendicular_vector_prev = compute_perpendicular_projection(previous_pos, desired_pos,
+        #                                                              branch_vector + desired_pos)
+        # Get vector for current orientation of end effector
         rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
-        rot_mat_prev = np.array(self.con.getMatrixFromQuaternion(previous_or)).reshape(3, 3)
         # Initial vectors
         init_vector = np.array([1, 0, 0])
         camera_vector = rot_mat.dot(init_vector)
-        camera_vector_prev = rot_mat_prev.dot(init_vector)
-        OFFSET = np.array([0, 0, 0])
-        # self.con.removeUserDebugItem(self.debug_cur_perp)
-        # self.con.removeUserDebugItem(self.debug_des_perp)
-        # self.debug_des_perp = self.con.addUserDebugLine(achieved_pos, achieved_pos + branch_vector, [1, 1, 0], 2)
-        # self.debug_cur_perp = self.con.addUserDebugLine(achieved_pos, achieved_pos + 0.1 * camera_vector,
-        #                                               [0, 1, 1], 1)
         # Check antiparallel case as well
-        orientation_reward_prev = np.dot(camera_vector_prev, branch_vector) / (
-                np.linalg.norm(camera_vector_prev) * np.linalg.norm(branch_vector))
-        orientation_reward = np.dot(camera_vector, branch_vector) / (
+        cosine_sim_perp = np.dot(camera_vector, branch_vector) / (
                 np.linalg.norm(camera_vector) * np.linalg.norm(branch_vector))
-        # print("Orientation reward: ", abs(orientation_reward) - abs(orientation_reward_prev), orientation_reward)
-        return (abs(orientation_reward) - abs(orientation_reward_prev)), abs(orientation_reward)
+        return cosine_sim_perp
 
     def compute_reward(self, desired_goal: NDArray[Shape['3, 1'], Float], achieved_pose: NDArray[Shape['6, 1'], Float],
                        previous_pose: NDArray[Shape['6, 1'], Float], singularity: bool, info: dict) -> Tuple[float, dict]:
@@ -766,9 +832,13 @@ class PruningEnv(gym.Env):
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
         self.delta_movement = float(goal_reward(achieved_pos, previous_pos, desired_pos))
+        self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
+        self.debug_line_1 = self.con.addUserDebugLine(previous_pos, self.desired_pos, [0, 0, 1], 20)
+
         self.target_dist = float(goal_distance(achieved_pos, desired_pos))
 
-        movement_reward = self.delta_movement * self.movement_reward_scale
+        movement_reward = self.delta_movement * self.movement_reward_scale / self.init_distance
+        # print("Movement reward: ", self.delta_movement)
         reward_info['movement_reward'] = movement_reward
         reward += movement_reward
 
@@ -785,8 +855,9 @@ class PruningEnv(gym.Env):
         # else:
         #     self.orientation_reward_unscaled = 0
         #     self.cosine_sim = 0
-        pointing_orientation_reward = (
-                                          self.pointing_orientation_reward_unscaled) * self.pointing_orientation_reward_scale
+        pointing_orientation_reward = (self.pointing_orientation_reward_unscaled *
+                                       self.pointing_orientation_reward_scale /
+                                       (1 - self.init_cosine_sim))
 
         reward_info['pointing_orientation_reward'] = pointing_orientation_reward
         reward += pointing_orientation_reward
@@ -797,8 +868,9 @@ class PruningEnv(gym.Env):
         # else:
         #     self.orientation_reward_unscaled = 0
         #     self.cosine_sim = 0
-        perpendicular_orientation_reward = ((self.perpendicular_orientation_reward_unscaled) *
-                                            self.perpendicular_orientation_reward_scale)
+        perpendicular_orientation_reward = (self.perpendicular_orientation_reward_unscaled *
+                                            self.perpendicular_orientation_reward_scale /
+                                            (1-self.init_perp_cosine_sim))
 
         reward_info['perpendicular_orientation_reward'] = perpendicular_orientation_reward
         reward += perpendicular_orientation_reward
@@ -882,7 +954,18 @@ def goal_reward(current: NDArray[Shape['3, 1'], Float], previous: NDArray[Shape[
     diff_curr = goal_distance(current, target)
     reward = diff_prev - diff_curr
     return reward
+def goal_reward_projection(current: NDArray[Shape['3, 1'], Float], previous: NDArray[Shape['3, 1'], Float],
+                target: NDArray[Shape['3, 1'], Float]):
+    # Compute the reward between the previous and current goal.
+    assert current.shape == previous.shape
+    assert current.shape == target.shape
+    # get parallel projection of current on prev
+    projection = compute_parallel_projection_vector(current - target, previous - target)
 
+    reward = np.linalg.norm(previous - target) - np.linalg.norm(projection)
+    # print(np.linalg.norm(previous - target), np.linalg.norm(projection), np.linalg.norm(current - target))
+
+    return reward
 
 # x,y distance
 def goal_distance2d(goal_a: NDArray[Shape['3, 1'], Float], goal_b: NDArray[Shape['3, 1'], Float]):
@@ -898,6 +981,9 @@ def compute_perpendicular_projection(a: NDArray[Shape['3, 1'], Float], b: NDArra
     projection = ab - np.dot(ab, bc) / np.dot(bc, bc) * bc
     return projection
 
+def compute_parallel_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
+    projection = np.dot(ab, bc) / np.dot(bc, bc) * bc
+    return projection
 
 def compute_perpendicular_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
     projection = ab - np.dot(ab, bc) / np.dot(bc, bc) * bc
