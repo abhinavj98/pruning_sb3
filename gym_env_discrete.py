@@ -741,7 +741,7 @@ class PruningEnv(gym.Env):
         orientation_reward_prev = self.compute_pointing_cos_sim(previous_pos, desired_pos, previous_or, branch_vector)
         orientation_reward = self.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or, branch_vector)
         # print("Pointing Orientation reward: ", orientation_reward - orientation_reward_prev, orientation_reward)
-        return (orientation_reward - orientation_reward_prev), orientation_reward
+        return (abs(orientation_reward) - abs(orientation_reward_prev)), abs(orientation_reward)
 
     def compute_pointing_cos_sim(self, achieved_pos: NDArray[Shape['3, 1'], Float],
                                             desired_pos: NDArray[Shape['3, 1'], Float],
