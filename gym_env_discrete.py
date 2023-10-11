@@ -36,7 +36,7 @@ class PruningEnv(gym.Env):
                  collision_reward_scale: int = 1, slack_reward_scale: int = 1,
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  use_optical_flow: bool = False, optical_flow_subproc: bool = False,
-                 shared_var: Tuple[Optional[Any], Optional[Any]] = (None, None)) -> None:
+                 shared_var: Tuple[Optional[Any], Optional[Any]] = (None, None), scale: bool = False) -> None:
         super(PruningEnv, self).__init__()
 
         assert tree_urdf_path is not None
@@ -81,6 +81,7 @@ class PruningEnv(gym.Env):
         self.perpendicular_orientation_reward_scale = perpendicular_orientation_reward_scale
         self.pointing_orientation_reward_scale = pointing_orientation_reward_scale
         self.sum_reward = 0.0
+        self.scale = scale
         self.init_distance = 1
         self.init_cosine_sim = 1
         self.init_perp_cosine_sim = 1
@@ -520,9 +521,15 @@ class PruningEnv(gym.Env):
         self.tree_goal_branch = random_point[1]
         self.tree.active()
         curr_pose = self.get_current_pose(self.end_effector_index)
-        self.init_distance = np.linalg.norm(self.tree_goal_pos - self.init_pos[0]) + 1e-4
-        self.init_cosine_sim = self.compute_pointing_cos_sim(curr_pose[0], self.tree_goal_pos, curr_pose[1], self.tree_goal_branch) + 1e-4
-        self.init_perp_cosine_sim = self.compute_perpendicular_cos_sim(curr_pose[1], self.tree_goal_branch) + 1e-4
+        if self.scale:
+            self.init_distance = np.linalg.norm(self.tree_goal_pos - self.init_pos[0]) + 1e-4
+            self.init_cosine_sim = self.compute_pointing_cos_sim(curr_pose[0], self.tree_goal_pos, curr_pose[1], self.tree_goal_branch) + 1e-4
+            self.init_perp_cosine_sim = self.compute_perpendicular_cos_sim(curr_pose[1], self.tree_goal_branch) + 1e-4
+        else:
+            self.init_distance = 1
+            self.init_cosine_sim = 0
+            self.init_perp_cosine_sim = 0
+
 
         # Add debug branch
         self.debug_branch = self.con.addUserDebugLine(self.tree_goal_pos - 50 * self.tree_goal_branch,
