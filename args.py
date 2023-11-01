@@ -64,7 +64,7 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 4,
+        'default': 8,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
@@ -79,7 +79,7 @@ args_dict = {
     },
     'TERMINATE_REWARD_SCALE': {
         'type': float,
-        'default': 1,
+        'default': 5,
         'help': 'scaling factor for the terminate reward'
     },
     'COLLISION_REWARD_SCALE': {
@@ -94,7 +94,7 @@ args_dict = {
     },
     'POINTING_ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default':4,
+        'default':2,
         'help': 'scaling factor for the orientation reward'
     },
     'PERPENDICULAR_ORIENTATION_REWARD_SCALE': {
@@ -126,12 +126,12 @@ args_dict = {
     },
     'LEARNING_RATE': {
         'type': float,
-        'default': 0.00005,
+        'default': 0.000001,
         'help': 'learning rate'
     },
     'LEARNING_RATE_AE': {
         'type': float,
-        'default': 0.0001,
+        'default': 0.000001,
         'help': 'learning rate for the autoencoder'
     },
     'LOG_STD_INIT': {
