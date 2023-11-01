@@ -36,6 +36,7 @@ if __name__ == "__main__":
         shared_var = (None, None)
 
     if args.LOAD_PATH:
+
         load_path = "./logs/{}/best_model.zip".format(
             args.LOAD_PATH)  # ./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
     else:
