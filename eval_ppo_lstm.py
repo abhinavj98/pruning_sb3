@@ -1,4 +1,4 @@
-
+# Description: Evaluate the trained model
 from stable_baselines3.common.callbacks import BaseCallback, EventCallback, CallbackList
 import gymnasium as gym
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -14,10 +14,10 @@ from gym_env_discrete import PruningEnv
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
 from stable_baselines3.common.monitor import Monitor
 from PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
-import multiprocessing as mp
-from pruning_sb3.optical_flow import OpticalFlow
-
-
+import argparse
+from args import args_dict
+from helpers import optical_flow_create_shared_vars
+import pandas as pd
 class CustomEvalCallback(EventCallback):
     """
     Callback for evaluating an agent.
@@ -99,6 +99,13 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict["pointing_orientation_reward"].append(infos["pointing_orientation_reward"])
         self._reward_dict["perpendicular_orientation_reward"].append(infos["perpendicular_orientation_reward"])
 
+    def _log_final_metrics(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
+        infos = locals_["info"]
+        if infos["TimeLimit.truncated"] or infos["is_success"]:
+            self._reward_dict["pointing_cosine_sim_error"].append(infos["pointing_cosine_sim_error"])
+            self._reward_dict["perpendicular_cosine_sim_error"].append(infos["perpendicular_cosine_sim_error"])
+            self._reward_dict["euclidean_error"].append(infos["euclidean_error"])
+
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         self._collisions_buffer.append(self.eval_env.get_attr("collisions", 0)[0])
 
@@ -106,6 +113,7 @@ class CustomEvalCallback(EventCallback):
 #        self._log_collisions(_locals, _globals)
         self._log_success_callback(_locals, _globals)
         self._log_rewards_callback(_locals, _globals)
+        self._log_final_metrics(_locals, _globals)
 
     def eval_policy(self):
 
@@ -121,6 +129,12 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict["condition_number_reward"] = []
         self._reward_dict["velocity_reward"] = []
         self._reward_dict["orientation_reward"] = []
+        self._reward_dict["pointing_orientation_reward"] = []
+        self._reward_dict["perpendicular_orientation_reward"] = []
+        self._reward_dict["pointing_cosine_sim_error"] = []
+        self._reward_dict["perpendicular_cosine_sim_error"] = []
+        self._reward_dict["euclidean_error"] = []
+
         print(self.render)
         episode_rewards, episode_lengths = evaluate_policy(
             self.model,
@@ -133,30 +147,56 @@ class CustomEvalCallback(EventCallback):
             callback=self._master_callback,
         )
 
+        reward_df = pd.DataFrame(self._reward_dict)
+        success_df = pd.DataFrame(self._is_success_buffer)
+        reward_df.append(success_df)
+        reward_df.to_csv('out.csv', index=False)
         print("Success", np.mean(self._is_success_buffer))
 
 
 if __name__ == "__main__":
-    manager = mp.Manager()
-    # queue = multiprocessing.Queue()
-    shared_dict = manager.dict()
-    shared_queue = manager.Queue()
-    shared_var = (shared_queue, shared_dict)
-    ctx = mp.get_context("spawn")
-    process = ctx.Process(target=OpticalFlow, args=((224, 224), True, shared_var),
-                          daemon=True)  # type: ignore[attr-defined]
-    # pytype: enable=attribute-error
-    process.start()
+    parser = argparse.ArgumentParser()
 
-    # './meshes_and_urdf/urdf/trees/train',
-    eval_env_kwargs =  {"renders" : True, "tree_urdf_path" :  './meshes_and_urdf/urdf/trees/envy/test', "tree_obj_path" : './meshes_and_urdf/meshes/trees/envy/test', "action_dim" :6,
-                "maxSteps" : 300, "movement_reward_scale" : 1, "action_scale" :2, "distance_reward_scale" :0,
-                "condition_reward_scale" :0, "terminate_reward_scale" : 5, "collision_reward_scale" : -0.01, 
-                "slack_reward_scale" :-0.0001, "num_points" : 50, "orientation_reward_scale" : 2,  "name":"evalenv", "use_optical_flow": True, "shared_var": (shared_queue, shared_dict)}
+    # Add arguments to the parser based on the dictionary
+    for arg_name, arg_params in args_dict.items():
+        parser.add_argument(f'--{arg_name}', **arg_params)
+
+    # Parse arguments from the command line
+    args = parser.parse_args()
+    print(args)
+
+    optical_flow_subproc = True
+    if args.USE_OPTICAL_FLOW and optical_flow_subproc:
+        print("Using optical flow")
+        shared_var = optical_flow_create_shared_vars()
+    else:
+        shared_var = (None, None)
+
+    if args.LOAD_PATH:
+        print("Loading model from {}".format(args.LOAD_PATH))
+        load_path =  "./logs/best_model"#./logs/{}/best_model.zip".format(
+            #args.LOAD_PATH)  # ./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
+    else:
+        load_path = None
+
+
+
+
+    eval_env_kwargs = {"renders": False, "tree_urdf_path": args.TREE_TEST_URDF_PATH,
+                       "tree_obj_path": args.TREE_TEST_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
+                       "max_steps": args.EVAL_MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
+                       "action_scale": args.ACTION_SCALE, "distance_reward_scale": args.DISTANCE_REWARD_SCALE,
+                       "condition_reward_scale": args.CONDITION_REWARD_SCALE,
+                       "terminate_reward_scale": args.TERMINATE_REWARD_SCALE,
+                       "collision_reward_scale": args.COLLISION_REWARD_SCALE,
+                       "slack_reward_scale": args.SLACK_REWARD_SCALE, "num_points": args.EVAL_POINTS,
+                       "pointing_orientation_reward_scale": args.POINTING_ORIENTATION_REWARD_SCALE,
+                       "perpendicular_orientation_reward_scale": args.PERPENDICULAR_ORIENTATION_REWARD_SCALE,
+                       "name": "evalenv", "use_optical_flow": args.USE_OPTICAL_FLOW, "optical_flow_subproc": True,
+                       "shared_var": shared_var}
     device = "cuda" if th.cuda.is_available() else "cpu"
     print(device)
     eval_env = Monitor(PruningEnv(**eval_env_kwargs))
-    load_path = "./logs/run/best_model.zip"
     model = RecurrentPPOAE.load(load_path)
     evaluate_policy(model, eval_env, n_eval_episodes=1, render=False, deterministic=True)
     # eval = CustomEvalCallback(eval_env, model)
