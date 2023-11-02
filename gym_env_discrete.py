@@ -82,10 +82,6 @@ class PruningEnv(gym.Env):
         self.pointing_orientation_reward_scale = pointing_orientation_reward_scale
         self.sum_reward = 0.0
         self.scale = scale
-        self.init_distance = 1
-        self.init_cosine_sim = 1
-        self.init_perp_cosine_sim = 1
-
         # Set up pybullet
         if self.renders:
             self.con = bc.BulletClient(connection_mode=pybullet.GUI)
@@ -182,6 +178,7 @@ class PruningEnv(gym.Env):
         self.debug_des_perp = -1
         self.debug_branch = -1
 
+        self.eval_counter = 0
     def reset_env_variables(self) -> None:
         # Env variables that will change
         self.observation: dict = dict()
@@ -503,7 +500,13 @@ class PruningEnv(gym.Env):
         self.setup_ur5_arm()
 
         # Sample new point
-        random_point = random.sample(self.tree.reachable_points, 1)[0]
+        if "eval" in self.name:
+            random_point = self.tree.reachable_points[self.eval_counter%len(self.tree.reachable_points)]
+            self.eval_counter += 1
+            print("Eval counter: ", self.eval_counter, "Point: ", random_point)
+
+        else:
+            random_point = random.sample(self.tree.reachable_points, 1)[0]
         if "record" in self.name:
             """Display red sphere during evaluation"""
             self.con.removeBody(self.sphereUid)
@@ -521,14 +524,9 @@ class PruningEnv(gym.Env):
         self.tree_goal_branch = random_point[1]
         self.tree.active()
         curr_pose = self.get_current_pose(self.end_effector_index)
-        if self.scale:
-            self.init_distance = np.linalg.norm(self.tree_goal_pos - self.init_pos[0]) + 1e-4
-            self.init_cosine_sim = self.compute_pointing_cos_sim(curr_pose[0], self.tree_goal_pos, curr_pose[1], self.tree_goal_branch) + 1e-4
-            self.init_perp_cosine_sim = self.compute_perpendicular_cos_sim(curr_pose[1], self.tree_goal_branch) + 1e-4
-        else:
-            self.init_distance = 1
-            self.init_cosine_sim = 0
-            self.init_perp_cosine_sim = 0
+        self.init_distance = np.linalg.norm(self.tree_goal_pos - self.init_pos[0]) + 1e-4
+        self.init_point_cosine_sim = self.compute_pointing_cos_sim(curr_pose[0], self.tree_goal_pos, curr_pose[1], self.tree_goal_branch) + 1e-4
+        self.init_perp_cosine_sim = self.compute_perpendicular_cos_sim(curr_pose[1], self.tree_goal_branch) + 1e-4
 
 
         # Add debug branch
@@ -863,8 +861,7 @@ class PruningEnv(gym.Env):
         #     self.orientation_reward_unscaled = 0
         #     self.cosine_sim = 0
         pointing_orientation_reward = (self.pointing_orientation_reward_unscaled *
-                                       self.pointing_orientation_reward_scale /
-                                       (1 - self.init_cosine_sim))
+                                       self.pointing_orientation_reward_scale)
 
         reward_info['pointing_orientation_reward'] = pointing_orientation_reward
         reward += pointing_orientation_reward
@@ -876,8 +873,7 @@ class PruningEnv(gym.Env):
         #     self.orientation_reward_unscaled = 0
         #     self.cosine_sim = 0
         perpendicular_orientation_reward = (self.perpendicular_orientation_reward_unscaled *
-                                            self.perpendicular_orientation_reward_scale /
-                                            (1-self.init_perp_cosine_sim))
+                                            self.perpendicular_orientation_reward_scale)
 
         reward_info['perpendicular_orientation_reward'] = perpendicular_orientation_reward
         reward += perpendicular_orientation_reward

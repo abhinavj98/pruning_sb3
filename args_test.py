@@ -167,6 +167,7 @@ args_dict = {
         'type':str,
         'default':None
         },
+
      'USE_OPTICAL_FLOW': {
          'type': bool,
          'default': True
