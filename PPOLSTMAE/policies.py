@@ -83,7 +83,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         normalize_images: bool = True,
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
-        lstm_hidden_size: int = 256,
+        lstm_hidden_size: int = 128,
         n_lstm_layers: int = 1,
         shared_lstm: bool = False,
         enable_critic_lstm: bool = True,
