@@ -105,8 +105,8 @@ if __name__ == "__main__":
         "log_std_init": args.LOG_STD_INIT,
         "net_arch": dict(qf=[args.EMB_SIZE * 2, args.EMB_SIZE], pi=[args.EMB_SIZE * 2, args.EMB_SIZE]),
         "share_features_extractor": True,
-        "n_lstm_layers": 2,
-        "squash_output": True,
+        "n_lstm_layers": 1,
+        "squash_output": True, #Doesn't work
     }
     policy = RecurrentActorCriticPolicy
 

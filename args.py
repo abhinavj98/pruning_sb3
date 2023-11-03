@@ -23,7 +23,7 @@ args_dict = {
     # PPO parameters
     'EMB_SIZE': {
         'type': int,
-        'default': 128,
+        'default': 256,
         'help': 'size of the embedding layer'
     },
     'ACTION_DIM_ACTOR': {

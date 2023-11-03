@@ -164,6 +164,17 @@ class PruningEnv(gym.Env):
         self.trees = Tree.make_trees_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos=pos,
                                                  orientation=np.array([0, 0, 0, 1]), scale=scale, num_points=num_points,
                                                  num_trees=self.tree_count)
+        #We have trees with reachable points and nice starting condition here
+        #Introduce curriculum for each point by seeing if we can start from a closer point
+        #This should be done in trees class
+        #tree.make_curriculum([list of distances]
+        #for all reachable points:
+            #is reachable point - curriculum collision free?
+            #yes - add to list
+            #no - ignore
+        curriculum_
+        for j in self.trees:
+
         self.tree = random.sample(self.trees, 1)[0]
         self.supports = -1
         self.tree.active()
@@ -1141,7 +1152,7 @@ class Tree:
         vertex_w_transform = self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation)
         return np.array(vertex_w_transform[0])
 
-    def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]]) -> bool:
+    def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]] ) -> bool:
         ur5_base_pos = self.init_xyz  # np.array(self.env.get_current_pose(self.env.end_effector_index)[0])
         if "envy" in self.urdf_path:
             if abs(vertice[0][0]) < 0.05:
@@ -1198,3 +1209,18 @@ class Tree:
             trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
                               num_points=num_points))
         return trees
+
+    def make_curriculum(self, distance_from_start: List[int]):
+        for distance in distance_from_start:
+            for point in self.reachable_points:
+                point[0] = point[0] + np.array([0, 0, distance])
+                #set ik to this point
+                j_angles = self.env.calculate_ik(point[0], None)
+                self.env.set_joint_angles(j_angles)
+                for i in range(100):
+                    self.env.con.stepSimulation()
+                    #check collision
+                    collisions = self.env.check_collisions()
+                    if not collisions[0]:
+
+
