@@ -842,7 +842,7 @@ class PruningEnv(gym.Env):
 
         self.target_dist = float(goal_distance(achieved_pos, desired_pos))
 
-        movement_reward = self.delta_movement * self.movement_reward_scale / self.init_distance
+        movement_reward = self.delta_movement * self.movement_reward_scale
         # print("Movement reward: ", self.delta_movement)
         reward_info['movement_reward'] = movement_reward
         reward += movement_reward
@@ -1121,6 +1121,7 @@ class Tree:
         #         self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
         #                                               [0, 0, 0, 1])
         #     input("Press Enter to continue...")
+        print("Saving pickle, num points ", len(self.reachable_points))
         with open(pkl_path, 'wb') as f:
             pickle.dump(self.reachable_points, f)
 

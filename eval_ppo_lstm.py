@@ -53,7 +53,7 @@ class CustomEvalCallback(EventCallback):
         warn: bool = True,
         n_eval_episodes: int = 10,
     ):
-
+        np.random.seed(0)
         self.deterministic = deterministic
         self.render = render
         self.warn = warn
@@ -201,7 +201,6 @@ args = parser.parse_args()
 print(args)
 if __name__ == "__main__":
 
-
     optical_flow_subproc = False
     if args.USE_OPTICAL_FLOW and optical_flow_subproc:
         print("Using optical flow")
@@ -219,14 +218,14 @@ if __name__ == "__main__":
 
 
 
-    eval_env_kwargs = {"renders": False, "tree_urdf_path": args.TREE_TEST_URDF_PATH,
+    eval_env_kwargs = {"renders": args.RENDER, "tree_urdf_path": args.TREE_TEST_URDF_PATH,
                        "tree_obj_path": args.TREE_TEST_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
                        "max_steps": args.EVAL_MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
                        "action_scale": args.ACTION_SCALE, "distance_reward_scale": args.DISTANCE_REWARD_SCALE,
                        "condition_reward_scale": args.CONDITION_REWARD_SCALE,
                        "terminate_reward_scale": args.TERMINATE_REWARD_SCALE,
                        "collision_reward_scale": args.COLLISION_REWARD_SCALE,
-                       "slack_reward_scale": args.SLACK_REWARD_SCALE, "num_points": args.EVAL_POINTS,
+                       "slack_reward_scale": args.SLACK_REWARD_SCALE, "num_points":None,
                        "pointing_orientation_reward_scale": args.POINTING_ORIENTATION_REWARD_SCALE,
                        "perpendicular_orientation_reward_scale": args.PERPENDICULAR_ORIENTATION_REWARD_SCALE,
                        "name": "evalenv", "use_optical_flow": args.USE_OPTICAL_FLOW, "optical_flow_subproc": optical_flow_subproc,
@@ -236,5 +235,5 @@ if __name__ == "__main__":
     eval_env = Monitor(PruningEnv(**eval_env_kwargs))
     model = RecurrentPPOAE.load(load_path)
     # evaluate_policy(model, eval_env, n_eval_episodes=1, render=False, deterministic=True)
-    eval = CustomEvalCallback(eval_env, model, n_eval_episodes=args.EVAL_POINTS)
+    eval = CustomEvalCallback(eval_env, model, n_eval_episodes=len(eval_env.trees[0].reachable_points))
     eval.eval_policy()
