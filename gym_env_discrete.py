@@ -36,7 +36,8 @@ class PruningEnv(gym.Env):
                  collision_reward_scale: int = 1, slack_reward_scale: int = 1,
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  use_optical_flow: bool = False, optical_flow_subproc: bool = False,
-                 shared_var: Tuple[Optional[Any], Optional[Any]] = (None, None), scale: bool = False) -> None:
+                 shared_var: Tuple[Optional[Any], Optional[Any]] = (None, None), scale: bool = False,
+                 curriculum_distances: Tuple = (0.05, 0.1, 0.2, 0.25 ), curriculum_level_steps: Tuple = (300, 600, 1000)) -> None:
         super(PruningEnv, self).__init__()
 
         assert tree_urdf_path is not None
@@ -130,6 +131,7 @@ class PruningEnv(gym.Env):
 
         self.cosine_sim = 0.5
         self.reset_counter = 0
+        self.episode_counter = 0
         self.randomize_tree_count = 1
         self.sphereUid = -1
         self.learning_param = learning_param
@@ -163,7 +165,15 @@ class PruningEnv(gym.Env):
         assert pos is not None
         self.trees = Tree.make_trees_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos=pos,
                                                  orientation=np.array([0, 0, 0, 1]), scale=scale, num_points=num_points,
-                                                 num_trees=self.tree_count)
+                                                 num_trees=self.tree_count, curriculum_distances=curriculum_distances,
+                                                 curriculum_level_steps=curriculum_level_steps)
+
+        for tree in self.trees:
+            print(self.init_pos)
+            self.tree = tree
+            self.tree.active()
+            tree.make_curriculum(self.init_pos[1])
+            self.tree.inactive()
         #We have trees with reachable points and nice starting condition here
         #Introduce curriculum for each point by seeing if we can start from a closer point
         #This should be done in trees class
@@ -172,8 +182,8 @@ class PruningEnv(gym.Env):
             #is reachable point - curriculum collision free?
             #yes - add to list
             #no - ignore
-        curriculum_
-        for j in self.trees:
+        # curriculum_
+        # for j in self.trees:
 
         self.tree = random.sample(self.trees, 1)[0]
         self.supports = -1
@@ -190,6 +200,9 @@ class PruningEnv(gym.Env):
         self.debug_branch = -1
 
         self.eval_counter = 0
+        self.curriculum_level = 0
+        self.curriculum_level_steps = curriculum_level_steps
+        self.curriculum_distances = curriculum_distances
     def reset_env_variables(self) -> None:
         # Env variables that will change
         self.observation: dict = dict()
@@ -208,7 +221,7 @@ class PruningEnv(gym.Env):
         self.end_effector_index = 13
         self.success_link_index = 14
         flags = self.con.URDF_USE_SELF_COLLISION
-        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0, 0, 0.], [0, 0, 0, 1], flags=flags)
+        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0., 0, 0.], [0, 0, 0, 1], flags=flags)
 
         self.num_joints = self.con.getNumJoints(self.ur5)
         self.control_joints = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint",
@@ -486,6 +499,22 @@ class PruningEnv(gym.Env):
         depth = self.linearize_depth(depth, self.far_val, self.near_val) - 0.5
         return rgb, depth
 
+    def set_curriculum_level(self, episode_counter, curriculum_level_steps):
+        """Set curriculum level"""
+        if "eval" in self.name:
+            self.curriculum_level = len(curriculum_level_steps)
+        else:
+            if episode_counter in curriculum_level_steps:
+                self.curriculum_level += 1
+    def sample_point(self, name, episode_counter, curriculum_points) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
+        """Sample a point from the tree"""
+        if "eval" in name:
+            distance, random_point = curriculum_points[episode_counter%len(curriculum_points)]
+            print("Eval counter: ", episode_counter, "Point: ", random_point, "points ", len(curriculum_points))
+        else:
+            print(random.sample(curriculum_points, 1))
+            distance, random_point = random.sample(curriculum_points, 1)[0]
+        return distance, random_point
     def reset(self, seed: Optional[int] = None, options=None) -> Tuple[dict, dict]:
         """Environment reset function"""
         super().reset(seed=seed)
@@ -504,20 +533,23 @@ class PruningEnv(gym.Env):
         self.con.removeUserDebugItem(self.debug_des_perp)
         self.con.removeUserDebugItem(self.debug_cur_perp)
         # Sample new tree if reset_counter is a multiple of randomize_tree_count
+        self.set_curriculum_level(self.episode_counter, self.curriculum_level_steps)
+
         if self.reset_counter % self.randomize_tree_count == 0:
-            self.tree = random.sample(self.trees, 1)[0]
+            while True:
+                self.tree = random.sample(self.trees, 1)[0]
+                if len(self.tree.curriculum_points[self.curriculum_level]) > 0:
+                    break
 
         # Create new ur5 arm body
         self.setup_ur5_arm()
 
-        # Sample new point
-        if "eval" in self.name:
-            random_point = self.tree.reachable_points[self.eval_counter%len(self.tree.reachable_points)]
-            self.eval_counter += 1
-            print("Eval counter: ", self.eval_counter, "Point: ", random_point)
+        # Make this a new function that supports curriculum
+        #Set curriculum level
 
-        else:
-            random_point = random.sample(self.tree.reachable_points, 1)[0]
+        # Sample new point
+        distance_from_goal, random_point = self.sample_point(self.name, self.episode_counter, self.tree.curriculum_points[self.curriculum_level])
+        print("Distance from goal: ", distance_from_goal, "Point: ", random_point)
         if "record" in self.name:
             """Display red sphere during evaluation"""
             self.con.removeBody(self.sphereUid)
@@ -527,8 +559,10 @@ class PruningEnv(gym.Env):
                                                       [random_point[0][0], random_point[0][1], random_point[0][2]],
                                                       [0, 0, 0, 1])
         # self.set_joint_angles(self.init_joint_angles)
+        print(random_point[0])
+        #here the arm is set right in front of the point -> Change this to curriculum
         self.set_joint_angles(
-            self.calculate_ik((random_point[0][0], self.init_pos[0][1], random_point[0][2]), self.init_pos[1]))
+            self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
         for i in range(500):
             self.con.stepSimulation()
         self.tree_goal_pos = random_point[0]
@@ -595,6 +629,7 @@ class PruningEnv(gym.Env):
             infos['is_success'] = True
 
         if truncated or terminated:
+            self.episode_counter += 1
             infos['episode'] = {"l": self.stepCounter, "r": self.sum_reward}  # type: ignore
             print("Episode Length: ", self.stepCounter)
             infos["pointing_cosine_sim_error"] = self.orientation_point_value
@@ -1012,7 +1047,10 @@ class Tree:
     def __init__(self, env: PruningEnv, urdf_path: str, obj_path: str,
                  pos: NDArray[Shape['3,1'], Float] = np.array([0, 0, 0]),
                  orientation: NDArray[Shape['4,1'], Float] = np.array([0, 0, 0, 1]),
-                 num_points: Optional[int] = None, scale: int = 1) -> None:
+                 num_points: Optional[int] = None, scale: int = 1, curriculum_distances: Tuple = (-0.1,),
+                 curriculum_level_steps : Tuple = (0,) ) -> None:
+
+        assert  len(curriculum_distances)-1 == len(curriculum_level_steps)
         self.urdf_path = urdf_path
         self.env = env
         self.scale = scale
@@ -1026,6 +1064,13 @@ class Tree:
         self.projection_sum_x = np.array(0.)
         self.projection_sum_x2 = np.array(0.)
         self.init_xyz = self.env.get_current_pose(self.env.end_effector_index)[0]
+        self.num_points = num_points
+        self.reachable_points = []
+        self.curriculum_points = dict()
+        self.curriculum_distances = curriculum_distances
+
+
+
         # if pickled file exists load and return
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         #TODO: Add reset variable so that even if present it recomputes
@@ -1051,11 +1096,36 @@ class Tree:
             #         self.debug_branch = self.env.con.addUserDebugLine(point,
             #                                                       point + 50 * normal_vec / np.linalg.norm(normal_vec),
             #                                                       [1, 0, 0], 200)
+        else:
+            self.get_all_points()
+            self.get_reachable_points()
+            # dump reachable points to file using pickle
 
-            return
+            path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
+            # if pkl path exists else create
+            # Uncomment to visualize sphere at each reachable point
+            # self.active()
+            # for num,i in enumerate(self.reachable_points):
+            #     # print(i)
+            #     if num%1 == 0:
+            #         visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.005,
+            #                                                        rgbaColor=[1, 0, 0, 1])
+            #         self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
+            #                                               [0, 0, 0, 1])
+            #     input("Press Enter to continue...")
+            with open(pkl_path, 'wb') as f:
+                pickle.dump(self.reachable_points, f)
+
+            print('Saved reachable points to pickle file ', self.urdf_path[:-5] + '_reachable_points.pkl')
+            print("Number of reachable points: ", len(self.reachable_points))
+
+        # if self.curriculum_distances:
+        #     self.make_curriculum(self.curriculum_distances)
+
+
         # Find the two longest edges of the face
         # Add their mid-points and perpendicular projection to the smallest side as a point and branch
-
+    def get_all_points(self):
         for num, face in enumerate(self.tree_obj.mesh_list[0].faces):
             # Order the sides of the face by length
             ab = (
@@ -1072,9 +1142,8 @@ class Tree:
                                   self.transformed_vertices[bc[0]] - self.transformed_vertices[bc[1]])
            #Only front facing faces
             if np.dot(normal_vec, [0,1,0]) < 0:
-                continue
                 print(" is not pointing upwards")
-            #     continue
+                continue
             # argsort sorts in ascending order
             sorted_sides = np.argsort([x[2] for x in sides])
             ac = sides[sorted_sides[2]]
@@ -1116,25 +1185,8 @@ class Tree:
         self.projection_mean = self.projection_sum_x / len(self.vertex_and_projection)
         self.projection_std = np.sqrt(
             self.projection_sum_x2 / len(self.vertex_and_projection) - self.projection_mean ** 2)
-        self.num_points = num_points
-        self.get_reachable_points()
-        # dump reachable points to file using pickle
 
-        path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
-        # if pkl path exists else create
-        # Uncomment to visualize sphere at each reachable point
-        # self.active()
-        # for num,i in enumerate(self.reachable_points):
-        #     # print(i)
-        #     if num%1 == 0:
-        #         visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.005,
-        #                                                        rgbaColor=[1, 0, 0, 1])
-        #         self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
-        #                                               [0, 0, 0, 1])
-        #     input("Press Enter to continue...")
-        print("Saving pickle, num points ", len(self.reachable_points))
-        with open(pkl_path, 'wb') as f:
-            pickle.dump(self.reachable_points, f)
+
 
     def active(self):
         print('Loading tree from ', self.urdf_path)
@@ -1201,27 +1253,38 @@ class Tree:
 
     @staticmethod
     def make_trees_from_folder(env: PruningEnv, trees_urdf_path: str, trees_obj_path: str, pos: NDArray,
-                               orientation: NDArray, scale: int, num_points: int, num_trees: int):
+                               orientation: NDArray, scale: int, num_points: int, num_trees: int,
+                               curriculum_distances: Tuple, curriculum_level_steps: Tuple):
         trees: List[Tree] = []
         for urdf, obj in zip(sorted(glob.glob(trees_urdf_path + '/*.urdf')),
                              sorted(glob.glob(trees_obj_path + '/*.obj'))):
             if len(trees) >= num_trees:
                 break
             trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
-                              num_points=num_points))
+                              num_points=num_points, curriculum_distances=curriculum_distances, curriculum_level_steps=curriculum_level_steps))
         return trees
 
-    def make_curriculum(self, distance_from_start: List[int]):
-        for distance in distance_from_start:
+    def make_curriculum(self, init_or):
+        for level, distance in enumerate(self.curriculum_distances):
+            self.curriculum_points[level] = []
             for point in self.reachable_points:
-                point[0] = point[0] + np.array([0, 0, distance])
+                collision = False
+                start_point = point[0] + np.array([0, distance, 0])
+                # print(start_point, point[0])
                 #set ik to this point
-                j_angles = self.env.calculate_ik(point[0], None)
+                j_angles = self.env.calculate_ik(start_point, init_or)
                 self.env.set_joint_angles(j_angles)
                 for i in range(100):
                     self.env.con.stepSimulation()
                     #check collision
                     collisions = self.env.check_collisions()
-                    if not collisions[0]:
+                    if collisions[0]:
+                        collision = True
+                        break
+                if not collision:
+                    self.curriculum_points[level].append((distance, point))
+
+            print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
+
 
 

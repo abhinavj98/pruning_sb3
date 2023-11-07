@@ -119,7 +119,12 @@ class CustomEvalCallback(EventCallback):
             self._reward_dict["init_distance"].append(self.eval_env.get_attr("init_distance", 0)[0])
             self._reward_dict["init_perp_cosine_sim"].append(self.eval_env.get_attr("init_perp_cosine_sim", 0)[0])
             self._reward_dict["init_point_cosine_sim"].append(self.eval_env.get_attr("init_point_cosine_sim", 0)[0])
-            self._reward_dict["point"].append(str(self.eval_env.get_attr("tree_goal_pos", 0)[0]))
+            p_x = self.eval_env.get_attr("tree_goal_pos", 0)[0][0]
+            p_y = self.eval_env.get_attr("tree_goal_pos", 0)[0][1]
+            p_z = self.eval_env.get_attr("tree_goal_pos", 0)[0][2]
+            self._reward_dict["pointx"].append(p_x)
+            self._reward_dict["pointy"].append(p_y)
+            self._reward_dict["pointz"].append(p_z)
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         self._collisions_buffer.append(self.eval_env.get_attr("collisions", 0)[0])
@@ -152,7 +157,9 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict["init_distance"] = []
         self._reward_dict["init_perp_cosine_sim"] = []
         self._reward_dict["init_point_cosine_sim"] = []
-        self._reward_dict["point"] = []
+        self._reward_dict["pointx"] = []
+        self._reward_dict["pointy"] = []
+        self._reward_dict["pointz"] = []
 
 
         self._reward_dict_temp["movement_reward"] = []
@@ -217,7 +224,6 @@ if __name__ == "__main__":
 
 
 
-
     eval_env_kwargs = {"renders": args.RENDER, "tree_urdf_path": args.TREE_TEST_URDF_PATH,
                        "tree_obj_path": args.TREE_TEST_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
                        "max_steps": args.EVAL_MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
@@ -233,6 +239,7 @@ if __name__ == "__main__":
     device = "cuda" if th.cuda.is_available() else "cpu"
     print(device)
     eval_env = Monitor(PruningEnv(**eval_env_kwargs))
+    eval_env.reset()
     model = RecurrentPPOAE.load(load_path)
     # evaluate_policy(model, eval_env, n_eval_episodes=1, render=False, deterministic=True)
     eval = CustomEvalCallback(eval_env, model, n_eval_episodes=len(eval_env.trees[0].reachable_points))
