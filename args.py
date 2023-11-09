@@ -49,12 +49,12 @@ args_dict = {
     },
     'MAX_STEPS': {
         'type': int,
-        'default': 300,
+        'default': 150,
         'help': 'maximum number of steps per episode'
     },
     'EVAL_MAX_STEPS': {
         'type': int,
-        'default': 300,
+        'default': 150,
         'help': 'maximum number of steps per episode during evaluation'
     },
     'ACTION_SCALE': {
@@ -64,7 +64,7 @@ args_dict = {
     },
     'MOVEMENT_REWARD_SCALE': {
         'type': float,
-        'default': 8,
+        'default': 4,
         'help': 'scaling factor for the movement reward'
     },
     'DISTANCE_REWARD_SCALE': {
@@ -79,7 +79,7 @@ args_dict = {
     },
     'TERMINATE_REWARD_SCALE': {
         'type': float,
-        'default': 5,
+        'default': 2,
         'help': 'scaling factor for the terminate reward'
     },
     'COLLISION_REWARD_SCALE': {
@@ -99,7 +99,7 @@ args_dict = {
     },
     'PERPENDICULAR_ORIENTATION_REWARD_SCALE': {
         'type': float,
-        'default':6,
+        'default':3,
         'help': 'scaling factor for the orientation reward'
     },
     # Training parameters
@@ -111,7 +111,7 @@ args_dict = {
     #For logging purposes keep as multiple of episodelength
     'STEPS_PER_EPOCH': {
         'type': int,
-        'default': 300,
+        'default': 150,
         'help': 'number of timesteps per epoch'
     },
     'EPOCHS': {
@@ -136,14 +136,14 @@ args_dict = {
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -6,
+        'default': -5,
         'help': 'initial value for the log standard deviation'
     },
 
     # Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 10000,
+        'default': 20000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {

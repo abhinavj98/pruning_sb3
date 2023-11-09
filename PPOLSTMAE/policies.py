@@ -303,7 +303,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         if self.share_features_extractor is False:
             features_critic = th.cat(
                 [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
-                    image_features[1], obs['close_to_goal'], obs['relative_distance'], obs['critic_pointing_cosine_sim'],
+                    image_features[0], obs['close_to_goal'], obs['relative_distance'], obs['critic_pointing_cosine_sim'],
                     obs['critic_perpendicular_cosine_sim']], dim=1).to(th.float32)
             features = (features_actor, features_critic)
 

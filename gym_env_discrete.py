@@ -89,7 +89,7 @@ class PruningEnv(gym.Env):
         else:
             self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
 
-        self.con.setTimeStep(5. / 240.)
+        self.con.setTimeStep(50. / 240.)
         self.con.setGravity(0, 0, -10)
         self.con.setRealTimeSimulation(False)
 
