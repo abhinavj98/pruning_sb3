@@ -102,7 +102,7 @@ if __name__ == "__main__":
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
         "features_extractor_kwargs": {"features_dim": args.STATE_DIM,
-                                      "in_channels": (2 if args.USE_OPTICAL_FLOW else 1), },
+                                      "in_channels": (3 if args.USE_OPTICAL_FLOW else 1), },
         "optimizer_class": th.optim.Adam,
         "log_std_init": args.LOG_STD_INIT,
         "net_arch": dict(qf=[args.EMB_SIZE * 2, args.EMB_SIZE, args.EMB_SIZE // 2],

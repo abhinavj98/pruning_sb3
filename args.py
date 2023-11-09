@@ -153,7 +153,7 @@ args_dict = {
     },
     'EVAL_POINTS': {
         'type': int,
-        'default': 5,
+        'default': 20,
         'help': 'number of points to sample in a tree during evaluation'
     },
     'TESTING': {

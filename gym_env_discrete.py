@@ -99,7 +99,7 @@ class PruningEnv(gym.Env):
         self.observation_space = spaces.Dict({
             'depth': spaces.Box(low=-1.,
                                 high=1.0,
-                                shape=((2, 224, 224) if self.use_optical_flow else (1, 224, 224)), dtype=np.float32),
+                                shape=((3, 224, 224) if self.use_optical_flow else (1, 224, 224)), dtype=np.float32),
             'desired_goal': spaces.Box(low=-5.,
                                        high=5.,
                                        shape=(3,), dtype=np.float32),
@@ -564,10 +564,10 @@ class PruningEnv(gym.Env):
         # self.set_joint_angles(self.init_joint_angles)
         print(random_point[0])
         #here the arm is set right in front of the point -> Change this to curriculum
-        # self.set_joint_angles(
-        #     self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
         self.set_joint_angles(
-            self.calculate_ik((self.init_pos[0][0] , random_point[0][1] + distance_from_goal, self.init_pos[0][2]), self.init_pos[1]))
+            self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
+        # self.set_joint_angles(
+        #     self.calculate_ik((self.init_pos[0][0] , random_point[0][1] + distance_from_goal, self.init_pos[0][2]), self.init_pos[1]))
 
         for i in range(500):
             self.con.stepSimulation()
@@ -678,6 +678,7 @@ class PruningEnv(gym.Env):
 
     def compute_deprojected_point_mask(self):
         point_mask = np.zeros(self.rgb.shape[:2])
+        point_mask = np.expand_dims(point_mask, axis=0).astype(np.float32)
         proj_matrix = np.asarray(self.proj_mat).reshape([4, 4], order="F")
         view_matrix = np.asarray(self.view_matrix).reshape([4, 4], order="F")
         projection = proj_matrix @ view_matrix @ np.array(
@@ -696,7 +697,7 @@ class PruningEnv(gym.Env):
             radius = 5
             # modern scikit uses a tuple for center
             rr, cc = disk((row, col), radius)
-            point_mask[rr, cc] = 1
+            point_mask[0, np.clip(0,rr,223), np.clip(0,cc,223)] = 1
 
         return point_mask
 
@@ -743,14 +744,14 @@ class PruningEnv(gym.Env):
                 while not self.pid in self.shared_dict.keys():
                     pass
                 optical_flow = self.shared_dict[self.pid]
-                self.observation['depth'] = optical_flow
+                self.observation['depth'] = np.concatenate((optical_flow, point_mask))
                 # ((optical_flow - optical_flow.min()) / (
                 # optical_flow.max() - optical_flow.min() + 1e-6))
                 # self.shared_dict[self.pid] = None
                 del self.shared_dict[self.pid]
             else:
                 optical_flow = self.optical_flow_model.calculate_optical_flow(self.rgb, self.prev_rgb)
-                self.observation['depth'] = np.dstack((optical_flow, point_mask))
+                self.observation['depth'] = np.concatenate((optical_flow, point_mask))
             # self.observation['depth'] = self.optical_flow_model.calculate_optical_flow(self.rgb,
             #  self.prev_rgb)  # TODO: rename depth
         else:
