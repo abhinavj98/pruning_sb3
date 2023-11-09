@@ -57,9 +57,41 @@ class SpatialSoftmax(torch.nn.Module):
 
         return feature_keypoints
 
+
+class Decoder(nn.Module):
+    def __init__(self):
+        output_conv = nn.Conv2d(3, 1, 3, padding=1)
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose2d(32, 32, 3, padding=1, stride=1),  # 32. 14, 14
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 32, 2, stride=2),  # 32. 14, 14
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 16, 3, padding=1, stride=1),  # b, 16, 28, 28
+            nn.ReLU(),
+            nn.ConvTranspose2d(16, 16, 2, stride=2),  # b, 16, 28, 28
+            nn.ReLU(),
+            nn.ConvTranspose2d(16, 16, 3, padding=1, stride=1),  # 32. 14, 14
+            nn.ReLU(),
+            nn.ConvTranspose2d(16, 8, 2, stride=2),  # b, 8, 56, 56
+            nn.ReLU(),
+            nn.ConvTranspose2d(8, 8, 3, padding=1, stride=1),  # 32. 14, 14
+            nn.ReLU(),
+            nn.ConvTranspose2d(8, 8, 2, stride=2),  # b, 16, 112, 112
+            nn.ReLU(),
+            nn.Conv2d(8, 3, 3, padding=1),  # b, 3, 224, 224
+            nn.ReLU(),
+            nn.Conv2d(3, 3, 3, padding=1),  # b, 3, 224, 224
+            nn.ReLU(),
+            output_conv,  # b, 1, 224, 224
+        )
+
+    def forward(self, x):
+        recon = self.decoder(x.view(-1, 32, 7, 7))
+
 class AutoEncoder(BaseFeaturesExtractor):
     def __init__(self, observation_space: gym.spaces.Box, features_dim = 72,  in_channels=1):
         super(AutoEncoder, self).__init__(observation_space, features_dim)
+        output_conv = nn.Conv2d(3, in_channels, 3, padding=1)
         self.encoder = nn.Sequential(
             nn.Conv2d(in_channels, 16, 3, padding='same'),  # b, 16, 224, 224
             nn.ReLU(),

@@ -3,9 +3,9 @@
 # ((0.13449451327323914, -0.5022636651992798, 0.5729073882102966), (0.08234550355528829, 0.08149129879013207, -0.7017672940054546, 0.7029232186590406))
 # ((0.13449475169181824, -0.5022648572921753, 0.5729056596755981)
 import sys
-sys.path.append("C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3")
+sys.path.append(".")
 from gym_env_discrete import PruningEnv
-from PPOAE.models import *
+from models import *
 import numpy as np
 import cv2
 import random
@@ -26,15 +26,16 @@ def plot(imgs, axs, **imshow_kwargs):
     if not isinstance(imgs[0], list):
         # Make a 2d grid even if there's just 1 row
         imgs = [imgs]
-    for i in imgs:
-        print(i[0].shape)
+    # for i in imgs:
+    #     print("Image", i[0].shape)
     num_rows = len(imgs)
     num_cols = len(imgs[0])
 
     for row_idx, row in enumerate(imgs):
         for col_idx, img in enumerate(row):
+            # print(img.shape, row_idx, col_idx)
             ax = axs[row_idx, col_idx]
-            print(img.shape)
+
             if img.shape[0] == 1:
                 cmap = 'gray'#, vmin = 0, vmax = 255
                 ax.imshow(np.asarray(img), cmap = cmap)
@@ -55,11 +56,13 @@ for arg_name, arg_params in args_dict.items():
 # Parse arguments from the command line
 args = parser.parse_args()
 print(args)
-env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR, "use_optical_flow" : True}
+env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH,\
+              "action_dim" : args.ACTION_DIM_ACTOR, "use_optical_flow" : True, "name": "recordenv", "curriculum_distances": (0.26,),\
+              "curriculum_level_steps": ()}
 env = PruningEnv(**env_kwargs, tree_count=1)
 
 plt.ion()
-_, axs = plt.subplots(nrows=1, ncols=4, squeeze=False)
+_, axs = plt.subplots(nrows=1, ncols=5, squeeze=False)
 plt.show()
 # env.reset()
 val = np.array([0,0,0,0,0,0])
@@ -100,5 +103,5 @@ while True:
 
     observation, reward, terminated, truncated, infos = env.step(val)
     # print(env.observation["depth"].shape)
-    grid = [th.tensor(env.prev_rgb), th.tensor(env.rgb),th.tensor(env.observation['depth'][0]), th.tensor(env.observation["depth"][1])]# - th.mean(th.tensor(env.observation["depth"][0], dtype=th.float32))]
+    grid = [th.tensor(env.prev_rgb), th.tensor(env.rgb), th.tensor(env.observation['depth'][0]), th.tensor(env.observation["depth"][1]), th.tensor(env.observation["point_mask"])]# - th.mean(th.tensor(env.observation["depth"][0], dtype=th.float32))]
     plot(grid, axs)

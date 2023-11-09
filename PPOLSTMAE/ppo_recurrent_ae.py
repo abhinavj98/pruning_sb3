@@ -429,7 +429,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 ae_l2_loss = self.mse_loss(F.interpolate(rollout_data.observations['depth'], size=(112, 112)), recon)
                 ae_losses.append(ae_l2_loss.item())
                 value_loss = th.mean(((rollout_data.returns - values_pred) ** 2)[mask])
-
+                # Depth prediction loss
+                #TODO: Add depth prediction loss
                 value_losses.append(value_loss.item())
 
                 # Entropy loss favor exploration

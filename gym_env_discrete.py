@@ -37,7 +37,7 @@ class PruningEnv(gym.Env):
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  use_optical_flow: bool = False, optical_flow_subproc: bool = False,
                  shared_var: Tuple[Optional[Any], Optional[Any]] = (None, None), scale: bool = False,
-                 curriculum_distances: Tuple = (0.05, 0.1, 0.2, 0.25 ), curriculum_level_steps: Tuple = (300, 600, 1000)) -> None:
+                 curriculum_distances: Tuple = (0.26, ), curriculum_level_steps: Tuple = ()) -> None:
         super(PruningEnv, self).__init__()
 
         assert tree_urdf_path is not None
@@ -385,7 +385,7 @@ class PruningEnv(gym.Env):
         jacobian = np.vstack(jacobian)
         inv_jacobian = np.linalg.pinv(jacobian)
         joint_velocities = np.matmul(inv_jacobian, end_effector_velocity).astype(np.float32)
-        return joint_velocities
+        return joint_velocities, jacobian
 
     def get_joint_angles(self) -> Tuple[float, float, float, float, float, float]:
         """Return joint angles"""
@@ -448,8 +448,7 @@ class PruningEnv(gym.Env):
         return position, orientation
 
     # TODO: Better types for getCameraImage
-    def get_image_at_curr_pose(self) -> List:
-        """Take the current pose of the end effector and set the camera to that pose"""
+    def get_view_mat_at_curr_pose(self) -> np.ndarray:
         CAMERA_BASE_OFFSET = np.array([-0.063179, 0.077119, 0.0420027])
         pose, orientation = self.get_current_pose(self.camera_link_index)
         # CAMERA_BASE_OFFSET = np.array([0.01, 0.005, 0.01 ])  # TODO: Change camera position
@@ -471,8 +470,12 @@ class PruningEnv(gym.Env):
         camera_vector = rot_mat.dot(init_camera_vector)
         up_vector = rot_mat.dot(init_up_vector)
         view_matrix = self.con.computeViewMatrix(tf[:3,3], tf[:3,3] + 0.1 * camera_vector, up_vector)
-
-        return self.con.getCameraImage(self.width, self.height, viewMatrix=view_matrix, projectionMatrix=self.proj_mat,
+        return view_matrix
+    def get_image_at_curr_pose(self) -> List:
+        """Take the current pose of the end effector and set the camera to that pose"""
+        CAMERA_BASE_OFFSET = np.array([-0.063179, 0.077119, 0.0420027])
+        self.view_matrix = self.get_view_mat_at_curr_pose()
+        return self.con.getCameraImage(self.width, self.height, viewMatrix=self.view_matrix, projectionMatrix=self.proj_mat,
                                        renderer=self.con.ER_BULLET_HARDWARE_OPENGL,
                                        flags=self.con.ER_NO_SEGMENTATION_MASK, lightDirection=[1, 1, 1])
 
@@ -561,8 +564,11 @@ class PruningEnv(gym.Env):
         # self.set_joint_angles(self.init_joint_angles)
         print(random_point[0])
         #here the arm is set right in front of the point -> Change this to curriculum
+        # self.set_joint_angles(
+        #     self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
         self.set_joint_angles(
-            self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
+            self.calculate_ik((self.init_pos[0][0] , random_point[0][1] + distance_from_goal, self.init_pos[0][2]), self.init_pos[1]))
+
         for i in range(500):
             self.con.stepSimulation()
         self.tree_goal_pos = random_point[0]
@@ -598,7 +604,13 @@ class PruningEnv(gym.Env):
         self.action = action
 
         action = action * self.action_scale
-        self.joint_velocities = self.calculate_joint_velocities_from_end_effector_velocity(action)
+        self.joint_velocities, jacobian = self.calculate_joint_velocities_from_end_effector_velocity(action)
+        #check if actual ee velocity is close to desired ee velocity
+        actual_ee_vel = np.matmul(jacobian, self.joint_velocities)
+        self.ee_vel_error = abs(actual_ee_vel - action)/action
+        if (self.ee_vel_error > 0.1).any():
+            self.joint_velocities = np.zeros(6)
+
         singularity = self.set_joint_velocities(self.joint_velocities)
 
         for i in range(5):
@@ -663,6 +675,31 @@ class PruningEnv(gym.Env):
     def close(self) -> None:
         self.con.disconnect()
 
+
+    def compute_deprojected_point_mask(self):
+        point_mask = np.zeros(self.rgb.shape[:2])
+        proj_matrix = np.asarray(self.proj_mat).reshape([4, 4], order="F")
+        view_matrix = np.asarray(self.view_matrix).reshape([4, 4], order="F")
+        projection = proj_matrix @ view_matrix @ np.array(
+            [self.tree_goal_pos[0], self.tree_goal_pos[1], self.tree_goal_pos[2], 1])
+        # Normalize by w
+        projection = projection / projection[3]
+
+        # if projection within 1,-1, set point mask to 1
+        if projection[0] < 1 and projection[0] > -1 and projection[1] < 1 and projection[1] > -1:
+            projection = (projection + 1) / 2
+
+            from skimage.draw import disk
+            # mask = np.zeros((10, 10), dtype=np.uint8)
+            row = self.height - 1 - int(projection[1] * (self.height))
+            col = int(projection[0] * (self.width))
+            radius = 5
+            # modern scikit uses a tuple for center
+            rr, cc = disk((row, col), radius)
+            point_mask[rr, cc] = 1
+
+        return point_mask
+
     def set_extended_observation(self) -> None:
         """
         The observations are the current position, the goal position, the current orientation, the current depth
@@ -695,6 +732,7 @@ class PruningEnv(gym.Env):
         self.observation['desired_goal'] = self.desired_pos
 
         # print(np.array(self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or)))
+        point_mask = self.compute_deprojected_point_mask()
         if self.use_optical_flow:
             # #if subprocvenv add the rgb to the queue and wait for the optical flow to be calculated
             # if self.subprocvenv:
@@ -712,11 +750,13 @@ class PruningEnv(gym.Env):
                 del self.shared_dict[self.pid]
             else:
                 optical_flow = self.optical_flow_model.calculate_optical_flow(self.rgb, self.prev_rgb)
-                self.observation['depth'] = optical_flow
+                self.observation['depth'] = np.dstack((optical_flow, point_mask))
             # self.observation['depth'] = self.optical_flow_model.calculate_optical_flow(self.rgb,
             #  self.prev_rgb)  # TODO: rename depth
         else:
             self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis=0)
+
+
 
         # self.observation['cosine_sim'] = np.array(self.cosine_sim).astype(np.float32).reshape(
         #     1, )  # DO NOT PASS THIS AS STATE - JUST HERE FOR COSINE SIM PREDICTOR
@@ -1267,22 +1307,25 @@ class Tree:
     def make_curriculum(self, init_or):
         for level, distance in enumerate(self.curriculum_distances):
             self.curriculum_points[level] = []
-            for point in self.reachable_points:
-                collision = False
-                start_point = point[0] + np.array([0, distance, 0])
-                # print(start_point, point[0])
-                #set ik to this point
-                j_angles = self.env.calculate_ik(start_point, init_or)
-                self.env.set_joint_angles(j_angles)
-                for i in range(100):
-                    self.env.con.stepSimulation()
-                    #check collision
-                    collisions = self.env.check_collisions()
-                    if collisions[0]:
-                        collision = True
-                        break
-                if not collision:
-                    self.curriculum_points[level].append((distance, point))
+            if distance > 0.25:
+                self.curriculum_points[level] = [(distance, i) for i in self.reachable_points]
+            else:
+                for point in self.reachable_points:
+                    collision = False
+                    start_point = point[0] + np.array([0, distance, 0])
+                    # print(start_point, point[0])
+                    #set ik to this point
+                    j_angles = self.env.calculate_ik(start_point, init_or)
+                    self.env.set_joint_angles(j_angles)
+                    for i in range(100):
+                        self.env.con.stepSimulation()
+                        #check collision
+                        collisions = self.env.check_collisions()
+                        if collisions[0]:
+                            collision = True
+                            break
+                    if not collision:
+                        self.curriculum_points[level].append((distance, point))
 
             print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
 
