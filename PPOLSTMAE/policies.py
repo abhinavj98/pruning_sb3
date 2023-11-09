@@ -334,7 +334,11 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         """
         # Call the method from the parent of the parent class WHYYYY
         features, recon = self.extract_features(obs)
-        latent_pi, lstm_states = self._process_sequence(features, lstm_states, episode_starts, self.lstm_actor)
+        if self.features_dim_critic_add is not None:
+            actor_features = features[0]
+        else:
+            actor_features = features
+        latent_pi, lstm_states = self._process_sequence(actor_features, lstm_states, episode_starts, self.lstm_actor)
         latent_pi = self.mlp_extractor.forward_actor(latent_pi)
         return self._get_action_dist_from_latent(latent_pi), lstm_states
 
@@ -357,7 +361,11 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         features, _ = self.extract_features(obs)  # , self.vf_features_extractor)
 
         if self.lstm_critic is not None:
-            latent_vf, lstm_states_vf = self._process_sequence(features, lstm_states, episode_starts, self.lstm_critic)
+            if self.features_dim_critic_add is not None:
+                critic_features = features[1]
+            else:
+                critic_features = features
+            latent_vf, lstm_states_vf = self._process_sequence(critic_features, lstm_states, episode_starts, self.lstm_critic)
         elif self.shared_lstm:
             # Use LSTM from the actor
             latent_pi, _ = self._process_sequence(features, lstm_states, episode_starts, self.lstm_actor)
