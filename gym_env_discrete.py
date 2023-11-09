@@ -120,6 +120,9 @@ class PruningEnv(gym.Env):
             # 'cosine_sim': spaces.Box(low=-1., high=1., shape=(1,), dtype=np.float32),
             'close_to_goal': spaces.Box(low=0., high=1., shape=(1,), dtype=np.float32),
             'relative_distance': spaces.Box(low=-1., high=1., shape=(3,), dtype=np.float32),
+            'critic_perpendicular_cosine_sim' : spaces.Box(low=-0., high=1., shape=(1,), dtype=np.float32),
+            'critic_pointing_cosine_sim' : spaces.Box(low=-0., high=1., shape=(1,), dtype=np.float32),
+
         })
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
 
@@ -775,6 +778,12 @@ class PruningEnv(gym.Env):
         else:
             self.observation['close_to_goal'] = np.array(0).astype(np.float32).reshape(1, )
         self.observation['relative_distance'] = self.achieved_pos - self.desired_pos
+
+
+        #Priveleged critic
+        #Add cosin sim perp and point
+        self.observation['critic_pointing_cosine_sim'] = np.array(self.compute_pointing_cos_sim(self.achieved_pos, self.desired_pos, self.achieved_or, self.tree_goal_branch)).astype(np.float32).reshape(1, )
+        self.observation['critic_perpendicular_cosine_sim'] = np.array(self.compute_perpendicular_cos_sim(self.achieved_or, self.tree_goal_branch)).astype(np.float32).reshape(1, )
 
     def is_task_done(self) -> Tuple[bool, dict]:
         # NOTE: need to call compute_reward before this to check termination!

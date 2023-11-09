@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 import sys
+
 sys.path.append("..")
 import numpy as np
 import torch as th
@@ -19,6 +20,7 @@ from torch import nn
 from sb3_contrib.common.recurrent.type_aliases import RNNStates
 
 from running_mean_std import RunningMeanStd
+
 
 class RecurrentActorCriticPolicy(ActorCriticPolicy):
     """
@@ -63,31 +65,32 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
     """
 
     def __init__(
-        self,
-        observation_space: spaces.Space,
-        action_space: spaces.Space,
-        lr_schedule: Schedule,
-        lr_schedule_ae: Schedule = 0.0001,
-        lr_schedule_logstd: Schedule = 0.0001,
-        net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
-        activation_fn: Type[nn.Module] = nn.Tanh,
-        ortho_init: bool = True,
-        use_sde: bool = False,
-        log_std_init: float = 0.0,
-        full_std: bool = True,
-        use_expln: bool = False,
-        squash_output: bool = False,
-        features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
-        features_extractor_kwargs: Optional[Dict[str, Any]] = None,
-        share_features_extractor: bool = True,
-        normalize_images: bool = True,
-        optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
-        optimizer_kwargs: Optional[Dict[str, Any]] = None,
-        lstm_hidden_size: int = 256,
-        n_lstm_layers: int = 1,
-        shared_lstm: bool = False,
-        enable_critic_lstm: bool = True,
-        lstm_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            observation_space: spaces.Space,
+            action_space: spaces.Space,
+            lr_schedule: Schedule,
+            lr_schedule_ae: Schedule = 0.0001,
+            lr_schedule_logstd: Schedule = 0.0001,
+            net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
+            activation_fn: Type[nn.Module] = nn.Tanh,
+            ortho_init: bool = True,
+            use_sde: bool = False,
+            log_std_init: float = 0.0,
+            full_std: bool = True,
+            use_expln: bool = False,
+            squash_output: bool = False,
+            features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
+            features_extractor_kwargs: Optional[Dict[str, Any]] = None,
+            share_features_extractor: bool = True,
+            normalize_images: bool = True,
+            optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
+            optimizer_kwargs: Optional[Dict[str, Any]] = None,
+            lstm_hidden_size: int = 256,
+            n_lstm_layers: int = 1,
+            shared_lstm: bool = False,
+            enable_critic_lstm: bool = True,
+            lstm_kwargs: Optional[Dict[str, Any]] = None,
+            features_dim_critic_add: Optional[bool] = None,
     ):
         self.lstm_output_dim = lstm_hidden_size
         super().__init__(
@@ -109,7 +112,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             optimizer_class,
             optimizer_kwargs,
         )
-
+        self.features_dim_critic_add = features_dim_critic_add
         self.lstm_kwargs = lstm_kwargs or {}
         self.shared_lstm = shared_lstm
         self.enable_critic_lstm = enable_critic_lstm
@@ -125,11 +128,11 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         self.critic = None
         self.lstm_critic = None
         assert not (
-            self.shared_lstm and self.enable_critic_lstm
+                self.shared_lstm and self.enable_critic_lstm
         ), "You must choose between shared LSTM, seperate or no LSTM for the critic."
 
         assert not (
-            self.shared_lstm and not self.share_features_extractor
+                self.shared_lstm and not self.share_features_extractor
         ), "If the features extractor is not shared, the LSTM cannot be shared."
 
         # No LSTM for the critic, we still need to convert
@@ -140,28 +143,33 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
 
         # Use a separate LSTM for the critic
         if self.enable_critic_lstm:
+            features_dim = self.features_dim if features_dim_critic_add is None else self.features_dim + self.features_dim_critic_add
             self.lstm_critic = nn.LSTM(
-                self.features_dim,
+                features_dim,  # critic features dim
                 lstm_hidden_size,
                 num_layers=n_lstm_layers,
                 **self.lstm_kwargs,
             )
 
-        self.running_mean_var_oflow = RunningMeanStd(shape=(1,1))
+        self.running_mean_var_oflow = RunningMeanStd(shape=(1, 1))
         # Setup optimizer with initial learning rate
-        self.optimizer = self.optimizer_class([*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
-        self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
+        self.optimizer = self.optimizer_class(
+            [*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(),
+             *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1),
+                                                 **self.optimizer_kwargs)
         self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
 
     def _normalize_using_running_mean_std(self, x, running_mean_std):
         mean = running_mean_std.mean.to(self.device, dtype=th.float32)
-        std = th.sqrt(running_mean_std.var).to(self.device, dtype = th.float32)
+        std = th.sqrt(running_mean_std.var).to(self.device, dtype=th.float32)
         return (x - mean) / std
 
     def _unnormalize_using_running_mean_std(self, x, running_mean_std):
         mean = running_mean_std.mean.to(self.device, dtype=th.float32)
         std = th.sqrt(running_mean_std.var).to(self.device, dtype=th.float32)
-        return x*std + mean
+        return x * std + mean
+
     def _build_mlp_extractor(self) -> None:
         """
         Create the policy and value networks.
@@ -173,14 +181,13 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             activation_fn=self.activation_fn,
             device=self.device,
         )
-  
 
     @staticmethod
     def _process_sequence(
-        features: th.Tensor,
-        lstm_states: Tuple[th.Tensor, th.Tensor],
-        episode_starts: th.Tensor,
-        lstm: nn.LSTM,
+            features: th.Tensor,
+            lstm_states: Tuple[th.Tensor, th.Tensor],
+            episode_starts: th.Tensor,
+            lstm: nn.LSTM,
     ) -> Tuple[th.Tensor, th.Tensor]:
         """
         Do a forward pass in the LSTM network.
@@ -227,11 +234,11 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         return lstm_output, lstm_states
 
     def forward(
-        self,
-        obs: th.Tensor,
-        lstm_states: RNNStates,
-        episode_starts: th.Tensor,
-        deterministic: bool = False,
+            self,
+            obs: th.Tensor,
+            lstm_states: RNNStates,
+            episode_starts: th.Tensor,
+            deterministic: bool = False,
     ) -> Tuple[th.Tensor, th.Tensor, th.Tensor, RNNStates]:
         """
         Forward pass in all the networks (actor and critic)
@@ -245,7 +252,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         """
         # Preprocess the observation if needed
         features, recon = self.extract_features(obs)
-        
+
         if self.share_features_extractor:
             pi_features = vf_features = features  # alis
         else:
@@ -253,7 +260,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         # latent_pi, latent_vf = self.mlp_extractor(features)
         latent_pi, lstm_states_pi = self._process_sequence(pi_features, lstm_states.pi, episode_starts, self.lstm_actor)
         if self.lstm_critic is not None:
-            latent_vf, lstm_states_vf = self._process_sequence(vf_features, lstm_states.vf, episode_starts, self.lstm_critic)
+            latent_vf, lstm_states_vf = self._process_sequence(vf_features, lstm_states.vf, episode_starts,
+                                                               self.lstm_critic)
         elif self.shared_lstm:
             # Re-use LSTM features but do not backpropagate
             latent_vf = latent_pi.detach()
@@ -271,9 +279,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         actions = distribution.get_actions(deterministic=deterministic)
         log_prob = distribution.log_prob(actions)
         return actions, values, log_prob, RNNStates(lstm_states_pi, lstm_states_vf)
-    
-    
-    def extract_features(self, obs: th.Tensor):# -> tuple[th.Tensor, th.Tensor]:
+
+    def extract_features(self, obs: th.Tensor):  # -> tuple[th.Tensor, th.Tensor]:
         """
         Preprocess the observation if needed and extract features.
 
@@ -281,13 +288,26 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         :return:
         """
         assert self.features_extractor is not None, "No features extractor was set"
-        #preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
-        #Add running mean and var
+        # preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
+        # Add running mean and var
 
-        image_features = self.features_extractor(self._normalize_using_running_mean_std(obs['depth'], self.running_mean_var_oflow))
+        image_features = self.features_extractor(
+            self._normalize_using_running_mean_std(obs['depth'], self.running_mean_var_oflow))
         # print(obs['achieved_goal'].shape, obs['close_to_goal'].shape)
-        features = th.cat([obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'], image_features[0], obs['close_to_goal'], obs['relative_distance']],  dim = 1).to(th.float32)
-        # print(features.shape)
+        features_actor = th.cat(
+            [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
+             image_features[0], obs['close_to_goal'], obs['relative_distance']], dim=1).to(th.float32)
+
+        features = features_actor
+
+        if self.share_features_extractor is False:
+            features_critic = th.cat(
+                [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
+                    image_features[1], obs['close_to_goal'], obs['relative_distance'], obs['critic_pointing_cosine_sim'],
+                    obs['critic_perpendicular_cosine_sim']], dim=1).to(th.float32)
+            features = (features_actor, features_critic)
+
+        # return actor features and critic features
 
         return features, self._unnormalize_using_running_mean_std(image_features[1], self.running_mean_var_oflow)
 
@@ -296,13 +316,12 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
     #     #TODO: Normalize inputs
     #     robot_features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action']],  dim = 1)
     #     return depth_features, robot_features
-        
 
     def get_distribution(
-        self,
-        obs: th.Tensor,
-        lstm_states: Tuple[th.Tensor, th.Tensor],
-        episode_starts: th.Tensor,
+            self,
+            obs: th.Tensor,
+            lstm_states: Tuple[th.Tensor, th.Tensor],
+            episode_starts: th.Tensor,
     ) -> Tuple[Distribution, Tuple[th.Tensor, ...]]:
         """
         Get the current policy distribution given the observations.
@@ -320,10 +339,10 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         return self._get_action_dist_from_latent(latent_pi), lstm_states
 
     def predict_values(
-        self,
-        obs: th.Tensor,
-        lstm_states: Tuple[th.Tensor, th.Tensor],
-        episode_starts: th.Tensor,
+            self,
+            obs: th.Tensor,
+            lstm_states: Tuple[th.Tensor, th.Tensor],
+            episode_starts: th.Tensor,
     ) -> th.Tensor:
         """
         Get the estimated values according to the current policy given the observations.
@@ -335,7 +354,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         :return: the estimated values.
         """
         # Call the method from the parent of the parent class
-        features, _ = self.extract_features(obs)#, self.vf_features_extractor)
+        features, _ = self.extract_features(obs)  # , self.vf_features_extractor)
 
         if self.lstm_critic is not None:
             latent_vf, lstm_states_vf = self._process_sequence(features, lstm_states, episode_starts, self.lstm_critic)
@@ -348,9 +367,9 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
 
         latent_vf = self.mlp_extractor.forward_critic(latent_vf)
         return self.value_net(latent_vf)
-    
+
     def evaluate_actions(
-        self, obs: th.Tensor, actions: th.Tensor, lstm_states: RNNStates, episode_starts: th.Tensor
+            self, obs: th.Tensor, actions: th.Tensor, lstm_states: RNNStates, episode_starts: th.Tensor
     ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
         """
         Evaluate actions according to the current policy,
@@ -387,25 +406,25 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         log_prob = distribution.log_prob(actions)
         values = self.value_net(latent_vf)
         return values, log_prob, distribution.entropy(), recon
-    
+
     @staticmethod
     def init_weights(module: nn.Module, gain: float = 1) -> None:
         """
         Orthogonal initialization (used in PPO and A2C)
         """
         if isinstance(module, (nn.Linear, nn.Conv2d)):
-            #nn.init.kaiming_normal_(module.weight, mode='fan_in', nonlinearity='relu')
-            #module.weight.data = module.weight.data*gain
+            # nn.init.kaiming_normal_(module.weight, mode='fan_in', nonlinearity='relu')
+            # module.weight.data = module.weight.data*gain
             nn.init.orthogonal_(module.weight, gain=gain)
             if module.bias is not None:
                 module.bias.data.fill_(0.0)
-        
+
     def _predict(
-        self,
-        observation: th.Tensor,
-        lstm_states: Tuple[th.Tensor, th.Tensor],
-        episode_starts: th.Tensor,
-        deterministic: bool = False,
+            self,
+            observation: th.Tensor,
+            lstm_states: Tuple[th.Tensor, th.Tensor],
+            episode_starts: th.Tensor,
+            deterministic: bool = False,
     ) -> Tuple[th.Tensor, Tuple[th.Tensor, ...]]:
         """
         Get the action according to the policy for a given observation.
@@ -421,11 +440,11 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         return distribution.get_actions(deterministic=deterministic), lstm_states
 
     def predict(
-        self,
-        observation: Union[np.ndarray, Dict[str, np.ndarray]],
-        state: Optional[Tuple[np.ndarray, ...]] = None,
-        episode_start: Optional[np.ndarray] = None,
-        deterministic: bool = False,
+            self,
+            observation: Union[np.ndarray, Dict[str, np.ndarray]],
+            state: Optional[Tuple[np.ndarray, ...]] = None,
+            episode_start: Optional[np.ndarray] = None,
+            deterministic: bool = False,
     ) -> Tuple[np.ndarray, Optional[Tuple[np.ndarray, ...]]]:
         """
         Get the policy action from an observation (and optional hidden state).
