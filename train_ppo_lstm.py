@@ -107,15 +107,21 @@ if __name__ == "__main__":
         "share_features_extractor": False,
         "n_lstm_layers": 1,
         "features_dim_critic_add": 2,
-        "squash_output": True, #Doesn't work
+        "squash_output": True,  # Doesn't work
     }
     policy = RecurrentActorCriticPolicy
 
     if not load_path:
-        model = RecurrentPPOAE(policy, env, use_sde = False, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
+        model = RecurrentPPOAE(policy, env, use_sde=False, policy_kwargs=policy_kwargs,
+                               learning_rate=linear_schedule(args.LEARNING_RATE),
+                               learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),
+                               learning_rate_logstd=linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH,
+                               batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS,)
     else:
-        load_dict = {"learning_rate": linear_schedule(args.LEARNING_RATE), "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE), "learning_rate_logstd": linear_schedule(0.01)}
-        model = RecurrentPPOAE.load(load_path, env = env, custom_objects=load_dict)
+        load_dict = {"learning_rate": linear_schedule(args.LEARNING_RATE),
+                     "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE),
+                     "learning_rate_logstd": linear_schedule(0.01)}
+        model = RecurrentPPOAE.load(load_path, env=env, custom_objects=load_dict)
         model.num_timesteps = 10_000_000
         model._num_timesteps_at_start = 10_000_000
         print("LOADED MODEL")
@@ -123,4 +129,4 @@ if __name__ == "__main__":
     print("Using device: ", utils.get_device())
 
     # env.reset()
-    model.learn(20_000_000, callback=[train_callback, eval_callback], progress_bar = False, reset_num_timesteps=False)
+    model.learn(20_000_000, callback=[train_callback, eval_callback], progress_bar=False, reset_num_timesteps=False)

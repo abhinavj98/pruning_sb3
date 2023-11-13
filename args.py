@@ -59,7 +59,7 @@ args_dict = {
     },
     'ACTION_SCALE': {
         'type': float,
-        'default': 5,
+        'default': 2,
         'help': 'scaling factor for the action space'
     },
     'MOVEMENT_REWARD_SCALE': {
@@ -79,7 +79,7 @@ args_dict = {
     },
     'TERMINATE_REWARD_SCALE': {
         'type': float,
-        'default': 2,
+        'default': 1,
         'help': 'scaling factor for the terminate reward'
     },
     'COLLISION_REWARD_SCALE': {
@@ -126,12 +126,12 @@ args_dict = {
     },
     'LEARNING_RATE': {
         'type': float,
-        'default': 0.000001,
+        'default': 0.0001,
         'help': 'learning rate'
     },
     'LEARNING_RATE_AE': {
         'type': float,
-        'default': 0.000001,
+        'default': 0.0005,
         'help': 'learning rate for the autoencoder'
     },
     'LOG_STD_INIT': {

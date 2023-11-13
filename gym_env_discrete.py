@@ -37,7 +37,7 @@ class PruningEnv(gym.Env):
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  use_optical_flow: bool = False, optical_flow_subproc: bool = False,
                  shared_var: Tuple[Optional[Any], Optional[Any]] = (None, None), scale: bool = False,
-                 curriculum_distances: Tuple = (0.26, ), curriculum_level_steps: Tuple = ()) -> None:
+                 curriculum_distances: Tuple = (0.2, ), curriculum_level_steps: Tuple = ()) -> None:
         super(PruningEnv, self).__init__()
 
         assert tree_urdf_path is not None
@@ -158,7 +158,7 @@ class PruningEnv(gym.Env):
         pos = None
         scale = None
         if "envy" in self.tree_urdf_path:
-            pos = np.array([0, -0.7, 0])
+            pos = np.array([0, -0.6, 0])
             scale = 1
         elif "ufo" in self.tree_urdf_path:
             pos = np.array([-0.5, -0.8, -0.3])
@@ -360,7 +360,7 @@ class PruningEnv(gym.Env):
         singularity = False
         if (abs(joint_velocities) > 0.25).any():
             singularity = True
-            joint_velocities = np.clip(joint_velocities,-np.pi/4, np.pi/4)
+            joint_velocities = np.zeros(6)
         for i, name in enumerate(self.control_joints):
             joint = self.joints[name]
             velocities.append(joint_velocities[i])
@@ -610,8 +610,9 @@ class PruningEnv(gym.Env):
         self.joint_velocities, jacobian = self.calculate_joint_velocities_from_end_effector_velocity(action)
         #check if actual ee velocity is close to desired ee velocity
         actual_ee_vel = np.matmul(jacobian, self.joint_velocities)
-        self.ee_vel_error = abs(actual_ee_vel - action)/action
+        self.ee_vel_error = abs(actual_ee_vel - action)/(action+1e-5)
         if (self.ee_vel_error > 0.1).any():
+            print("Nope")
             self.joint_velocities = np.zeros(6)
 
         singularity = self.set_joint_velocities(self.joint_velocities)
@@ -1240,7 +1241,7 @@ class Tree:
 
     def active(self):
         print('Loading tree from ', self.urdf_path)
-        self.supports = self.env.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.7, 0],
+        self.supports = self.env.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.6, 0],
                                               list(self.env.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                               globalScaling=1)
         self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
@@ -1265,18 +1266,18 @@ class Tree:
         #         return False
         dist = np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
         projection_length = np.linalg.norm(vertice[1])
-        if dist >= 1 or not (projection_length > self.projection_mean + self.projection_std):
+        if dist >= 0.6 or not (projection_length > self.projection_mean + self.projection_std):
             return False
         # Check if start point reachable
 
-        j_angles = self.env.calculate_ik((vertice[0][0], self.env.init_pos[0][1], self.env.init_pos[0][2]),
-                                         self.env.init_pos[1])
-
-        self.env.set_joint_angles(j_angles)
-        for i in range(100):
-            self.env.con.stepSimulation()
-        # ee_pos, _ = self.env.get_current_pose(self.env.end_effector_index)
-        start_condition_number = self.env.get_condition_number()
+        # j_angles = self.env.calculate_ik((vertice[0][0], self.env.init_pos[0][1], self.env.init_pos[0][2]),
+        #                                  self.env.init_pos[1])
+        #
+        # self.env.set_joint_angles(j_angles)
+        # for i in range(100):
+        #     self.env.con.stepSimulation()
+        # # ee_pos, _ = self.env.get_current_pose(self.env.end_effector_index)
+        # start_condition_number = self.env.get_condition_number()
         # print(start_condition_number)
         # Check if goal reachable
         j_angles = self.env.calculate_ik(vertice[0], None)
@@ -1287,7 +1288,7 @@ class Tree:
         ee_pos, _ = self.env.get_current_pose(self.env.end_effector_index)
         dist = np.linalg.norm(np.array(ee_pos) - vertice[0], axis=-1)
         condition_number = self.env.get_condition_number()
-        if dist <= 0.05 and condition_number < 40 and start_condition_number < 20:
+        if dist <= 0.05 and condition_number < 40:
             return True
         return False
 
@@ -1334,7 +1335,8 @@ class Tree:
                         if collisions[0]:
                             collision = True
                             break
-                    if not collision:
+                    start_condition_number = self.env.get_condition_number()
+                    if not collision and start_condition_number < 20:
                         self.curriculum_points[level].append((distance, point))
 
             print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
