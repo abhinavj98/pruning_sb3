@@ -89,7 +89,7 @@ class PruningEnv(gym.Env):
         else:
             self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
 
-        self.con.setTimeStep(50. / 240.)
+        self.con.setTimeStep(25. / 240.)
         self.con.setGravity(0, 0, -10)
         self.con.setRealTimeSimulation(False)
 
@@ -1125,9 +1125,9 @@ class Tree:
         # if pickled file exists load and return
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         #TODO: Add reset variable so that even if present it recomputes
-        if not os.path.exists('./pkl2/' + str(path_component[3])):
-            os.makedirs('./pkl2/' + str(path_component[3]))
-        pkl_path = './pkl2/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_reachable_points.pkl'
+        if not os.path.exists('./pkl3/' + str(path_component[3])):
+            os.makedirs('./pkl3/' + str(path_component[3]))
+        pkl_path = './pkl3/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_reachable_points.pkl'
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
                 self.reachable_points = pickle.load(f)
@@ -1336,7 +1336,7 @@ class Tree:
                             collision = True
                             break
                     start_condition_number = self.env.get_condition_number()
-                    if not collision and start_condition_number < 20:
+                    if not collision and start_condition_number < 50:
                         self.curriculum_points[level].append((distance, point))
 
             print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))

@@ -59,7 +59,7 @@ args_dict = {
     },
     'ACTION_SCALE': {
         'type': float,
-        'default': 2,
+        'default': 0.5,
         'help': 'scaling factor for the action space'
     },
     'MOVEMENT_REWARD_SCALE': {
