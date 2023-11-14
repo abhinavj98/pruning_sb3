@@ -84,7 +84,7 @@ args_dict = {
     },
     'COLLISION_REWARD_SCALE': {
         'type': float,
-        'default': -0.000,
+        'default': -0.0005,
         'help': 'scaling factor for the collision reward'
     },
     'SLACK_REWARD_SCALE': {
