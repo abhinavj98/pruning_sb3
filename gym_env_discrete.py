@@ -37,7 +37,7 @@ class PruningEnv(gym.Env):
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  use_optical_flow: bool = False, optical_flow_subproc: bool = False,
                  shared_var: Tuple[Optional[Any], Optional[Any]] = (None, None), scale: bool = False,
-                 curriculum_distances: Tuple = (0.2, ), curriculum_level_steps: Tuple = ()) -> None:
+                 curriculum_distances: Tuple = (0.20, ), curriculum_level_steps: Tuple = ()) -> None:
         super(PruningEnv, self).__init__()
 
         assert tree_urdf_path is not None
@@ -89,7 +89,7 @@ class PruningEnv(gym.Env):
         else:
             self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
 
-        self.con.setTimeStep(50. / 240.)
+        self.con.setTimeStep(25. / 240.)
         self.con.setGravity(0, 0, -10)
         self.con.setRealTimeSimulation(False)
 
@@ -567,10 +567,10 @@ class PruningEnv(gym.Env):
         # self.set_joint_angles(self.init_joint_angles)
         print(random_point[0])
         #here the arm is set right in front of the point -> Change this to curriculum
-        self.set_joint_angles(
-            self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
         # self.set_joint_angles(
-        #     self.calculate_ik((self.init_pos[0][0] , random_point[0][1] + distance_from_goal, self.init_pos[0][2]), self.init_pos[1]))
+        #     self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
+        self.set_joint_angles(
+            self.calculate_ik((self.init_pos[0][0] ,self.init_pos[0][1]+0.05, self.init_pos[0][2]), self.init_pos[1]))
 
         for i in range(500):
             self.con.stepSimulation()
@@ -1336,7 +1336,7 @@ class Tree:
                             collision = True
                             break
                     start_condition_number = self.env.get_condition_number()
-                    if not collision and start_condition_number < 20:
+                    if not collision and start_condition_number < 200:
                         self.curriculum_points[level].append((distance, point))
 
             print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
