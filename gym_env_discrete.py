@@ -607,13 +607,14 @@ class PruningEnv(gym.Env):
         self.action = action
 
         action = action * self.action_scale
-        self.joint_velocities, jacobian = self.calculate_joint_velocities_from_end_effector_velocity(action)
-        #check if actual ee velocity is close to desired ee velocity
-        actual_ee_vel = np.matmul(jacobian, self.joint_velocities)
-        self.ee_vel_error = abs(actual_ee_vel - action)/(action+1e-5)
-        if (self.ee_vel_error > 0.1).any():
-            print("Nope")
-            self.joint_velocities = np.zeros(6)
+        self.joint_velocities = action
+        # self.joint_velocities, jacobian = self.calculate_joint_velocities_from_end_effector_velocity(action)
+        # #check if actual ee velocity is close to desired ee velocity
+        # actual_ee_vel = np.matmul(jacobian, self.joint_velocities)
+        # self.ee_vel_error = abs(actual_ee_vel - action)/(action+1e-5)
+        # if (self.ee_vel_error > 0.1).any():
+        #     print("Nope")
+        #     self.joint_velocities = np.zeros(6)
 
         singularity = self.set_joint_velocities(self.joint_velocities)
 
