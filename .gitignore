@@ -1,10 +1,10 @@
 # Editors
 *.pkl
 .vscode/
-.idea/
+../.idea/
 wandb/*
 *media*
-pkl/*
+pruning_sb3/pkl/*
 *.json
 # Vagrant
 .vagrant/
@@ -127,7 +127,7 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-*runs*
-logs/*
+runs
+pruning_sb3/logs/*
 runs/*
 *.csv

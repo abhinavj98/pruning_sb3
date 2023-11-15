@@ -1,3 +1,7 @@
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from stable_baselines3.common.env_checker import check_env
 from gym_env_discrete import PruningEnv
 #from stable_baselines3.common.vec_env.base_vec_env import DummyVecEnv
