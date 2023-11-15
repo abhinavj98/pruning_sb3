@@ -136,14 +136,14 @@ args_dict = {
     },
     'LOG_STD_INIT': {
         'type': float,
-        'default': -5,
+        'default': -6,
         'help': 'initial value for the log standard deviation'
     },
 
     # Evaluation parameters
     'EVAL_FREQ': {
         'type': int,
-        'default': 20000,
+        'default': 10000,
         'help': 'frequency of evaluation'
     },
     'EVAL_EPISODES': {

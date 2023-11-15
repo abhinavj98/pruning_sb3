@@ -6,6 +6,8 @@ from SACAE.sac_ae import SAC
 from gym_env_discrete import PruningEnv
 from models import AutoEncoder
 
+from stable_baselines3 import HerReplayBuffer
+from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common import utils
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
@@ -114,7 +116,7 @@ if __name__ == "__main__":
     policy = SACPolicy
 
     if not load_path:
-        model = SAC(policy, env, replay_buffer_class = HerReplayBuffer)
+        model = SAC(policy, env,learning_starts = 2400, policy_kwargs = policy_kwargs)
     else:
         load_dict = {"learning_rate": linear_schedule(args.LEARNING_RATE),
                      "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE),

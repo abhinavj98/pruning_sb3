@@ -567,8 +567,8 @@ class PruningEnv(gym.Env):
         # self.set_joint_angles(self.init_joint_angles)
         print(random_point[0])
         #here the arm is set right in front of the point -> Change this to curriculum
-        # self.set_joint_angles(
-        #     self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
+        #self.set_joint_angles(
+         #    self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
         self.set_joint_angles(
             self.calculate_ik((self.init_pos[0][0] ,self.init_pos[0][1]+0.05, self.init_pos[0][2]), self.init_pos[1]))
 
@@ -608,13 +608,15 @@ class PruningEnv(gym.Env):
 
         action = action * self.action_scale
         self.joint_velocities = action
-        # self.joint_velocities, jacobian = self.calculate_joint_velocities_from_end_effector_velocity(action)
-        # #check if actual ee velocity is close to desired ee velocity
-        # actual_ee_vel = np.matmul(jacobian, self.joint_velocities)
-        # self.ee_vel_error = abs(actual_ee_vel - action)/(action+1e-5)
-        # if (self.ee_vel_error > 0.1).any():
-        #     print("Nope")
-        #     self.joint_velocities = np.zeros(6)
+        use_ik = True
+        if use_ik:
+            self.joint_velocities, jacobian = self.calculate_joint_velocities_from_end_effector_velocity(action)
+            #check if actual ee velocity is close to desired ee velocity
+            actual_ee_vel = np.matmul(jacobian, self.joint_velocities)
+            self.ee_vel_error = abs(actual_ee_vel - action)/(action+1e-5)
+            if (self.ee_vel_error > 0.1).any():
+                print("Nope")
+                self.joint_velocities = np.zeros(6)
 
         singularity = self.set_joint_velocities(self.joint_velocities)
 
@@ -1126,9 +1128,9 @@ class Tree:
         # if pickled file exists load and return
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         #TODO: Add reset variable so that even if present it recomputes
-        if not os.path.exists('./pkl2/' + str(path_component[3])):
-            os.makedirs('./pkl2/' + str(path_component[3]))
-        pkl_path = './pkl2/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_reachable_points.pkl'
+        if not os.path.exists('./pkl3/' + str(path_component[3])):
+            os.makedirs('./pkl3/' + str(path_component[3]))
+        pkl_path = './pkl3/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_reachable_points.pkl'
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
                 self.reachable_points = pickle.load(f)

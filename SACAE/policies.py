@@ -180,6 +180,27 @@ class Actor(BasePolicy):
         return self(observation, deterministic)
 
 
+    def extract_features(self, obs: th.Tensor):  # -> tuple[th.Tensor, th.Tensor]:
+        """
+        Preprocess the observation if needed and extract features.
+
+        :param obs:
+        :return:
+        """
+        assert self.features_extractor is not None, "No features extractor was set"
+        # preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
+        # Add running mean and var
+
+        image_features = self.features_extractor(obs['depth'])
+        # print(obs['achieved_goal'].shape, obs['close_to_goal'].shape)
+        features_actor = th.cat(
+            [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
+             image_features[0], obs['close_to_goal'], obs['relative_distance']], dim=1).to(th.float32)
+
+        features = features_actor
+
+        # return actor features and critic features
+        return features, image_features[1]
 class ContinuousCritic(BaseModel):
     """
     Critic network(s) for DDPG/SAC/TD3.
@@ -255,14 +276,6 @@ class ContinuousCritic(BaseModel):
 
         features = features_actor
 
-        if self.share_features_extractor is False:
-            features_critic = th.cat(
-                [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
-                    image_features[0], obs['close_to_goal'], obs['relative_distance'], obs['critic_pointing_cosine_sim'],
-                    obs['critic_perpendicular_cosine_sim']], dim=1).to(th.float32)
-            features = (features_actor, features_critic)
-
-        # return actor features and critic features
 
         return features, image_features[1]
 
