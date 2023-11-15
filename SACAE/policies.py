@@ -121,16 +121,7 @@ class Actor(BasePolicy):
             )
         )
         return data
-    def extract_features(self, obs: th.Tensor, features_extractor: Optional[BaseFeaturesExtractor] = None):
-                   
-        """
-        Forward pass in the feature extractor.
 
-        :param obs:
-        :return:
-        """
-        return features_extractor(obs)
-        
     def get_std(self) -> th.Tensor:
         """
         Retrieve the standard deviation of the action distribution.
@@ -163,8 +154,8 @@ class Actor(BasePolicy):
         :return:
             Mean, standard deviation and optional keyword arguments.
         """
-        features = self.extract_features(obs['depth'], self.features_extractor)
-        latent_pi = self.latent_pi(features[0])
+        features, image_recon = self.extract_features(obs)
+        latent_pi = self.latent_pi(features)
         mean_actions = self.mu(latent_pi)
 
         if self.use_sde:
@@ -173,7 +164,7 @@ class Actor(BasePolicy):
         log_std = self.log_std(latent_pi)  # type: ignore[operator]
         # Original Implementation to cap the standard deviation
         log_std = th.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
-        return mean_actions, log_std, {}, features
+        return mean_actions, log_std, {}, (features, image_recon)
 
     def forward(self, obs: th.Tensor, deterministic: bool = False) -> th.Tensor:
         mean_actions, log_std, kwargs, features = self.get_action_dist_params(obs)
@@ -245,13 +236,42 @@ class ContinuousCritic(BaseModel):
             q_net = nn.Sequential(*q_net)
             self.add_module(f"qf{idx}", q_net)
             self.q_networks.append(q_net)
+    def extract_features(self, obs: th.Tensor):  # -> tuple[th.Tensor, th.Tensor]:
+        """
+        Preprocess the observation if needed and extract features.
+
+        :param obs:
+        :return:
+        """
+        assert self.features_extractor is not None, "No features extractor was set"
+        # preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
+        # Add running mean and var
+
+        image_features = self.features_extractor(obs['depth'])
+        # print(obs['achieved_goal'].shape, obs['close_to_goal'].shape)
+        features_actor = th.cat(
+            [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
+             image_features[0], obs['close_to_goal'], obs['relative_distance']], dim=1).to(th.float32)
+
+        features = features_actor
+
+        if self.share_features_extractor is False:
+            features_critic = th.cat(
+                [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
+                    image_features[0], obs['close_to_goal'], obs['relative_distance'], obs['critic_pointing_cosine_sim'],
+                    obs['critic_perpendicular_cosine_sim']], dim=1).to(th.float32)
+            features = (features_actor, features_critic)
+
+        # return actor features and critic features
+
+        return features, image_features[1]
 
     def forward(self, obs: th.Tensor, actions: th.Tensor) -> Tuple[th.Tensor, ...]:
         # Learn the features extractor using the policy loss only
         # when the features_extractor is shared with the actor
         with th.set_grad_enabled(not self.share_features_extractor):
-            features = self.extract_features(obs['depth'], self.features_extractor)
-        qvalue_input = th.cat([features[0], actions], dim=1)
+            features, image_recon = self.extract_features(obs)
+        qvalue_input = th.cat([features, actions], dim=1)
         return tuple(q_net(qvalue_input) for q_net in self.q_networks)
 
     def q1_forward(self, obs: th.Tensor, actions: th.Tensor) -> th.Tensor:
@@ -261,18 +281,10 @@ class ContinuousCritic(BaseModel):
         (e.g. when updating the policy in TD3).
         """
         with th.no_grad():
-            features = self.extract_features(obs['depth'], self.features_extractor)
-        return self.q_networks[0](th.cat([features[0], actions], dim=1))
+            features, image_recon = self.extract_features(obs)
+        return self.q_networks[0](th.cat([features, actions], dim=1))
     
-    def extract_features(self, obs: th.Tensor, features_extractor: Optional[BaseFeaturesExtractor] = None):
-                   
-        """
-        Forward pass in the feature extractor.
 
-        :param obs:
-        :return:
-        """
-        return features_extractor(obs)
 
 class SACPolicy(BasePolicy):
     """

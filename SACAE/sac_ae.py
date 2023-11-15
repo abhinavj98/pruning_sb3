@@ -302,7 +302,7 @@ class SAC(OffPolicyAlgorithm):
         
         plot_img = self.replay_buffer.sample(1, env=self._vec_normalize_env).observations['depth']
         with th.no_grad():
-            _, recon = self.policy.actor.extract_features(plot_img, self.policy.actor.features_extractor)
+            _, recon = self.policy.actor.extract_features(plot_img)
         ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
         self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
         self.logger.record("train/ae_loss", np.mean(ae_losses))

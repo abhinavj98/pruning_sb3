@@ -4,7 +4,7 @@ from SACAE.policies import SACPolicy
 from custom_callbacks import CustomEvalCallback, CustomTrainCallback
 from SACAE.sac_ae import SAC
 from gym_env_discrete import PruningEnv
-from pruning_sb3.models import AutoEncoder
+from models import AutoEncoder
 
 from stable_baselines3.common import utils
 from stable_baselines3.common.env_util import make_vec_env
