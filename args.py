@@ -126,12 +126,12 @@ args_dict = {
     },
     'LEARNING_RATE': {
         'type': float,
-        'default': 0.0001,
+        'default': 0.00005,
         'help': 'learning rate'
     },
     'LEARNING_RATE_AE': {
         'type': float,
-        'default': 0.0005,
+        'default': 0.00005,
         'help': 'learning rate for the autoencoder'
     },
     'LOG_STD_INIT': {

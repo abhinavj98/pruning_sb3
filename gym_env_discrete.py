@@ -570,7 +570,7 @@ class PruningEnv(gym.Env):
         #self.set_joint_angles(
          #    self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
         self.set_joint_angles(
-            self.calculate_ik((self.init_pos[0][0] ,self.init_pos[0][1]+0.05, self.init_pos[0][2]), self.init_pos[1]))
+            self.calculate_ik((self.init_pos[0][0], self.init_pos[0][1]+0.05, self.init_pos[0][2]), self.init_pos[1]))
 
         for i in range(500):
             self.con.stepSimulation()
@@ -608,7 +608,7 @@ class PruningEnv(gym.Env):
 
         action = action * self.action_scale
         self.joint_velocities = action
-        use_ik = True
+        use_ik = False
         if use_ik:
             self.joint_velocities, jacobian = self.calculate_joint_velocities_from_end_effector_velocity(action)
             #check if actual ee velocity is close to desired ee velocity
@@ -640,7 +640,7 @@ class PruningEnv(gym.Env):
         terminated = terminate_info['goal_achieved'] or terminate_info['singularity_achieved']
 
         infos = {'is_success': False, "TimeLimit.truncated": False}  # type: ignore
-        if False:#terminate_info['time_limit_exceeded']:
+        if terminate_info['time_limit_exceeded']:
             infos["TimeLimit.truncated"] = True  # type: ignore
             infos["terminal_observation"] = self.observation  # type: ignore
 
