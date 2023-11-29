@@ -148,6 +148,7 @@ class AutoEncoder(BaseFeaturesExtractor):
 
 class AutoEncoderSmall(BaseFeaturesExtractor):
     def __init__(self, observation_space: gym.spaces.Box, features_dim = 128*7*7):
+        #Need features dim for superclass
         super(AutoEncoder, self).__init__(observation_space, features_dim)
         self.encoder = nn.Sequential(
             nn.Conv2d(1, 16, 3, padding='same'),  # b, 16, 224, 224

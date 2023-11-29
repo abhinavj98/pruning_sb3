@@ -1,3 +1,4 @@
+import pickle
 
 from stable_baselines3.common.callbacks import BaseCallback, EventCallback, CallbackList
 import gymnasium as gym
@@ -65,7 +66,8 @@ class CustomTrainCallback(BaseCallback):
         self._reward_dict["movement_reward"] = []
         self._reward_dict["distance_reward"] = []
         self._reward_dict["terminate_reward"] = []
-        self._reward_dict["collision_reward"] = []
+        self._reward_dict["collision_acceptable_reward"] = []
+        self._reward_dict["collision_unacceptable_reward"] = []
         self._reward_dict["slack_reward"] = []
         self._reward_dict["condition_number_reward"] = []
         self._reward_dict["velocity_reward"] = []
@@ -74,7 +76,8 @@ class CustomTrainCallback(BaseCallback):
         self._info_dict["pointing_cosine_sim_error"] = []
         self._info_dict["perpendicular_cosine_sim_error"] = []
         self._info_dict["euclidean_error"] = []
-        return True
+        self._info_dict["is_success"] = []
+
 
 
     def _on_step(self) -> bool:
@@ -88,43 +91,11 @@ class CustomTrainCallback(BaseCallback):
         """
         infos = self.locals["infos"]
         for i in range(len(infos)):
-            self._reward_dict["movement_reward"].append(infos[i]["movement_reward"])
-            self._reward_dict["distance_reward"].append(infos[i]["distance_reward"])
-            self._reward_dict["terminate_reward"].append(infos[i]["terminate_reward"])
-            self._reward_dict["collision_reward"].append(infos[i]["collision_reward"])
-            self._reward_dict["slack_reward"].append(infos[i]["slack_reward"])
-            self._reward_dict["condition_number_reward"].append(infos[i]["condition_number_reward"])
-            self._reward_dict["velocity_reward"].append(infos[i]["velocity_reward"])
-            self._reward_dict["perpendicular_orientation_reward"].append(infos[i]["perpendicular_orientation_reward"])
-            self._reward_dict["pointing_orientation_reward"].append(infos[i]["pointing_orientation_reward"])
+            for key in self._reward_dict.keys():
+                self._reward_dict[key].append(infos[i][key])
             if infos[i]["TimeLimit.truncated"] or infos[i]["is_success"]:
-                self._info_dict["pointing_cosine_sim_error"].append(infos[i]["pointing_cosine_sim_error"])
-                self._info_dict["perpendicular_cosine_sim_error"].append(infos[i]["perpendicular_cosine_sim_error"])
-                self._info_dict["euclidean_error"].append(infos[i]["euclidean_error"])
-        # self.logger.record("rollout/movement_reward", infos[0]["movement_reward"])
-        # self.logger.record("rollout/distance_reward", infos[0]["distance_reward"])
-        # self.logger.record("rollout/terminate_reward", infos[0]["terminate_reward"])
-        # self.logger.record("rollout/collision_reward", infos[0]["collision_reward"])
-        # self.logger.record("rollout/slack_reward", infos[0]["slack_reward"])
-        # self.logger.record("rollout/condition_number_reward", infos[0]["condition_number_reward"])
-        # self.logger.record("rollout/velocity_reward", infos[0]["velocity_reward"])
-        # self.logger.record("rollout/orientation_reward", infos[0]["orientation_reward"])
-        reset_counter = self.training_env.get_attr("reset_counter", 0)[0]
-        # if reset_counter%10 == 0:
-        #     self._screens_buffer.append(self._grab_screen_callback(self.locals, self.globals))
-        #     # print("Screen recorded")
-        # else:
-        #     if len(self._screens_buffer) > 0:
-        #         self.logger.record(
-        #             "rollout/video",
-        #             Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
-        #             exclude=("stdout", "log", "json", "csv"),
-        #         )
-        #         print("Video recorded")
-        #         self._screens_buffer = []
-
-
-
+                for key in self._info_dict.keys():
+                    self._info_dict[key].append(infos[i][key])
         return True
     
     def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
@@ -137,62 +108,18 @@ class CustomTrainCallback(BaseCallback):
        
         screen = np.array(self.training_env.render())*255
         screen_copy = screen.reshape((screen.shape[0], screen.shape[1], 3)).astype(np.uint8)
-        #screen_copy = cv2.resize(screen_copy, (1124, 768), interpolation=cv2.INTER_NEAREST)
-        #screen_copy = cv2.putText(screen_copy, "Reward: "+str(_locals['rewards']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
-            #1, (255,0,0), 2, cv2.LINE_AA)
-        #screen_copy = cv2.putText(screen_copy, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
-            #0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-        #screen_copy = cv2.putText(screen_copy, "Current: "+str(self.training_env.get_attr("achieved_pos", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX, 
-            #1, (255,0,0), 2, cv2.LINE_AA)
-        #screen_copy = cv2.putText(screen_copy, "Goal: "+str(self.training_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX, 
-        #    1, (255,0,0), 2, cv2.LINE_AA)
-        #screen_copy = cv2.putText(screen_copy, "Orientation Reward: "+str(self.training_env.get_attr("orientation_reward_unscaled", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX, 
-        #    0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-        #screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.training_env.get_attr("target_dist", 0)[0])), (0,230), cv2.FONT_HERSHEY_SIMPLEX, 
-         #   0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
         return screen_copy.transpose(2, 0, 1)
     def _on_rollout_end(self) -> None:
         """
         This event is triggered before updating the policy.
         """
         print("Rollout end")
-        self.logger.record("rollout/movement_reward", np.mean(self._reward_dict["movement_reward"]))
-        self.logger.record("rollout/distance_reward", np.mean(self._reward_dict["distance_reward"]))
-        self.logger.record("rollout/terminate_reward", np.mean(self._reward_dict["terminate_reward"]))
-        self.logger.record("rollout/collision_reward", np.mean(self._reward_dict["collision_reward"]))
-        self.logger.record("rollout/slack_reward", np.mean(self._reward_dict["slack_reward"]))
-        self.logger.record("rollout/condition_number_reward", np.mean(self._reward_dict["condition_number_reward"]))
-        self.logger.record("rollout/velocity_reward", np.mean(self._reward_dict["velocity_reward"]))
-        self.logger.record("rollout/perpendicular_orientation_reward", np.mean(self._reward_dict["perpendicular_orientation_reward"]))
-        self.logger.record("rollout/pointing_orientation_reward", np.mean(self._reward_dict["pointing_orientation_reward"]))
-        self.logger.record("rollout/pointing_cosine_sim_error", np.mean(self._info_dict["pointing_cosine_sim_error"]))
-        self.logger.record("rollout/perpendicular_cosine_sim_error", np.mean(self._info_dict["perpendicular_cosine_sim_error"]))
-        self.logger.record("rollout/euclidean_error", np.mean(self._info_dict["euclidean_error"]))
-
-        # Get rollout buffer
-        # rollout_buffer = self.locals["rollout_buffer"]
-        # observation = rollout_buffer.get()
-        # for obs in observation:
-        #     self.running_mean_std_joint_velocities.update(np.array(obs[0]["joint_velocities"]))
-        #     self.running_mean_std_cur_pos.update(np.array(obs[0]["cur_pos"]))
-        #     self.running_mean_std_cur_or.update(np.array(obs[0]["cur_or"]))
-        #     self.running_mean_std_goal_pos.update(np.array(obs[0]["goal_pos"]))
-        #     self.running_mean_std_joint_angles.update(np.array(obs[0]["joint_angles"]))
-        #     self.running_mean_std_depth.update(np.array(obs[0]["depth"].reshape(-1)))
-       
-        # #Make a string of all the means and vars
-        # str_log = str("joint_velocitites"+ str(self.running_mean_std_joint_velocities.mean) + " " + str(self.running_mean_std_joint_velocities.var) + "\n" + \
-        #                 "cur_pos" + str(self.running_mean_std_cur_pos.mean) + " " + str(self.running_mean_std_cur_pos.var) + "\n" +\
-        #                 "cur_or" + str(self.running_mean_std_cur_or.mean) + " " + str(self.running_mean_std_cur_or.var) + "\n" +\
-        #                 "goal_pos" + str(self.running_mean_std_goal_pos.mean) + " " + str(self.running_mean_std_goal_pos.var) + "\n" +\
-        #                 "joint_angles" + str(self.running_mean_std_joint_angles.mean) + " " + str(self.running_mean_std_joint_angles.var) + "\n" +\
-        #                 "depth" + str(self.running_mean_std_depth.mean) + " " + str(self.running_mean_std_depth.var) + "\n")
-        # #Add text to tensorboard
-        # print(str_log)
-        # self.logger.record("Means_and_vars", str_log)
-
-
-
+        #TODO: Make this a dictionary and iterate through dictionary to log
+        for key in self._reward_dict.keys():
+            # print("rollout/"+key, np.mean(self._reward_dict[key])   )
+            self.logger.record("rollout/"+key, np.mean(self._reward_dict[key]))
+        for key in self._info_dict.keys():
+            self.logger.record("rollout/"+key, np.mean(self._info_dict[key]))
     def _on_training_end(self) -> None:
         """
         This event is triggered before exiting the `learn()` method.
@@ -279,6 +206,7 @@ class CustomEvalCallback(EventCallback):
         self._collisions_acceptable_buffer = []
         self._collisions_unacceptable_buffer = []
         self._reward_dict = {}
+        self._info_dict = {}
 
     def _init_callback(self) -> None:
         # Does not work in some corner cases, where the wrapper is not the same
@@ -312,15 +240,13 @@ class CustomEvalCallback(EventCallback):
     def _log_rewards_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]):
         infos = locals_["info"]
         #add to buffers
-        self._reward_dict["movement_reward"].append(infos["movement_reward"])
-        self._reward_dict["distance_reward"].append(infos["distance_reward"])
-        self._reward_dict["terminate_reward"].append(infos["terminate_reward"])
-        self._reward_dict["collision_reward"].append(infos["collision_reward"])
-        self._reward_dict["slack_reward"].append(infos["slack_reward"])
-        self._reward_dict["condition_number_reward"].append(infos["condition_number_reward"])
-        self._reward_dict["velocity_reward"].append(infos["velocity_reward"])
-        self._reward_dict["perpendicular_orientation_reward"].append(infos["perpendicular_orientation_reward"])
-        self._reward_dict["pointing_orientation_reward"].append(infos["pointing_orientation_reward"])
+
+        for key in self._reward_dict.keys():
+            self._reward_dict[key].append(infos[key])
+        if infos["TimeLimit.truncated"] or infos["is_success"]:
+            for key in self._info_dict.keys():
+                self._info_dict[key].append(infos[key])
+        return True
 
     def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         """
@@ -330,10 +256,11 @@ class CustomEvalCallback(EventCallback):
         :param _globals: A dictionary containing all global variables of the callback's scope
         """
         episode_counts = _locals["episode_counts"][0]
+        observation_info = self.record_env.get_attr("observation_info", 0)[0]
         if episode_counts == 0:
             render = np.array(self.record_env.render())*255
             render = cv2.resize(render, (512, 512), interpolation=cv2.INTER_NEAREST)
-            rgb = np.array(self.record_env.get_attr("rgb")[0])*255
+            rgb = observation_info["rgb"]*255
             rgb = cv2.resize(rgb, (512, 512), interpolation=cv2.INTER_NEAREST)
             screen = np.concatenate((render, rgb), axis=1)
             screen_copy = screen.reshape((screen.shape[0], screen.shape[1], 3)).astype(np.uint8)
@@ -342,18 +269,18 @@ class CustomEvalCallback(EventCallback):
                 0.5, (255,0,0), 2, cv2.LINE_AA)
             screen_copy = cv2.putText(screen_copy, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.35, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-            screen_copy = cv2.putText(screen_copy, "Current: "+str(self.record_env.get_attr("achieved_pos", 0)[0]), (0,140), cv2.FONT_HERSHEY_SIMPLEX,
+            screen_copy = cv2.putText(screen_copy, "Current: "+str(observation_info['achieved_pos']), (0,140), cv2.FONT_HERSHEY_SIMPLEX,
                 0.5, (255,0,0), 2, cv2.LINE_AA)
-            screen_copy = cv2.putText(screen_copy, "Goal: "+str(self.record_env.get_attr("desired_pos", 0)[0]), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
+            screen_copy = cv2.putText(screen_copy, "Goal: "+str(observation_info['achieved_pos']), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
                 0.5, (255,0,0), 2, cv2.LINE_AA)
-            screen_copy = cv2.putText(screen_copy, "Orientation Perpendicular: "+str(self.record_env.get_attr("orientation_perp_value", 0)[0]), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
+            screen_copy = cv2.putText(screen_copy, "Orientation Perpendicular: " +str(observation_info['perpendicular_cosine_sim']), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             screen_copy = cv2.putText(screen_copy, "Orientation Pointing: " + str(
-                self.record_env.get_attr("orientation_point_value", 0)[0]), (0, 230),
+                observation_info['pointing_cosine_sim']), (0, 230),
                                       cv2.FONT_HERSHEY_SIMPLEX,
                                       0.35, (255, 0, 0), 2, cv2.LINE_AA)  # str(_locals['actions'])
 
-            screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(self.record_env.get_attr("target_dist", 0)[0])), (0,260), cv2.FONT_HERSHEY_SIMPLEX,
+            screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(observation_info["target_distance"])), (0,260), cv2.FONT_HERSHEY_SIMPLEX,
                 0.35, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             self._screens_buffer.append(screen_copy.transpose(2, 0, 1))
             # print("Saving screen")
@@ -367,6 +294,21 @@ class CustomEvalCallback(EventCallback):
         self._log_collisions(_locals, _globals)
         self._log_success_callback(_locals, _globals)
         self._log_rewards_callback(_locals, _globals)
+
+    def _init_dicts(self):
+        self._reward_dict["movement_reward"] = []
+        self._reward_dict["distance_reward"] = []
+        self._reward_dict["terminate_reward"] = []
+        self._reward_dict["collision_acceptable_reward"] = []
+        self._reward_dict["collision_unacceptable_reward"] = []
+        self._reward_dict["slack_reward"] = []
+        self._reward_dict["condition_number_reward"] = []
+        self._reward_dict["velocity_reward"] = []
+        self._reward_dict["perpendicular_orientation_reward"] = []
+        self._reward_dict["pointing_orientation_reward"] = []
+        self._info_dict["pointing_cosine_sim_error"] = []
+        self._info_dict["perpendicular_cosine_sim_error"] = []
+        self._info_dict["euclidean_error"] = []
 
     def _on_step(self) -> bool:
 
@@ -389,15 +331,9 @@ class CustomEvalCallback(EventCallback):
             self._is_success_buffer = []
             self._screens_buffer = []
             self._collisions_buffer = []
-            self._reward_dict["movement_reward"] = []
-            self._reward_dict["distance_reward"] = []
-            self._reward_dict["terminate_reward"] = []
-            self._reward_dict["collision_reward"] = []
-            self._reward_dict["slack_reward"] = []
-            self._reward_dict["condition_number_reward"] = []
-            self._reward_dict["velocity_reward"] = []
-            self._reward_dict["perpendicular_orientation_reward"] = []
-            self._reward_dict["pointing_orientation_reward"] = []
+            self._init_dicts()
+
+            # Evaluate policy
             print("Evaluating")
             import time
             start = time.time()
@@ -471,21 +407,19 @@ class CustomEvalCallback(EventCallback):
             # Dump log so the evaluation results are printed with the correct timestep
             self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
             self.logger.dump(self.num_timesteps)
-            self.logger.record("eval/condition_number_reward", np.mean(self._reward_dict["condition_number_reward"]))
-            self.logger.record("eval/velocity_reward", np.mean(self._reward_dict["velocity_reward"]))
-            self.logger.record("eval/perpendicular_orientation_reward", np.mean(self._reward_dict["perpendicular_orientation_reward"]))
-            self.logger.record("eval/pointing_orientation_reward", np.mean(self._reward_dict["pointing_orientation_reward"]))
-            self.logger.record("eval/movement_reward", np.mean(self._reward_dict["movement_reward"]))
-            self.logger.record("eval/distance_reward", np.mean(self._reward_dict["distance_reward"]))
-            self.logger.record("eval/terminate_reward", np.mean(self._reward_dict["terminate_reward"]))
-            self.logger.record("eval/collision_reward", np.mean(self._reward_dict["collision_reward"]))
-            self.logger.record("eval/slack_reward", np.mean(self._reward_dict["slack_reward"]))
+
+            for key in self._reward_dict.keys():
+                self.logger.record("eval/"+key, np.mean(self._reward_dict[key]))
+            for key in self._info_dict.keys():
+                self.logger.record("eval/"+key, np.mean(self._info_dict[key]))
 
             if mean_reward > self.best_mean_reward:
                 if self.verbose >= 1:
                     print("New best mean reward!")
                 if self.best_model_save_path is not None:
                     self.model.save(os.path.join(self.best_model_save_path, "best_model"))
+                    with open(os.path.join(self.best_model_save_path, "mean_std.pkl"), "wb") as f:
+                        pickle.dump(self.model.policy.running_mean_var_oflow, f)
                 self.best_mean_reward = mean_reward
                 # Trigger callback on new best model, if needed
                 if self.callback_on_new_best is not None:
@@ -496,3 +430,4 @@ class CustomEvalCallback(EventCallback):
                 continue_training = continue_training and self._on_event()
             print("Done evaluating")
         return continue_training
+

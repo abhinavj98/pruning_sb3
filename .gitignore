@@ -129,5 +129,6 @@ venv.bak/
 dmypy.json
 runs
 pruning_sb3/logs/*
-runs/*
+runs/
 *.csv
+logs/

@@ -21,7 +21,7 @@ from torch import nn
 from sb3_contrib.common.recurrent.type_aliases import RNNStates
 
 from pruning_sb3.pruning_gym.running_mean_std import RunningMeanStd
-
+import pickle
 
 class RecurrentActorCriticPolicy(ActorCriticPolicy):
     """
@@ -91,7 +91,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             shared_lstm: bool = False,
             enable_critic_lstm: bool = True,
             lstm_kwargs: Optional[Dict[str, Any]] = None,
-            features_dim_critic_add: Optional[bool] = None,
+            features_dim_critic_add: Optional[int] = None,
     ):
         self.lstm_output_dim = lstm_hidden_size
         super().__init__(
@@ -143,6 +143,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
             self.critic = nn.Linear(self.features_dim, lstm_hidden_size)
 
         # Use a separate LSTM for the critic
+        #TODO: TEST
         if self.enable_critic_lstm:
             features_dim = self.features_dim if features_dim_critic_add is None else self.features_dim + self.features_dim_critic_add
             self.lstm_critic = nn.LSTM(
@@ -154,22 +155,35 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
 
         self.running_mean_var_oflow = RunningMeanStd(shape=(1, 1))
         # Setup optimizer with initial learning rate
-        self.optimizer = self.optimizer_class(
+        if lr_schedule_logstd is not None:
+            self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
+            self.optimizer = self.optimizer_class(
             [*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(),
              *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
-        self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1),
-                                                 **self.optimizer_kwargs)
-        self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
+        else:
+            self.optimizer = self.optimizer_class(
+                [*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(),
+                 *self.action_net.parameters(), self.log_std], lr=lr_schedule(1), **self.optimizer_kwargs)
+        if lr_schedule_ae is not None:
+            self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1),
+                                             **self.optimizer_kwargs)
 
     def _normalize_using_running_mean_std(self, x, running_mean_std):
         mean = running_mean_std.mean.to(self.device, dtype=th.float32)
         std = th.sqrt(running_mean_std.var).to(self.device, dtype=th.float32)
+
         return (x - mean) / std
 
     def _unnormalize_using_running_mean_std(self, x, running_mean_std):
         mean = running_mean_std.mean.to(self.device, dtype=th.float32)
         std = th.sqrt(running_mean_std.var).to(self.device, dtype=th.float32)
         return x * std + mean
+
+
+    #Load running_mean_std from pkl file
+    def load_running_mean_std_from_file(self, path):
+        with open(path, 'rb') as f:
+            self.running_mean_var_oflow = pickle.load(f)
 
     def _build_mlp_extractor(self) -> None:
         """
@@ -291,21 +305,24 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         assert self.features_extractor is not None, "No features extractor was set"
         # preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
         # Add running mean and var
-
         image_features = self.features_extractor(
-            self._normalize_using_running_mean_std(obs['depth'], self.running_mean_var_oflow))
-        # print(obs['achieved_goal'].shape, obs['close_to_goal'].shape)
-        features_actor = th.cat(
-            [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
-             image_features[0], obs['close_to_goal'], obs['relative_distance']], dim=1).to(th.float32)
+            self._normalize_using_running_mean_std(obs['depth_proxy'], self.running_mean_var_oflow))
+        features_actor = th.cat([obs[i] for i in obs.keys() if 'critic' not in i and 'depth_proxy' not in i], dim=1).to(th.float32)
+        features_actor = th.cat([features_actor, image_features[0]], dim=1).to(th.float32)
+        # features_actor = th.cat(
+        #     [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
+        #      image_features[0], obs['relative_distance']], dim=1).to(th.float32)
 
         features = features_actor
 
         if self.share_features_extractor is False:
-            features_critic = th.cat(
-                [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
-                    image_features[0], obs['close_to_goal'], obs['relative_distance'], obs['critic_pointing_cosine_sim'],
-                    obs['critic_perpendicular_cosine_sim']], dim=1).to(th.float32)
+            features_critic = th.cat([obs[i] for i in obs.keys() if 'depth_proxy' not in i],
+                                    dim=1).to(th.float32)
+            features_critic = th.cat([features_critic, image_features[0]], dim=1).to(th.float32)
+            # features_critic = th.cat(
+            #     [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
+            #         image_features[0],  obs['relative_distance'], obs['critic_pointing_cosine_sim'],
+            #         obs['critic_perpendicular_cosine_sim']], dim=1).to(th.float32)
             features = (features_actor, features_critic)
 
         # return actor features and critic features
@@ -313,7 +330,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         return features, self._unnormalize_using_running_mean_std(image_features[1], self.running_mean_var_oflow)
 
     # def make_state_from_obs(self, obs):
-    #     depth_features = self.extract_features(obs['depth'])
+    #     depth_features = self.extract_features(obs['depth_proxy'])
     #     #TODO: Normalize inputs
     #     robot_features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action']],  dim = 1)
     #     return depth_features, robot_features
@@ -394,7 +411,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         """
         # Calculate running mean and var for observation normalization
 
-        self.running_mean_var_oflow.update(obs['depth'].reshape(-1, 1))
+        self.running_mean_var_oflow.update(obs['depth_proxy'].reshape(-1, 1))
         # Preprocess the observation if needed
         features, recon = self.extract_features(obs)
         if self.share_features_extractor:

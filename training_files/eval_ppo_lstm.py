@@ -1,4 +1,8 @@
 # Description: Evaluate the trained model
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 from stable_baselines3.common.callbacks import EventCallback
 import gymnasium as gym
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -11,8 +15,11 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
 from stable_baselines3.common.monitor import Monitor
 from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
 import argparse
-from args import args_dict
-from helpers import optical_flow_create_shared_vars
+from pruning_sb3.args.args import \
+    args
+from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
+    set_args, organize_args, add_arg_to_env, init_wandb
+
 import pandas as pd
 class CustomEvalCallback(EventCallback):
     """
@@ -67,6 +74,7 @@ class CustomEvalCallback(EventCallback):
         self.evaluations_successes = []
         self._reward_dict = {}
         self._reward_dict_temp = {}
+        self._info_dict = {}
         self.model = model
         self.n_eval_episodes = n_eval_episodes
     def _log_success_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
@@ -86,44 +94,29 @@ class CustomEvalCallback(EventCallback):
 
     def _log_rewards_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]):
         infos = locals_["info"]
+
         #add to buffers
-        self._reward_dict_temp["movement_reward"].append(infos["movement_reward"])
-        self._reward_dict_temp["distance_reward"].append(infos["distance_reward"])
-        self._reward_dict_temp["terminate_reward"].append(infos["terminate_reward"])
-        self._reward_dict_temp["collision_reward"].append(infos["collision_reward"])
-        self._reward_dict_temp["slack_reward"].append(infos["slack_reward"])
-        self._reward_dict_temp["condition_number_reward"].append(infos["condition_number_reward"])
-        self._reward_dict_temp["velocity_reward"].append(infos["velocity_reward"])
-        self._reward_dict_temp["pointing_orientation_reward"].append(infos["pointing_orientation_reward"])
-        self._reward_dict_temp["perpendicular_orientation_reward"].append(infos["perpendicular_orientation_reward"])
+        for key in self._reward_dict_temp.keys():
+            self._reward_dict_temp[key].append(infos[key])
 
     def _log_final_metrics(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
         infos = locals_["info"]
         if infos["TimeLimit.truncated"] or infos["is_success"]:
-            self._reward_dict["pointing_cosine_sim_error"].append(infos["pointing_cosine_sim_error"])
-            self._reward_dict["perpendicular_cosine_sim_error"].append(infos["perpendicular_cosine_sim_error"])
-            self._reward_dict["euclidean_error"].append(infos["euclidean_error"])
-            self._reward_dict["movement_reward"].append(np.mean(self._reward_dict_temp["movement_reward"]))
-            self._reward_dict["distance_reward"].append(np.mean(self._reward_dict_temp["distance_reward"]))
-            self._reward_dict["terminate_reward"].append(np.mean(self._reward_dict_temp["terminate_reward"]))
-            self._reward_dict["collision_reward"].append(np.mean(self._reward_dict_temp["collision_reward"]))
-            self._reward_dict["slack_reward"].append(np.mean(self._reward_dict_temp["slack_reward"]))
-            self._reward_dict["condition_number_reward"].append(np.mean(self._reward_dict_temp["condition_number_reward"]))
-            self._reward_dict["velocity_reward"].append(np.mean(self._reward_dict_temp["velocity_reward"]))
-            self._reward_dict["pointing_orientation_reward"].append(np.mean(self._reward_dict_temp["pointing_orientation_reward"]))
-            self._reward_dict["perpendicular_orientation_reward"].append(np.mean(self._reward_dict_temp["perpendicular_orientation_reward"]))
+            for key in self._reward_dict_temp.keys():
+                self._reward_dict[key].append(np.mean(self._reward_dict_temp[key]))
+            for key in self._info_dict.keys():
+                self._info_dict[key].append(infos[key])
             self._reward_dict["init_distance"].append(self.eval_env.get_attr("init_distance", 0)[0])
             self._reward_dict["init_perp_cosine_sim"].append(self.eval_env.get_attr("init_perp_cosine_sim", 0)[0])
             self._reward_dict["init_point_cosine_sim"].append(self.eval_env.get_attr("init_point_cosine_sim", 0)[0])
-            p_x = self.eval_env.get_attr("tree_goal_pos", 0)[0][0]
-            p_y = self.eval_env.get_attr("tree_goal_pos", 0)[0][1]
-            p_z = self.eval_env.get_attr("tree_goal_pos", 0)[0][2]
-            self._reward_dict["pointx"].append(p_x)
-            self._reward_dict["pointy"].append(p_y)
-            self._reward_dict["pointz"].append(p_z)
+            loc = self.eval_env.get_attr("tree_goal_pos", 0)[0]
+            self._reward_dict["pointx"].append(loc[0])
+            self._reward_dict["pointy"].append(loc[1])
+            self._reward_dict["pointz"].append(loc[2])
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-        self._collisions_buffer.append(self.eval_env.get_attr("collisions", 0)[0])
+        self._collisions_acceptable_buffer.append(self.eval_env.get_attr("collisions_acceptable", 0)[0])
+        self._collisions_unacceptable_buffer.append(self.eval_env.get_attr("collisions_unacceptable", 0)[0])
 
     def _master_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
 #        self._log_collisions(_locals, _globals)
@@ -131,25 +124,24 @@ class CustomEvalCallback(EventCallback):
         self._log_rewards_callback(_locals, _globals)
         self._log_final_metrics(_locals, _globals)
 
-    def eval_policy(self):
-
-        # Reset success rate buffer
+    def _init_buffer(self) -> None:
         self._is_success_buffer = {}
         self._is_success_buffer["is_success"] = []
         self._screens_buffer = []
-        self._collisions_buffer = []
+        self._collisions_acceptable_buffer = []
+        self._collisions_unacceptable_buffer = []
+
         self._reward_dict["movement_reward"] = []
         self._reward_dict["distance_reward"] = []
         self._reward_dict["terminate_reward"] = []
-        self._reward_dict["collision_reward"] = []
+        self._reward_dict["collision_acceptable_reward"] = []
+        self._reward_dict["collision_unacceptable_reward"] = []
         self._reward_dict["slack_reward"] = []
         self._reward_dict["condition_number_reward"] = []
         self._reward_dict["velocity_reward"] = []
         self._reward_dict["pointing_orientation_reward"] = []
         self._reward_dict["perpendicular_orientation_reward"] = []
-        self._reward_dict["pointing_cosine_sim_error"] = []
-        self._reward_dict["perpendicular_cosine_sim_error"] = []
-        self._reward_dict["euclidean_error"] = []
+
         self._reward_dict["init_distance"] = []
         self._reward_dict["init_perp_cosine_sim"] = []
         self._reward_dict["init_point_cosine_sim"] = []
@@ -157,22 +149,26 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict["pointy"] = []
         self._reward_dict["pointz"] = []
 
-
         self._reward_dict_temp["movement_reward"] = []
         self._reward_dict_temp["distance_reward"] = []
         self._reward_dict_temp["terminate_reward"] = []
-        self._reward_dict_temp["collision_reward"] = []
+        self._reward_dict_temp["collision_acceptable_reward"] = []
+        self._reward_dict_temp["collision_unacceptable_reward"] = []
         self._reward_dict_temp["slack_reward"] = []
         self._reward_dict_temp["condition_number_reward"] = []
         self._reward_dict_temp["velocity_reward"] = []
         self._reward_dict_temp["pointing_orientation_reward"] = []
         self._reward_dict_temp["perpendicular_orientation_reward"] = []
-        self._reward_dict_temp["pointing_cosine_sim_error"] = []
-        self._reward_dict_temp["perpendicular_cosine_sim_error"] = []
-        self._reward_dict_temp["euclidean_error"] = []
+
+        self._info_dict["pointing_cosine_sim_error"] = []
+        self._info_dict["perpendicular_cosine_sim_error"] = []
+        self._info_dict["euclidean_error"] = []
 
 
-        print(self.render)
+    def eval_policy(self):
+
+        # Reset success rate buffer
+        self._init_buffer()
         episode_rewards, episode_lengths = evaluate_policy(
             self.model,
             self.eval_env,
@@ -183,60 +179,53 @@ class CustomEvalCallback(EventCallback):
             warn=self.warn,
             callback=self._master_callback,
         )
+
         print("Episode Rewards", episode_rewards)
         print(self._reward_dict)
+        print(self._info_dict)
+        print(self._is_success_buffer)
         reward_df = pd.DataFrame(self._reward_dict)
         success_df = pd.DataFrame(self._is_success_buffer)
-        save_df = pd.concat([reward_df, success_df], axis=1)
+        info_df = pd.DataFrame(self._info_dict)
+        save_df = pd.concat([reward_df, success_df, info_df], axis=1)
         print(save_df, success_df)
         save_df.to_csv('reward.csv', index=False)
         # success_df.to_csv('success.csv', index=False)
         print("Success", np.mean(self._is_success_buffer["is_success"]))
 
 parser = argparse.ArgumentParser()
-
-# Add arguments to the parser based on the dictionary
-for arg_name, arg_params in args_dict.items():
-    parser.add_argument(f'--{arg_name}', **arg_params)
-
-# Parse arguments from the command line
-args = parser.parse_args()
+set_args(args, parser)
+parsed_args = vars(parser.parse_args())
+parsed_args_dict = organize_args(parsed_args)
 print(args)
-if __name__ == "__main__":
 
-    optical_flow_subproc = False
-    if args.USE_OPTICAL_FLOW and optical_flow_subproc:
-        print("Using optical flow")
+if __name__ == "__main__":
+    if parsed_args_dict['args_env']['use_optical_flow'] and parsed_args_dict['args_env']['optical_flow_subproc']:
         shared_var = optical_flow_create_shared_vars()
     else:
         shared_var = (None, None)
+    add_arg_to_env('shared_var', shared_var, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
 
-    if args.LOAD_PATH:
-        print("Loading model from {}".format(args.LOAD_PATH))
-        load_path = "./logs/{}/best_model.zip".format(
-            args.LOAD_PATH)  # ./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
+    load_path_model = None
+    load_path_mean_std = None
+    if parsed_args_dict['args_global']['load_path']:
+        load_path_model = "../logs/{}/best_model.zip".format(
+            parsed_args_dict['args_global']['load_path'])
+        load_path_mean_std = "../logs/{}/mean_std.obj".format(
+            parsed_args_dict['args_global']['load_path'])
     else:
         load_path = None
 
-
-
-    eval_env_kwargs = {"renders": args.RENDER, "tree_urdf_path": args.TREE_TEST_URDF_PATH,
-                       "tree_obj_path": args.TREE_TEST_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
-                       "max_steps": args.EVAL_MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
-                       "action_scale": args.ACTION_SCALE, "distance_reward_scale": args.DISTANCE_REWARD_SCALE,
-                       "condition_reward_scale": args.CONDITION_REWARD_SCALE,
-                       "terminate_reward_scale": args.TERMINATE_REWARD_SCALE,
-                       "collision_reward_scale": args.COLLISION_REWARD_SCALE,
-                       "slack_reward_scale": args.SLACK_REWARD_SCALE, "num_points":None,
-                       "pointing_orientation_reward_scale": args.POINTING_ORIENTATION_REWARD_SCALE,
-                       "perpendicular_orientation_reward_scale": args.PERPENDICULAR_ORIENTATION_REWARD_SCALE,
-                       "name": "evalenv", "use_optical_flow": args.USE_OPTICAL_FLOW, "optical_flow_subproc": optical_flow_subproc,
-                       "shared_var": shared_var}
+    args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     device = "cuda" if th.cuda.is_available() else "cpu"
     print(device)
-    eval_env = Monitor(PruningEnv(**eval_env_kwargs))
+    eval_env = Monitor(PruningEnv(**args_test))
     eval_env.reset()
-    model = RecurrentPPOAE.load(load_path)
+    assert load_path_mean_std
+    assert load_path_model
+    model = RecurrentPPOAE.load(load_path_model)
+    model.policy.load_running_mean_std_from_file(load_path_mean_std)
+
     # evaluate_policy(model, eval_env, n_eval_episodes=1, render=False, deterministic=True)
-    eval = CustomEvalCallback(eval_env, model, n_eval_episodes=len(eval_env.trees[0].reachable_points))
+    eval = CustomEvalCallback(eval_env, model, n_eval_episodes=2)#len(eval_env.trees[0].reachable_points))
     eval.eval_policy()

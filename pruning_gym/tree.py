@@ -7,22 +7,26 @@ import numpy as np
 import pywavefront
 from nptyping import NDArray, Shape, Float
 
-from pruning_sb3.pruning_gym.pruning_env import PruningEnv, compute_perpendicular_projection_vector, \
-    SUPPORT_AND_POST_PATH
+# from pruning_sb3.pruning_gym.pruning_env import SUPPORT_AND_POST_PATH
+from pruning_sb3.pruning_gym.helpers import compute_perpendicular_projection_vector
+
+from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH, ROBOT_URDF_PATH, SUPPORT_AND_POST_PATH
 
 
 class Tree:
     """ Class representing a tree mesh. It is used to sample points on the surface of the tree."""
 
-    def __init__(self, env: PruningEnv, urdf_path: str, obj_path: str,
+    def __init__(self, env, pyb, urdf_path: str, obj_path: str,
                  pos: NDArray[Shape['3,1'], Float] = np.array([0, 0, 0]),
                  orientation: NDArray[Shape['4,1'], Float] = np.array([0, 0, 0, 1]),
                  num_points: Optional[int] = None, scale: int = 1, curriculum_distances: Tuple = (-0.1,),
-                 curriculum_level_steps: Tuple = (0,)) -> None:
+                 curriculum_level_steps: Tuple = ()) -> None:
+
 
         assert len(curriculum_distances) - 1 == len(curriculum_level_steps)
         self.urdf_path = urdf_path
         self.env = env
+        self.pyb = pyb
         self.scale = scale
         self.pos = pos
         self.orientation = orientation
@@ -33,11 +37,14 @@ class Tree:
         self.projection_std = np.array(0.)
         self.projection_sum_x = np.array(0.)
         self.projection_sum_x2 = np.array(0.)
-        self.init_xyz = self.env.get_current_pose(self.env.end_effector_index)[0]
+        self.init_xyz = self.env.ur5.get_current_pose(self.env.ur5.end_effector_index)[0]
         self.num_points = num_points
         self.reachable_points = []
         self.curriculum_points = dict()
         self.curriculum_distances = curriculum_distances
+
+        self.supports = None
+        self.tree_id = None
 
         # if pickled file exists load and return
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
@@ -48,20 +55,20 @@ class Tree:
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
                 self.reachable_points = pickle.load(f)
-            print('Loaded reachable points from pickle file ', self.urdf_path[:-5] + '_reachable_points.pkl')
+            print('Loaded reachable points from pickle file ', pkl_path)
             print("Number of reachable points: ", len(self.reachable_points))
             # # Uncomment to visualize sphere at each reachable point
             # self.active()
             # for num, i in enumerate(self.reachable_points):
             #     # print(i)
             #     if num % 10 == 0:
-            #         visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.005,
+            #         visualShapeId = self.pyb.con.createVisualShape(self.pyb.con.GEOM_SPHERE, radius=0.005,
             #                                                        rgbaColor=[1, 0, 0, 1])
-            #         self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
+            #         self.sphereUid = self.pyb.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
             #                                                       [0, 0, 0, 1])
             #         point = [i[0][0], i[0][1], i[0][2]]
             #         normal_vec = i[2]
-            #         self.debug_branch = self.env.con.addUserDebugLine(point,
+            #         self.debug_branch = self.pyb.con.addUserDebugLine(point,
             #                                                       point + 50 * normal_vec / np.linalg.norm(normal_vec),
             #                                                       [1, 0, 0], 200)
         else:
@@ -76,9 +83,9 @@ class Tree:
             # for num,i in enumerate(self.reachable_points):
             #     # print(i)
             #     if num%1 == 0:
-            #         visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.005,
+            #         visualShapeId = self.pyb.con.createVisualShape(self.pyb.con.GEOM_SPHERE, radius=0.005,
             #                                                        rgbaColor=[1, 0, 0, 1])
-            #         self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
+            #         self.sphereUid = self.pyb.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
             #                                               [0, 0, 0, 1])
             #     input("Press Enter to continue...")
             with open(pkl_path, 'wb') as f:
@@ -110,7 +117,7 @@ class Tree:
                                   self.transformed_vertices[bc[0]] - self.transformed_vertices[bc[1]])
             # Only front facing faces
             if np.dot(normal_vec, [0, 1, 0]) < 0:
-                print(" is not pointing upwards")
+                # print(" is not pointing upwards")
                 continue
             # argsort sorts in ascending order
             sorted_sides = np.argsort([x[2] for x in sides])
@@ -140,13 +147,13 @@ class Tree:
             self.projection_sum_x2 += np.linalg.norm(perpendicular_projection) ** 2
             # if num % 100 == 0:
             #     self.active()
-            #     visualShapeId = self.env.con.createVisualShape(self.env.con.GEOM_SPHERE, radius=0.001,
+            #     visualShapeId = self.pyb.con.createVisualShape(self.pyb.con.GEOM_SPHERE, radius=0.001,
             #                                                    rgbaColor=[1, 0, 0, 1])
-            #     self.sphereUid = self.env.con.createMultiBody(0.0, -1, visualShapeId, [self.vertex_and_projection[-1][0][0],self.vertex_and_projection[-1][0][1],self.vertex_and_projection[-1][0][2]],
+            #     self.sphereUid = self.pyb.con.createMultiBody(0.0, -1, visualShapeId, [self.vertex_and_projection[-1][0][0],self.vertex_and_projection[-1][0][1],self.vertex_and_projection[-1][0][2]],
             #                                                   [0, 0, 0, 1])
             #     point = self.vertex_and_projection[-1][0]
             #     # point = (np.array(ac) + np.array(bc) + np.array(ab))/3  #(ac+bc+ab)/3
-            #     self.debug_branch = self.env.con.addUserDebugLine(point,
+            #     self.debug_branch = self.pyb.con.addUserDebugLine(point,
             #                                                   point + 50 * normal_vec / np.linalg.norm(normal_vec),
             #                                                   [1, 0, 0], 200)
 
@@ -156,23 +163,28 @@ class Tree:
             self.projection_sum_x2 / len(self.vertex_and_projection) - self.projection_mean ** 2)
 
     def active(self):
+        assert self.tree_id is None
+        assert self.supports is None
         print('Loading tree from ', self.urdf_path)
-        self.supports = self.env.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.6, 0],
-                                              list(self.env.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
+        self.supports = self.pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.6, 0],
+                                              list(self.pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                               globalScaling=1)
-        self.tree_urdf = self.env.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
+        self.tree_id = self.pyb.con.loadURDF(self.urdf_path, self.pos, self.orientation, globalScaling=self.scale)
 
     def inactive(self):
-        self.env.con.removeBody(self.tree_urdf)
-        self.env.con.removeBody(self.supports)
+        self.pyb.con.removeBody(self.tree_id)
+        self.pyb.con.removeBody(self.supports)
+        self.tree_id = None
+        self.supports = None
 
     def transform_obj_vertex(self, vertex: List) -> NDArray[Shape['3, 1'], Float]:
         vertex_pos = np.array(vertex[0:3]) * self.scale
         vertex_orientation = [0, 0, 0, 1]  # Dont care about orientation
-        vertex_w_transform = self.env.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation)
+        vertex_w_transform = self.pyb.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation)
         return np.array(vertex_w_transform[0])
 
     def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]]) -> bool:
+        #TODO: Fix this
         ur5_base_pos = self.init_xyz  # np.array(self.env.get_current_pose(self.env.end_effector_index)[0])
         if "envy" in self.urdf_path:
             if abs(vertice[0][0]) < 0.05:
@@ -180,9 +192,10 @@ class Tree:
         # elif "ufo" in self.urdf_path:
         #     if vertice[0][2] < 0.1:
         #         return False
+        #TODO: Make this distance ee instead of base
         dist = np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
         projection_length = np.linalg.norm(vertice[1])
-        if dist >= 0.6 or not (projection_length > self.projection_mean + self.projection_std):
+        if dist >= 0.8 or not (projection_length > self.projection_mean + self.projection_std):
             return False
         # Check if start point reachable
 
@@ -191,20 +204,22 @@ class Tree:
         #
         # self.env.set_joint_angles(j_angles)
         # for i in range(100):
-        #     self.env.con.stepSimulation()
+        #     self.pyb.con.stepSimulation()
         # # ee_pos, _ = self.env.get_current_pose(self.env.end_effector_index)
         # start_condition_number = self.env.get_condition_number()
         # print(start_condition_number)
         # Check if goal reachable
-        j_angles = self.env.calculate_ik(vertice[0], None)
+        self.env.ur5.remove_ur5_robot()
+        self.env.ur5.setup_ur5_arm()
+        #TODO: restart from init pos?
+        j_angles = self.env.ur5.calculate_ik(vertice[0], None)
 
-        self.env.set_joint_angles(j_angles)
+        self.env.ur5.set_joint_angles(j_angles)
         for i in range(100):
-            self.env.con.stepSimulation()
-        ee_pos, _ = self.env.get_current_pose(self.env.end_effector_index)
+            self.pyb.con.stepSimulation()
+        ee_pos, _ = self.env.ur5.get_current_pose(self.env.ur5.end_effector_index)
         dist = np.linalg.norm(np.array(ee_pos) - vertice[0], axis=-1)
-        condition_number = self.env.get_condition_number()
-        if dist <= 0.05 and condition_number < 40:
+        if dist <= 0.05:
             return True
         return False
 
@@ -219,7 +234,7 @@ class Tree:
         return self.reachable_points
 
     @staticmethod
-    def make_trees_from_folder(env: PruningEnv, trees_urdf_path: str, trees_obj_path: str, pos: NDArray,
+    def make_trees_from_folder(env, pyb, trees_urdf_path: str, trees_obj_path: str, pos: NDArray,
                                orientation: NDArray, scale: int, num_points: int, num_trees: int,
                                curriculum_distances: Tuple, curriculum_level_steps: Tuple):
         trees: List[Tree] = []
@@ -227,33 +242,64 @@ class Tree:
                              sorted(glob.glob(trees_obj_path + '/*.obj'))):
             if len(trees) >= num_trees:
                 break
-            trees.append(Tree(env, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
+            trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
                               num_points=num_points, curriculum_distances=curriculum_distances,
                               curriculum_level_steps=curriculum_level_steps))
         return trees
 
+    # def make_curriculum(self, init_or):
+    #     #TODO: Fix this
+    #     for level, distance in enumerate(self.curriculum_distances):
+    #         self.curriculum_points[level] = []
+    #         if distance > 0.25:
+    #             self.curriculum_points[level] = [(distance, i) for i in self.reachable_points]
+    #         else:
+    #             for point in self.reachable_points:
+    #                 collision = False
+    #                 start_point = point[0] + np.array([0, distance, 0])
+    #                 # print(start_point, point[0])
+    #                 # set ik to this point
+    #                 j_angles = self.env.ur5.calculate_ik(start_point, init_or)
+    #                 self.env.ur5.set_joint_angles(j_angles)
+    #                 for i in range(100):
+    #                     self.pyb.con.stepSimulation()
+    #                     # check collision
+    #                     collisions = self.env.ur5.check_collisions(self.env.tree.tree_id, self.env.tree.supports)
+    #                     if collisions[0]:
+    #                         collision = True
+    #                         break
+    #                 start_condition_number = self.env.ur5.get_condition_number()
+    #                 if not collision and start_condition_number < 200:
+    #                     self.curriculum_points[level].append((distance, point))
+    #
+    #         print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
     def make_curriculum(self, init_or):
+        path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
+        #Allow pkling and loading
+        if not os.path.exists('./pkl3/' + str(path_component[3])):
+            os.makedirs('./pkl3/' + str(path_component[3]))
         for level, distance in enumerate(self.curriculum_distances):
             self.curriculum_points[level] = []
-            if distance > 0.25:
-                self.curriculum_points[level] = [(distance, i) for i in self.reachable_points]
-            else:
-                for point in self.reachable_points:
-                    collision = False
-                    start_point = point[0] + np.array([0, distance, 0])
-                    # print(start_point, point[0])
-                    # set ik to this point
-                    j_angles = self.env.calculate_ik(start_point, init_or)
-                    self.env.set_joint_angles(j_angles)
-                    for i in range(100):
-                        self.env.con.stepSimulation()
-                        # check collision
-                        collisions = self.env.check_collisions()
-                        if collisions[0]:
-                            collision = True
-                            break
-                    start_condition_number = self.env.get_condition_number()
-                    if not collision and start_condition_number < 200:
-                        self.curriculum_points[level].append((distance, point))
+            # pkl_path = './pkl3/' + str(path_component[3]) + '/' + str(
+            #     path_component[-1][:-5]) + '_curriculum_{}.pkl'.format(distance)
+            #
+            # if os.path.exists(pkl_path):
+            #     with open(pkl_path, 'rb') as f:
+            #         curriculum_points = pickle.load(f)
+            #     self.curriculum_points[level] = [(distance, i) for i in curriculum_points]
+            #     print('Loaded curriculum points from pickle file ',
+            #           pkl_path)
+            #     print("Number of curriculum points: ", len(self.curriculum_points[level]))
+            # else:
+            ee_pos, _ = self.env.ur5.get_current_pose(self.env.ur5.end_effector_index)
+            for point in self.reachable_points:
+                target_dist = np.linalg.norm(np.array(ee_pos) - point[0], axis=-1)
+                if target_dist < distance:
+                    self.curriculum_points[level].append((distance, point))
+
+                # with open(pkl_path, 'wb') as f:
+                #     pickle.dump(self.curriculum_points[level], f)
+
+            # if pkl path exists else create
 
             print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))

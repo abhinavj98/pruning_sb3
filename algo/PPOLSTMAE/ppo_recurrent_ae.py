@@ -427,7 +427,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
                 # Value loss using the TD(gae_lambda) target
                 # Mask padded sequences
-                ae_l2_loss = self.mse_loss(F.interpolate(rollout_data.observations['depth'], size=(112, 112)), recon)
+                #TODO: Test
+                ae_l2_loss = self.mse_loss(F.interpolate(rollout_data.observations['depth_proxy'], size=(112, 112)), recon)
                 ae_losses.append(ae_l2_loss.item())
                 value_loss = th.mean(((rollout_data.returns - values_pred) ** 2)[mask])
                 # Depth prediction loss
@@ -480,12 +481,19 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
         # Logs
         for data in self.rollout_buffer.get(1):
-            plot_img = data.observations['depth']
+            plot_img = data.observations['depth_proxy']
         with th.no_grad():
             _, recon = self.policy.features_extractor(plot_img)
-        ae_image = torchvision.utils.make_grid(
-            [(recon.squeeze(0) - min(recon.reshape(-1)))/(max(recon.reshape(-1)) - min(recon.reshape(-1))+1e-8), F.interpolate((plot_img - min(plot_img.reshape(-1)))/(max(plot_img.reshape(-1))- min(plot_img.reshape(-1))), size=(112, 112)).squeeze(0)])
-        self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
+        of_image = self.normalize_image(recon[0,:2,:,:])
+        plot_img = self.normalize_image(plot_img)
+        of_mask = self.normalize_image(recon[0,2,:,:].unsqueeze(0))
+
+        of_image_grid = torchvision.utils.make_grid(
+            [of_image, F.interpolate(plot_img[:,:2,:,:], size=(112, 112)).squeeze(0)])
+        of_mask_grid = torchvision.utils.make_grid(
+            [of_mask, F.interpolate(plot_img[:,2:,:,:], size=(112, 112)).squeeze(0)])
+        self.logger.record("autoencoder/of_mask", Image(of_mask_grid, "CHW"))
+        self.logger.record("autoencoder/depth_proxy", Image(of_image_grid, "CHW"))
         self.logger.record("train/ae_loss", np.mean(ae_losses))
         self.logger.record("train/entropy_loss", np.mean(entropy_losses))
         self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
@@ -501,6 +509,11 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         self.logger.record("train/clip_range", clip_range)
         if self.clip_range_vf is not None:
             self.logger.record("train/clip_range_vf", clip_range_vf)
+
+    def normalize_image(self, image):
+        #Subtract by min and divide by max
+        return (image - th.min(image.reshape(-1)))/(th.max(image.reshape(-1)) - th.min(image.reshape(-1))+1e-8)
+
 
     def learn(
             self: SelfRecurrentPPOAE,

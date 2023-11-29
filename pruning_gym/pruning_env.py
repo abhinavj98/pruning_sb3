@@ -1,29 +1,25 @@
 import os
 import sys
 
-from .tree import Tree
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from typing import Optional, Tuple, Any, List
-import math
 import os
 import random
-from collections import namedtuple
 
 import gymnasium as gym
 import numpy as np
-import pybullet
 from gymnasium import spaces
 from nptyping import NDArray, Shape, Float
-from pybullet_utils import bullet_client as bc
 
 from .optical_flow import OpticalFlow
 
-meshes_and_urdf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'meshes_and_urdf'))
-# Global URDF path pointing to robot and supports URDF
-ROBOT_URDF_PATH = os.path.join(meshes_and_urdf_path, 'urdf', 'ur5e', 'ur5e_cutter_new_calibrated_precise_level.urdf')
-SUPPORT_AND_POST_PATH = os.path.join(meshes_and_urdf_path, 'urdf', 'supports_and_post.urdf')
+from .tree import Tree
+from .ur5_utils import UR5
+from .pyb_utils import pyb_utils
+from pruning_sb3.pruning_gym import ROBOT_URDF_PATH
+from .reward_utils import Reward
+from skimage.draw import disk
 
 
 class PruningEnv(gym.Env):
@@ -41,7 +37,7 @@ class PruningEnv(gym.Env):
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  use_optical_flow: bool = False, optical_flow_subproc: bool = False,
                  shared_var: Tuple[Optional[Any], Optional[Any]] = (None, None), scale: bool = False,
-                 curriculum_distances: Tuple = (0.20,), curriculum_level_steps: Tuple = (),
+                 curriculum_distances: Tuple = (0.26,), curriculum_level_steps: Tuple = (),
                  use_ik: bool = True) -> None:
         super(PruningEnv, self).__init__()
 
@@ -69,42 +65,28 @@ class PruningEnv(gym.Env):
         self.tree_count = tree_count
         self.action_scale = action_scale
         self.terminated = False
-        self.terminate_on_singularity = terminate_on_singularity
         self.use_optical_flow = use_optical_flow
         self.optical_flow_subproc = optical_flow_subproc
+
         if self.use_optical_flow:
             if not self.optical_flow_subproc:
                 self.optical_flow_model = OpticalFlow(subprocess=False)
         #     self.optical_flow_model = OpticalFlow()
         # Reward variables
 
-        self.movement_reward_scale = movement_reward_scale
-        self.distance_reward_scale = distance_reward_scale
-        self.condition_reward_scale = condition_reward_scale
-        self.terminate_reward_scale = terminate_reward_scale
-        self.collision_reward_scale = collision_reward_scale
-        self.slack_reward_scale = slack_reward_scale
-        self.perpendicular_orientation_reward_scale = perpendicular_orientation_reward_scale
-        self.pointing_orientation_reward_scale = pointing_orientation_reward_scale
-        self.sum_reward = 0.0
-        self.scale = scale
-        # Set up pybullet
-        if self.renders:
-            self.con = bc.BulletClient(connection_mode=pybullet.GUI)
-        else:
-            self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
+        # New class for reward
+        self.reward = Reward(movement_reward_scale, distance_reward_scale, pointing_orientation_reward_scale,
+                             perpendicular_orientation_reward_scale, terminate_reward_scale, collision_reward_scale,
+                             slack_reward_scale, condition_reward_scale)
 
-        self.con.setTimeStep(50. / 240.)
-        self.con.setGravity(0, 0, -10)
-        self.con.setRealTimeSimulation(False)
-
-        self.con.resetDebugVisualizerCamera(cameraDistance=1.06, cameraYaw=-120.3, cameraPitch=-12.48,
-                                            cameraTargetPosition=[-0.3, -0.06, 0.4])
+        self.pyb = pyb_utils(self, renders, width, height)
 
         self.observation_space = spaces.Dict({
-            'depth': spaces.Box(low=-1.,
-                                high=1.0,
-                                shape=((3, 224, 224) if self.use_optical_flow else (1, 224, 224)), dtype=np.float32),
+            'depth_proxy': spaces.Box(low=-1.,
+                                      high=1.0,
+                                      shape=((3, self.pyb.height, self.pyb.width) if self.use_optical_flow else (
+                                          1, self.pyb.height, self.pyb.width)),
+                                      dtype=np.float32),
             'desired_goal': spaces.Box(low=-5.,
                                        high=5.,
                                        shape=(3,), dtype=np.float32),
@@ -117,46 +99,33 @@ class PruningEnv(gym.Env):
             'joint_angles': spaces.Box(low=-1,
                                        high=1,
                                        shape=(12,), dtype=np.float32),
-            'joint_velocities': spaces.Box(low=-6,
-                                           high=6,
-                                           shape=(6,), dtype=np.float32),
+            # 'joint_velocities': spaces.Box(low=-6,
+            #                                high=6,
+            #                                shape=(6,), dtype=np.float32),
             'prev_action': spaces.Box(low=-1., high=1.,
                                       shape=(self.action_dim,), dtype=np.float32),
-            # 'cosine_sim': spaces.Box(low=-1., high=1., shape=(1,), dtype=np.float32),
-            'close_to_goal': spaces.Box(low=0., high=1., shape=(1,), dtype=np.float32),
             'relative_distance': spaces.Box(low=-1., high=1., shape=(3,), dtype=np.float32),
             'critic_perpendicular_cosine_sim': spaces.Box(low=-0., high=1., shape=(1,), dtype=np.float32),
             'critic_pointing_cosine_sim': spaces.Box(low=-0., high=1., shape=(1,), dtype=np.float32),
 
         })
-        self.use_ik = use_ik
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
 
-        self.prev_action = np.zeros(self.action_dim)
-        self.action = np.zeros(self.action_dim)
-        # self.grayscale = np.zeros((224, 224))
-        self.rgb = np.zeros((224, 224, 3))
-        self.prev_rgb = np.zeros((224, 224, 3))
+        self.sum_reward = 0.0  # Pass this to reward class
+        self.scale = scale
 
-        self.cosine_sim = 0.5
+        self.use_ik = use_ik
+        self.action = np.zeros(self.action_dim)
+
         self.reset_counter = 0
         self.episode_counter = 0
         self.randomize_tree_count = 1
-        self.sphereUid = -1
         self.learning_param = learning_param
 
         # setup robot arm:
-        self.setup_ur5_arm()
+        # new class for ur5
+        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH)
         self.reset_env_variables()
-        # Camera parameters
-        self.near_val = 0.01
-        self.far_val = 3
-        self.height = height
-        self.width = width
-        # TODO: Correct camera parameters?
-        self.proj_mat = self.con.computeProjectionMatrixFOV(
-            fov=60, aspect=width / height, nearVal=self.near_val,
-            farVal=self.far_val)
 
         # Tree parameters
         self.tree_goal_pos = np.array([1, 0, 0])  # initial object pos
@@ -172,349 +141,53 @@ class PruningEnv(gym.Env):
 
         assert scale is not None
         assert pos is not None
-        self.trees = Tree.make_trees_from_folder(self, self.tree_urdf_path, self.tree_obj_path, pos=pos,
+        self.trees = Tree.make_trees_from_folder(self, self.pyb, self.tree_urdf_path, self.tree_obj_path, pos=pos,
                                                  orientation=np.array([0, 0, 0, 1]), scale=scale, num_points=num_points,
                                                  num_trees=self.tree_count, curriculum_distances=curriculum_distances,
                                                  curriculum_level_steps=curriculum_level_steps)
 
         for tree in self.trees:
-            print(self.init_pos)
             self.tree = tree
             self.tree.active()
-            tree.make_curriculum(self.init_pos[1])
+            tree.make_curriculum(self.ur5.init_pos[1])
             self.tree.inactive()
 
         self.tree = random.sample(self.trees, 1)[0]
-        self.supports = -1
         self.tree.active()
-        self.create_background()
+        for i in range(len(self.tree.curriculum_distances)):
+            self.pyb.visualize_points(self.tree.curriculum_points[i])
+            import time
+            time.sleep(2)
+            self.pyb.remove_debug_items("step")
 
-        # Debug parameters
-        self.debug_line = -1
-        self.debug_line_1 = -1
-        self.debug_cur_point = -1
-        self.debug_des_point = -1
-        self.debug_cur_perp = -1
-        self.debug_des_perp = -1
-        self.debug_branch = -1
-
+        #Curriculum variables
         self.eval_counter = 0
         self.curriculum_level = 0
         self.curriculum_level_steps = curriculum_level_steps
         self.curriculum_distances = curriculum_distances
 
+        # Init and final logging
+        self.init_distance = 0
+        self.init_point_cosine_sim = 0
+        self.init_perp_cosine_sim = 0
+        self.collisions_unacceptable = 0
+        self.collisions_acceptable = 0
+
+        # Observation dicts
+        self.observation: dict = dict()
+        self.observation_info = dict()
+        self.prev_observation_info: dict = dict()
+
     def reset_env_variables(self) -> None:
         # Env variables that will change
         self.observation: dict = dict()
+        self.observation_info = dict()
+        self.prev_observation_info: dict = dict()
         self.stepCounter = 0
         self.sum_reward = 0
         self.terminated = False
-        self.singularity_terminated = False
-        self.wrong_success = False
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
-        self.target_dist = 1.
-
-    def setup_ur5_arm(self) -> None:
-
-        self.camera_link_index = 11
-        self.end_effector_index = 13
-        self.success_link_index = 14
-        flags = self.con.URDF_USE_SELF_COLLISION
-        self.ur5 = self.con.loadURDF(ROBOT_URDF_PATH, [0., 0, 0.], [0, 0, 0, 1], flags=flags)
-
-        self.num_joints = self.con.getNumJoints(self.ur5)
-        self.control_joints = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint",
-                               "wrist_2_joint", "wrist_3_joint"]
-        self.joint_type_list = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
-        self.joint_info = namedtuple("jointInfo",  # type: ignore
-                                     ["id", "name", "type", "lowerLimit", "upperLimit", "maxForce", "maxVelocity",
-                                      "controllable"])
-
-        self.joints = dict()
-        for i in range(self.num_joints):
-            info = self.con.getJointInfo(self.ur5, i)
-            jointID = info[0]
-            jointName = info[1].decode("utf-8")
-            jointType = self.joint_type_list[info[2]]
-            jointLowerLimit = info[8]
-            jointUpperLimit = info[9]
-            jointMaxForce = info[10]
-            jointMaxVelocity = info[11]
-            # print("Joint Name: ", jointName, "Joint ID: ", jointID)
-            controllable = True if jointName in self.control_joints else False
-            info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
-                                   jointMaxVelocity, controllable)  # type: ignore
-            print(jointID, jointName)
-            if info.type == "REVOLUTE":
-                self.con.setJointMotorControl2(self.ur5, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0, force=0)
-            self.joints[info.name] = info
-
-        # TO SET CUTTER DISABLE COLLISIONS WITH SELF
-        self.con.setCollisionFilterPair(self.ur5, self.ur5, 9, 11, 0)
-        self.con.setCollisionFilterPair(self.ur5, self.ur5, 8, 11, 0)
-        self.con.setCollisionFilterPair(self.ur5, self.ur5, 10, 11, 0)
-        self.con.setCollisionFilterPair(self.ur5, self.ur5, 7, 11, 0)
-        self.con.setCollisionFilterPair(self.ur5, self.ur5, 6, 11, 0)
-
-        self.init_joint_angles = (-np.pi / 2, -2., 2.16, -3.14, -1.57, np.pi)
-        self.set_joint_angles(self.init_joint_angles)
-        for i in range(100):
-            self.con.stepSimulation()
-
-        self.init_pos = self.con.getLinkState(self.ur5, self.end_effector_index)
-        self.joint_velocities = np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
-        self.joint_angles = np.array(self.init_joint_angles).astype(np.float32)
-        self.achieved_pos = np.array(self.get_current_pose(self.end_effector_index)[0])
-        self.previous_pose = np.array([0, 0, 0, 0, 0, 0, 0]).astype(np.float32)
-
-    def create_background(self) -> None:
-        # wall_folder = os.path.join('models', 'wall_textures')
-        # TODO: Replace all static paths with os.path.join
-        if os.name == "posix":
-            self.wall_texture = self.con.loadTexture(
-                "meshes_and_urdf/textures/bark_willow_02/bark_willow_02_diff_4k.jpg")
-        else:
-            self.wall_texture = self.con.loadTexture(
-                "C:/Users/abhin/PycharmProjects/sb3bleeding/pruning_sb3/meshes_and_urdf/textures/leaves-dead.png")
-        self.floor_dim = [0.01, 5, 5]
-        floor_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
-                                               )
-        floor_col = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
-                                                  )
-
-        self.floor_id = self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=floor_viz,
-                                                 baseCollisionShapeIndex=floor_col, basePosition=[0, 0, 0],
-                                                 baseOrientation=list(
-                                                     self.con.getQuaternionFromEuler([0, np.pi / 2, 0])))
-
-        wall_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=[0.01, 5, 5],
-                                              )
-        wall_col = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=[0.01, 5, 5],
-                                                 )
-        self.wall_id = self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=wall_viz,
-                                                baseCollisionShapeIndex=wall_col, basePosition=[0, -2, 5],
-                                                baseOrientation=list(
-                                                    self.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])))
-
-        side_wall_viz_1 = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
-                                                     )
-        side_wall_col_1 = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
-                                                        )
-
-        self.side_wall_1_id = self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=side_wall_viz_1,
-                                                       baseCollisionShapeIndex=side_wall_col_1, basePosition=[-5, 0, 5],
-                                                       baseOrientation=list(
-                                                           self.con.getQuaternionFromEuler([0, 0, 0])))
-        side_wall_viz_2 = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
-                                                     )
-        side_wall_col_2 = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
-                                                        )
-        self.side_wall_2_id = self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=side_wall_viz_2,
-                                                       baseCollisionShapeIndex=side_wall_col_2, basePosition=[5, 0, 5],
-                                                       baseOrientation=list(
-                                                           self.con.getQuaternionFromEuler([0, 0, 0])))
-        ceil_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
-                                              )
-        ceil_col = self.con.createCollisionShape(shapeType=self.con.GEOM_BOX, halfExtents=self.floor_dim,
-                                                 )
-        self.ceil_id = self.con.createMultiBody(baseMass=0, baseVisualShapeIndex=ceil_viz,
-                                                baseCollisionShapeIndex=ceil_col, basePosition=[0, 0, 10],
-                                                baseOrientation=list(
-                                                    self.con.getQuaternionFromEuler([0, np.pi / 2, 0])))
-        self.con.changeVisualShape(objectUniqueId=self.side_wall_1_id, linkIndex=-1,
-                                   textureUniqueId=self.wall_texture)
-        self.con.changeVisualShape(objectUniqueId=self.side_wall_2_id, linkIndex=-1,
-                                   textureUniqueId=self.wall_texture)
-
-        self.con.changeVisualShape(objectUniqueId=self.floor_id, linkIndex=-1,
-                                   textureUniqueId=self.wall_texture)
-        self.con.changeVisualShape(objectUniqueId=self.wall_id, linkIndex=-1,
-                                   textureUniqueId=self.wall_texture)
-        self.con.changeVisualShape(objectUniqueId=self.ceil_id, linkIndex=-1,
-                                   textureUniqueId=self.wall_texture)
-
-        # self.con.changeVisualShape(objectUniqueId=self.tree.tree_urdf, linkIndex=-1,
-        #                            textureUniqueId=self.wall_texture)
-
-    def set_joint_angles(self, joint_angles: Tuple[float, float, float, float, float, float]) -> None:
-        """Set joint angles using pybullet motor control"""
-        poses = []
-        indexes = []
-        forces = []
-
-        for i, name in enumerate(self.control_joints):
-            joint = self.joints[name]
-            poses.append(joint_angles[i])
-            indexes.append(joint.id)
-            forces.append(joint.maxForce)
-
-        self.con.setJointMotorControlArray(
-            self.ur5, indexes,
-            self.con.POSITION_CONTROL,
-            targetPositions=joint_angles,
-            targetVelocities=[0] * len(poses),
-            positionGains=[0.05] * len(poses),
-            forces=forces
-        )
-
-    from nptyping import NDArray, Shape, Float
-    def set_joint_velocities(self, joint_velocities: NDArray[Shape['6, 1'], Float]) -> None:
-        """Set joint velocities using pybullet motor control"""
-        velocities = []
-        indexes = []
-        forces = []
-        singularity = False
-        if (abs(joint_velocities) > 0.25).any():
-            singularity = True
-            joint_velocities = np.zeros(6)
-        for i, name in enumerate(self.control_joints):
-            joint = self.joints[name]
-            velocities.append(joint_velocities[i])
-            indexes.append(joint.id)
-            forces.append(joint.maxForce)
-        # print(joint_velocities)
-        # if (joint_velocities > 1).any():
-        #     input()
-        maxForce = 500
-        self.con.setJointMotorControlArray(self.ur5,
-                                           indexes,
-                                           controlMode=self.con.VELOCITY_CONTROL,
-                                           targetVelocities=joint_velocities,
-                                           )
-
-        return singularity
-
-    def calculate_joint_velocities_from_end_effector_velocity(self,
-                                                              end_effector_velocity: NDArray[Shape['6, 1'], Float]) -> \
-            NDArray[Shape['6, 1'], Float]:
-        """Calculate joint velocities from end effector velocity using jacobian"""
-        jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0, 0, 0], self.get_joint_angles(),
-                                              [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
-        jacobian = np.vstack(jacobian)
-        inv_jacobian = np.linalg.pinv(jacobian)
-        joint_velocities = np.matmul(inv_jacobian, end_effector_velocity).astype(np.float32)
-        return joint_velocities, jacobian
-
-    def get_joint_angles(self) -> Tuple[float, float, float, float, float, float]:
-        """Return joint angles"""
-        j = self.con.getJointStates(self.ur5, [3, 4, 5, 6, 7, 8])
-        joints = tuple((i[0] for i in j))
-        return joints  # type: ignore
-
-    def check_collisions(self) -> Tuple[bool, dict]:
-        """Check if there are any collisions between the robot and the environment
-        Returns: Dictionary with information about collisions (Acceptable and Unacceptable)
-        """
-        collisions_acceptable = self.con.getContactPoints(bodyA=self.ur5, bodyB=self.tree.tree_urdf)
-        collisions_unacceptable = self.con.getContactPoints(bodyA=self.ur5, bodyB=self.tree.supports)
-        collision_info = {"collisions_acceptable": False, "collisions_unacceptable": False}
-        for i in range(len(collisions_unacceptable)):
-            # print("collision")
-            if collisions_unacceptable[i][-6] < 0:
-                collision_info["collisions_unacceptable"] = True
-                # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
-                return True, collision_info
-
-        for i in range(len(collisions_acceptable)):
-            # print("collision")
-            if collisions_acceptable[i][-6] < 0:
-                collision_info["collisions_acceptable"] = True
-                # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
-                return True, collision_info
-        return False, collision_info
-
-    def check_success_collision(self) -> bool:
-        """Check if there are any collisions between the robot and the environment
-        Returns: Dictionary with information about collisions (Acceptable and Unacceptable)
-        """
-        collisions_success = self.con.getContactPoints(bodyA=self.ur5, bodyB=self.tree.tree_urdf,
-                                                       linkIndexA=self.success_link_index)
-        for i in range(len(collisions_success)):
-            # print("collision")
-            if collisions_success[i][-6] < 0:
-                # collision_info["collisions_unacceptable"] = True
-                # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
-                return True
-        return False
-
-    def calculate_ik(self, position: Tuple[float, float, float],
-                     orientation: Optional[Tuple[float, float, float, float]]) -> \
-            Tuple[float, float, float, float, float, float]:
-        """Calculates joint angles from end effector position and orientation using inverse kinematics"""
-        lower_limits = [-math.pi] * 6
-        upper_limits = [math.pi] * 6
-        joint_ranges = [2 * math.pi] * 6
-
-        joint_angles = self.con.calculateInverseKinematics(
-            self.ur5, self.end_effector_index, position, orientation,
-            jointDamping=[0.01] * 6, upperLimits=upper_limits,
-            lowerLimits=lower_limits, jointRanges=joint_ranges  # , restPoses=self.init_joint_angles
-        )
-        return joint_angles
-
-    def get_current_pose(self, index: int) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
-        """Returns current pose of the end effector. Pos wrt end effector, orientation wrt world"""
-        linkstate = self.con.getLinkState(self.ur5, index, computeForwardKinematics=True)
-        position, orientation = linkstate[4], linkstate[1]  # Position wrt end effector, orientation wrt COM
-        return position, orientation
-
-    # TODO: Better types for getCameraImage
-    def get_view_mat_at_curr_pose(self) -> np.ndarray:
-        CAMERA_BASE_OFFSET = np.array([-0.063179, 0.077119, 0.0420027])
-        pose, orientation = self.get_current_pose(self.camera_link_index)
-        # CAMERA_BASE_OFFSET = np.array([0.01, 0.005, 0.01 ])  # TODO: Change camera position
-        pose = pose
-        tilt = -np.pi / 18
-        tilt_rot = np.array([[1, 0, 0], [0, np.cos(tilt), -np.sin(tilt)], [0, np.sin(tilt), np.cos(tilt)]])
-        tf = np.identity(4)
-        tf[:3, 3] = CAMERA_BASE_OFFSET
-        rot_tf = np.identity(4)
-        rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
-        rot_tf[:3, :3] = rot_mat
-        rot_tf[:3, 3] = pose
-        # cam_pos, cam_orient = self.con.multiplyTransforms(pose, [0,0,1,1], pose + CAMERA_BASE_OFFSET, orientation)
-        tf = rot_tf @ tf
-        # Initial vectors
-        init_camera_vector = np.array([0, 0, 1]) @ tilt_rot  #
-        init_up_vector = np.array([0, 1, 0]) @ tilt_rot  #
-        # Rotated vectors
-        camera_vector = rot_mat.dot(init_camera_vector)
-        up_vector = rot_mat.dot(init_up_vector)
-        view_matrix = self.con.computeViewMatrix(tf[:3, 3], tf[:3, 3] + 0.1 * camera_vector, up_vector)
-        return view_matrix
-
-    def get_image_at_curr_pose(self) -> List:
-        """Take the current pose of the end effector and set the camera to that pose"""
-        CAMERA_BASE_OFFSET = np.array([-0.063179, 0.077119, 0.0420027])
-        self.view_matrix = self.get_view_mat_at_curr_pose()
-        return self.con.getCameraImage(self.width, self.height, viewMatrix=self.view_matrix,
-                                       projectionMatrix=self.proj_mat,
-                                       renderer=self.con.ER_BULLET_HARDWARE_OPENGL,
-                                       flags=self.con.ER_NO_SEGMENTATION_MASK, lightDirection=[1, 1, 1])
-
-    @staticmethod
-    def seperate_rgbd_rgb_d(rgbd: List, h: int = 224, w: int = 224) -> Tuple[NDArray, NDArray]:
-        """Seperate rgb and depth from the rgbd image, return RGB and depth"""
-        rgb = np.array(rgbd[2]).reshape(h, w, 4) / 255
-        rgb = rgb[:, :, :3]
-        depth = np.array(rgbd[3]).reshape(h, w)
-        return rgb, depth
-
-    @staticmethod
-    def linearize_depth(depth: NDArray, far_val: float, near_val: float):
-        """OpenGL returns contracted depth, linearize it"""
-        depth_linearized = near_val / (far_val - (far_val - near_val) * depth + 0.00000001)
-        return depth_linearized
-
-    def get_rgbd_at_cur_pose(self) -> Tuple[NDArray, NDArray]:
-        """Get RGBD image at current pose"""
-        # cur_p = self.get_current_pose(self.camera_link_index)
-        rgbd = self.get_image_at_curr_pose()
-        rgb, depth = self.seperate_rgbd_rgb_d(rgbd)
-        depth = depth.astype(np.float32)
-        depth = self.linearize_depth(depth, self.far_val, self.near_val) - 0.5
-        return rgb, depth
 
     def set_curriculum_level(self, episode_counter, curriculum_level_steps):
         """Set curriculum level"""
@@ -524,14 +197,15 @@ class PruningEnv(gym.Env):
             if episode_counter in curriculum_level_steps:
                 self.curriculum_level += 1
 
-    def sample_point(self, name, episode_counter, curriculum_points) -> Tuple[
+    @staticmethod
+    def sample_point(name, episode_counter, curriculum_points) -> Tuple[
         Tuple[float, float, float], Tuple[float, float, float]]:
         """Sample a point from the tree"""
         if "eval" in name:
             distance, random_point = curriculum_points[episode_counter % len(curriculum_points)]
             print("Eval counter: ", episode_counter, "Point: ", random_point, "points ", len(curriculum_points))
         else:
-            print(random.sample(curriculum_points, 1))
+            # print(random.sample(curriculum_points, 1))
             distance, random_point = random.sample(curriculum_points, 1)[0]
         return distance, random_point
 
@@ -543,15 +217,12 @@ class PruningEnv(gym.Env):
         self.reset_counter += 1
         # Remove and add tree to avoid collisions with tree while resetting
         self.tree.inactive()
-        self.con.removeBody(self.ur5)
-        # Remove debug items
-        self.con.removeUserDebugItem(self.debug_branch)
-        self.con.removeUserDebugItem(self.debug_line)
-        self.con.removeUserDebugItem(self.debug_line_1)
-        self.con.removeUserDebugItem(self.debug_cur_point)
-        self.con.removeUserDebugItem(self.debug_des_point)
-        self.con.removeUserDebugItem(self.debug_des_perp)
-        self.con.removeUserDebugItem(self.debug_cur_perp)
+
+        # Function for remove body
+        self.ur5.remove_ur5_robot()
+        self.pyb.remove_debug_items("reset")
+        self.pyb.remove_debug_items("step")
+
         # Sample new tree if reset_counter is a multiple of randomize_tree_count
         self.set_curriculum_level(self.episode_counter, self.curriculum_level_steps)
 
@@ -562,7 +233,7 @@ class PruningEnv(gym.Env):
                     break
 
         # Create new ur5 arm body
-        self.setup_ur5_arm()
+        self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
 
         # Make this a new function that supports curriculum
         # Set curriculum level
@@ -572,103 +243,116 @@ class PruningEnv(gym.Env):
                                                              self.tree.curriculum_points[self.curriculum_level])
         print("Distance from goal: ", distance_from_goal, "Point: ", random_point)
         if "record" in self.name:
+            # Move to pybullet class
             """Display red sphere during evaluation"""
-            self.con.removeBody(self.sphereUid)
-            colSphereId = -1
-            visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=0.005, rgbaColor=[1, 0, 0, 1])
-            self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId,
-                                                      [random_point[0][0], random_point[0][1], random_point[0][2]],
-                                                      [0, 0, 0, 1])
-        # self.set_joint_angles(self.init_joint_angles)
-        print(random_point[0])
+            self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=random_point[0],
+                                    lineToXYZ=[random_point[0][0]+0.005, random_point[0][1]+0.005,\
+                                               random_point[0][2]+0.005],
+                                    lineColorRGB=[1, 0, 0],
+                                    lineWidth=200)
         # here the arm is set right in front of the point -> Change this to curriculum
         # self.set_joint_angles(
-        #    self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.init_pos[1]))
-        self.set_joint_angles(
-            self.calculate_ik((self.init_pos[0][0], self.init_pos[0][1] + 0.05, self.init_pos[0][2]), self.init_pos[1]))
+        #    self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.ur5.init_pos[1]))
+        self.ur5.set_joint_angles(
+            self.ur5.calculate_ik((self.ur5.init_pos[0][0], self.ur5.init_pos[0][1] + 0.05, self.ur5.init_pos[0][2]),
+                                  self.ur5.init_pos[1]))
 
         for i in range(100):
-            self.con.stepSimulation()
+            self.pyb.con.stepSimulation()
         self.tree_goal_pos = random_point[0]
         self.tree_goal_branch = random_point[1]
         self.tree.active()
-        curr_pose = self.get_current_pose(self.end_effector_index)
-        self.init_distance = np.linalg.norm(self.tree_goal_pos - self.init_pos[0]) + 1e-4
-        self.init_point_cosine_sim = self.compute_pointing_cos_sim(curr_pose[0], self.tree_goal_pos, curr_pose[1],
-                                                                   self.tree_goal_branch) + 1e-4
-        self.init_perp_cosine_sim = self.compute_perpendicular_cos_sim(curr_pose[1], self.tree_goal_branch) + 1e-4
+
+        pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+
+        # Logging
+        self.init_distance = np.linalg.norm(self.tree_goal_pos - self.ur5.init_pos[0]) + 1e-4
+        self.init_point_cosine_sim = self.reward.compute_pointing_cos_sim(np.array(pos), self.tree_goal_pos,
+                                                                          np.array(orient),
+                                                                          self.tree_goal_branch) + 1e-4
+        self.init_perp_cosine_sim = self.reward.compute_perpendicular_cos_sim(np.array(orient),
+                                                                              self.tree_goal_branch) + 1e-4
 
         # Add debug branch
-        self.debug_branch = self.con.addUserDebugLine(self.tree_goal_pos - 50 * self.tree_goal_branch,
-                                                      self.tree_goal_pos + 50 * self.tree_goal_branch, [1, 0, 0], 200)
-
+        _ = self.pyb.add_debug_item('line', 'step', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_branch,
+                                    lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_branch, lineColorRGB=[1, 0, 0],
+                                    lineWidth=200)
         self.set_extended_observation()
         info = dict()  # type: ignore
         # Make info analogous to one in step function
         return self.observation, info
 
+
+    def calculate_joint_velocities_from_ee_constrained(self, velocity):
+        """Calculate joint velocities from end effector velocities adds constraints of max joint velocities"""
+        if self.use_ik:
+            jv, jacobian = self.ur5.calculate_joint_velocities_from_ee_velocity(velocity)
+            # check if actual ee velocity is close to desired ee velocity
+            actual_ee_vel = np.matmul(jacobian, jv)
+            #TODO:Log ee_vel_error
+            self.ee_vel_error = abs(actual_ee_vel - velocity) / (velocity + 1e-5)
+            if (self.ee_vel_error > 0.1).any():
+                print("Nope")
+                jv = np.zeros(6)
+        #If not using ik, just set joint velocities to be regressed by actor
+        else:
+            jv = velocity
+        return jv
     def step(self, action: NDArray[Shape['6, 1'], Float]) -> Tuple[dict, float, bool, bool, dict]:
-        # remove debug line
-
-        previous_pose = self.get_current_pose(self.end_effector_index)
-        # convert two tuples into one array
-
-        self.previous_pose = np.hstack((previous_pose[0], previous_pose[1]))
-        self.prev_joint_velocities = self.joint_velocities
-        self.prev_rgb = self.rgb
-        self.con.removeUserDebugItem(self.debug_line)
-
-        self.con.removeUserDebugItem(self.debug_line_1)
+        self.pyb.remove_debug_items("step")
         self.action = action
 
         action = action * self.action_scale
-        self.joint_velocities = action
-
-        if self.use_ik:
-            self.joint_velocities, jacobian = self.calculate_joint_velocities_from_end_effector_velocity(action)
-            # check if actual ee velocity is close to desired ee velocity
-            actual_ee_vel = np.matmul(jacobian, self.joint_velocities)
-            self.ee_vel_error = abs(actual_ee_vel - action) / (action + 1e-5)
-            if (self.ee_vel_error > 0.1).any():
-                print("Nope")
-                self.joint_velocities = np.zeros(6)
-
-        singularity = self.set_joint_velocities(self.joint_velocities)
+        self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(action)
+        singularity = self.ur5.set_joint_velocities(self.ur5.action)
 
         for i in range(1):
-            self.con.stepSimulation()
-            # print(self.con.getJointStateMultiDof(self.ur5, self.end_effector_index))
+            self.pyb.con.stepSimulation()
+            # print(self.pyb.con.getJointStateMultiDof(self.ur5.ur5_robot, self.ur5.end_effector_index))
             # if self.renders: time.sleep(5./240.) 
 
-        # Next 2 lines keep in the same order, need observations before reward
+        # Need observations before reward
         self.set_extended_observation()
-        reward, reward_infos = self.compute_reward(self.desired_pos, np.hstack((self.achieved_pos, self.achieved_or)),
-                                                   self.previous_pose, singularity,
+        current_pose = np.hstack((self.observation_info['achieved_pos'], self.observation_info['achieved_or']))
+        if 'achieved_pos' not in self.prev_observation_info.keys():
+            self.prev_observation_info['achieved_pos'] = np.zeros(3)
+            self.prev_observation_info['achieved_or'] = np.zeros(4)
+        previous_pose = np.hstack(
+            (self.prev_observation_info['achieved_pos'], self.prev_observation_info['achieved_or']))
+        reward, reward_infos = self.compute_reward(self.observation_info['desired_pos'], current_pose,
+                                                   previous_pose, singularity,
                                                    None)
 
         self.sum_reward += reward
-        # self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
+        # self.debug_line = self.pyb.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
         self.stepCounter += 1
 
         done, terminate_info = self.is_task_done()
         truncated = terminate_info['time_limit_exceeded']
-        terminated = terminate_info['goal_achieved'] or terminate_info['singularity_achieved']
+        terminated = terminate_info['goal_achieved']
 
         infos = {'is_success': False, "TimeLimit.truncated": False}  # type: ignore
-        if False:  # terminate_info['time_limit_exceeded']:
+        if terminate_info['time_limit_exceeded']:
             infos["TimeLimit.truncated"] = True  # type: ignore
             infos["terminal_observation"] = self.observation  # type: ignore
 
         if self.terminated is True:
             infos['is_success'] = True
 
+        # Logging end of episode info
         if truncated or terminated:
             self.episode_counter += 1
             infos['episode'] = {"l": self.stepCounter, "r": self.sum_reward}  # type: ignore
             print("Episode Length: ", self.stepCounter)
-            infos["pointing_cosine_sim_error"] = self.orientation_point_value
-            infos["perpendicular_cosine_sim_error"] = self.orientation_perp_value
-            infos["euclidean_error"] = self.target_dist
+            infos["pointing_cosine_sim_error"] = Reward.compute_pointing_cos_sim(
+                achieved_pos=self.observation_info['achieved_pos'],
+                desired_pos=self.observation_info['desired_pos'],
+                achieved_or=self.observation_info['achieved_or'],
+                branch_vector=self.tree_goal_branch)
+            infos["perpendicular_cosine_sim_error"] = Reward.compute_perpendicular_cos_sim(
+                achieved_or=self.observation_info['achieved_or'], branch_vector=self.tree_goal_branch)
+            infos["euclidean_error"] = np.linalg.norm(
+                self.observation_info['achieved_pos'] - self.observation_info['desired_pos'])
 
         # infos['episode'] = {"l": self.stepCounter,  "r": reward}
         infos.update(reward_infos)
@@ -677,16 +361,8 @@ class PruningEnv(gym.Env):
         return self.observation, reward, terminated, truncated, infos
 
     def render(self, mode="rgb_array") -> NDArray:  # type: ignore
-        size = [512, 512]
-        view_matrix = self.con.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[-0.3, -0.06, 1.3], distance=1.06,
-                                                                 yaw=-120.3, pitch=-12.48, roll=0, upAxisIndex=2)
-        proj_matrix = self.con.computeProjectionMatrixFOV(fov=60, aspect=float(size[0]) / size[1], nearVal=0.1,
-                                                          farVal=100.0)
-        img_rgbd = self.con.getCameraImage(size[0], size[1], view_matrix, proj_matrix,
-                                           renderer=self.con.ER_BULLET_HARDWARE_OPENGL,
-                                           flags=self.con.ER_NO_SEGMENTATION_MASK)
-        # , renderer = self.con.ER_BULLET_HARDWARE_OPENGL)
-        img_rgb, _ = self.seperate_rgbd_rgb_d(img_rgbd, size[1], size[0])
+        img_rgbd = self.pyb.get_image_at_curr_pose(type='viz')
+        img_rgb, _ = self.pyb.seperate_rgbd_rgb_d(img_rgbd, 512, 512)
         if mode == "human":
             import cv2
             cv2.imshow("img", (img_rgb * 255).astype(np.uint8))
@@ -695,13 +371,16 @@ class PruningEnv(gym.Env):
         return img_rgb
 
     def close(self) -> None:
-        self.con.disconnect()
+        self.pyb.con.disconnect()
 
     def compute_deprojected_point_mask(self):
-        point_mask = np.zeros(self.rgb.shape[:2])
+        # TODO: Make this function nicer
+        # Function. Be Nice.
+
+        point_mask = np.zeros((self.pyb.height, self.pyb.width), dtype=np.float32)
         point_mask = np.expand_dims(point_mask, axis=0).astype(np.float32)
-        proj_matrix = np.asarray(self.proj_mat).reshape([4, 4], order="F")
-        view_matrix = np.asarray(self.view_matrix).reshape([4, 4], order="F")
+        proj_matrix = np.asarray(self.pyb.proj_mat).reshape([4, 4], order="F")
+        view_matrix = np.asarray(self.ur5.get_view_mat_at_curr_pose()).reshape([4, 4], order="F")
         projection = proj_matrix @ view_matrix @ np.array(
             [self.tree_goal_pos[0], self.tree_goal_pos[1], self.tree_goal_pos[2], 1])
         # Normalize by w
@@ -710,356 +389,178 @@ class PruningEnv(gym.Env):
         # if projection within 1,-1, set point mask to 1
         if projection[0] < 1 and projection[0] > -1 and projection[1] < 1 and projection[1] > -1:
             projection = (projection + 1) / 2
-
-            from skimage.draw import disk
-            # mask = np.zeros((10, 10), dtype=np.uint8)
-            row = self.height - 1 - int(projection[1] * (self.height))
-            col = int(projection[0] * (self.width))
-            radius = 5
+            row = self.pyb.height - 1 - int(projection[1] * (self.pyb.height))
+            col = int(projection[0] * self.pyb.width)
+            radius = 5  # TODO: Make this a variable proportional to distance
             # modern scikit uses a tuple for center
             rr, cc = disk((row, col), radius)
-            point_mask[0, np.clip(0, rr, 223), np.clip(0, cc, 223)] = 1
+            point_mask[0, np.clip(0, rr, 223), np.clip(0, cc,
+                                                       223)] = 1  # TODO: This is a hack, numbers shouldnt exceed max and min anyways
 
         return point_mask
 
-    def set_extended_observation(self) -> None:
+    def get_depth_proxy(self, use_optical_flow, optical_flow_subproc, prev_rgb):
+        rgb, depth = self.pyb.get_rgbd_at_cur_pose('robot', self.ur5.get_view_mat_at_curr_pose())
+        point_mask = self.compute_deprojected_point_mask()
+        if use_optical_flow:
+            # if subprocvenv add the rgb to the queue and wait for the optical flow to be calculated
+            if optical_flow_subproc:
+                self.shared_queue.put((rgb, prev_rgb, self.pid))
+                while not self.pid in self.shared_dict.keys():
+                    pass
+                optical_flow = self.shared_dict[self.pid]
+                depth_proxy = np.concatenate((optical_flow, point_mask))
+                del self.shared_dict[self.pid]
+            else:
+                optical_flow = self.optical_flow_model.calculate_optical_flow(rgb, prev_rgb)
+                depth_proxy = np.concatenate((optical_flow, point_mask))
+        else:
+            depth_proxy = np.expand_dims(depth.astype(np.float32), axis=0)
+            depth_proxy = np.concatenate((depth_proxy, point_mask))
+        return depth_proxy, rgb
+
+    def set_extended_observation(self) -> dict:
         """
         The observations are the current position, the goal position, the current orientation, the current depth
         image, the current joint angles and the current joint velocities
         """
-        self.prev_action = self.action
+        #TODO: define all these dict as named tuples/dict
+        self.prev_observation_info = self.observation_info
 
-        tool_pos, tool_orient = self.get_current_pose(self.end_effector_index)
-        self.achieved_pos = np.array(tool_pos).astype(np.float32)
-        self.achieved_or = np.array(tool_orient).astype(np.float32)
+        tool_pos, tool_orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        achieved_vel, achieved_ang_vel = self.ur5.get_current_vel(self.ur5.end_effector_index)
 
-        self.desired_pos = np.array(self.tree_goal_pos).astype(np.float32)
+        achieved_pos = np.array(tool_pos).astype(np.float32)
+        achieved_or = np.array(tool_orient).astype(np.float32)
+        desired_pos = np.array(self.tree_goal_pos).astype(np.float32)
 
-        self.rgb, self.depth = self.get_rgbd_at_cur_pose()
-        # self.grayscale = self.rgb.mean(axis=2).astype(np.uint8)
+        joint_angles = np.array(self.ur5.get_joint_angles()).astype(np.float32)
+        init_pos = np.array(self.ur5.init_pos[0]).astype(np.float32)
+        init_or = np.array(self.ur5.init_pos[1]).astype(np.float32)
 
-        self.joint_angles = np.array(self.get_joint_angles()).astype(np.float32)
-
-        init_pos = np.array(self.init_pos[0]).astype(np.float32)
-        init_or = np.array(self.init_pos[1]).astype(np.float32)
-
-        self.observation['achieved_goal'] = self.achieved_pos
-        # Convert orientation into 6D form for continuity
-        achieved_or_mat = np.array(self.con.getMatrixFromQuaternion(self.achieved_or)).reshape(3, 3)
-        # print(achieved_or_mat[:, :])
+        achieved_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
         achieved_or_6d = achieved_or_mat[:, :2].reshape(6, ).astype(np.float32)
+
+        if 'rgb' not in self.prev_observation_info:
+            self.prev_observation_info['rgb'] = np.zeros((self.pyb.height, self.pyb.width, 3))
+        depth_proxy, rgb = self.get_depth_proxy(self.use_optical_flow, self.optical_flow_subproc,
+                                                prev_rgb=self.prev_observation_info[
+                                                    'rgb'], )  # Get this from previous obs
+        encoded_joint_angles = np.hstack((np.sin(joint_angles), np.cos(joint_angles)))
+
+        pointing_cosine_sim = self.reward.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or,
+                                                                   self.tree_goal_branch)
+        perpendicular_cosine_sim = self.reward.compute_perpendicular_cos_sim(achieved_or, self.tree_goal_branch)
+
+        # Just infos to be used in the reward function/other methods
+        self.observation_info['desired_pos'] = desired_pos
+        self.observation_info['achieved_pos'] = achieved_pos
+        self.observation_info['achieved_or'] = achieved_or
+        self.observation_info['rgb'] = rgb
+        self.observation_info['pointing_cosine_sim'] = pointing_cosine_sim
+        self.observation_info['perpendicular_cosine_sim'] = perpendicular_cosine_sim
+        self.observation_info['target_distance'] = np.linalg.norm(achieved_pos - desired_pos)
+
+        # Actual observation
+        self.observation['achieved_goal'] = achieved_pos - init_pos
+        self.observation['desired_goal'] = desired_pos - init_pos
+        self.observation['relative_distance'] = achieved_pos - desired_pos
+        # Convert orientation into 6D form for continuity
         self.observation['achieved_or'] = achieved_or_6d
-        # , np.array(
-        #     self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or))))
-        self.observation['desired_goal'] = self.desired_pos
-
-        # print(np.array(self.con.getEulerFromQuaternion(self.achieved_or)) - np.array(self.con.getEulerFromQuaternion(init_or)))
-        point_mask = self.compute_deprojected_point_mask()
-        if self.use_optical_flow:
-            # #if subprocvenv add the rgb to the queue and wait for the optical flow to be calculated
-            # if self.subprocvenv:
-            #     self.rgb_queue.put(self.rgb)
-            #     self.observation['depth'] = self.optical_flow_queue.get()
-            if self.optical_flow_subproc:
-                self.shared_queue.put((self.rgb, self.prev_rgb, self.pid))
-                while not self.pid in self.shared_dict.keys():
-                    pass
-                optical_flow = self.shared_dict[self.pid]
-                self.observation['depth'] = np.concatenate((optical_flow, point_mask))
-                # ((optical_flow - optical_flow.min()) / (
-                # optical_flow.max() - optical_flow.min() + 1e-6))
-                # self.shared_dict[self.pid] = None
-                del self.shared_dict[self.pid]
-            else:
-                optical_flow = self.optical_flow_model.calculate_optical_flow(self.rgb, self.prev_rgb)
-                self.observation['depth'] = np.concatenate((optical_flow, point_mask))
-            # self.observation['depth'] = self.optical_flow_model.calculate_optical_flow(self.rgb,
-            #  self.prev_rgb)  # TODO: rename depth
-        else:
-            self.observation['depth'] = np.expand_dims(self.depth.astype(np.float32), axis=0)
-
-        # self.observation['cosine_sim'] = np.array(self.cosine_sim).astype(np.float32).reshape(
-        #     1, )  # DO NOT PASS THIS AS STATE - JUST HERE FOR COSINE SIM PREDICTOR
+        self.observation['depth_proxy'] = depth_proxy
         # Convert joint angles to sin and cos
-        encoded_joint_angles = np.hstack((np.sin(self.joint_angles), np.cos(self.joint_angles)))
         self.observation['joint_angles'] = encoded_joint_angles
-
-        self.observation['joint_velocities'] = self.joint_velocities
+        # self.observation[
+        #     'joint_velocities'] = self.ur5.action  # Check the name of this variable and figure where it is set
         # Action actually achieved
-        achieved_vel = np.array(self.con.getLinkState(self.ur5, self.end_effector_index, 1)[6])
-        achieved_ang_vel = np.array(self.con.getLinkState(self.ur5, self.end_effector_index, 1)[7])
-        self.observation['prev_action'] = np.hstack((achieved_vel, achieved_ang_vel))
-        if self.target_dist < self.learning_param:
-            self.observation['close_to_goal'] = np.array(1).astype(np.float32).reshape(1, )
-        else:
-            self.observation['close_to_goal'] = np.array(0).astype(np.float32).reshape(1, )
-        self.observation['relative_distance'] = self.achieved_pos - self.desired_pos
 
-        # Priveleged critic
-        # Add cosin sim perp and point
-        self.observation['critic_pointing_cosine_sim'] = np.array(
-            self.compute_pointing_cos_sim(self.achieved_pos, self.desired_pos, self.achieved_or,
-                                          self.tree_goal_branch)).astype(np.float32).reshape(1, )
-        self.observation['critic_perpendicular_cosine_sim'] = np.array(
-            self.compute_perpendicular_cos_sim(self.achieved_or, self.tree_goal_branch)).astype(np.float32).reshape(1, )
+        self.observation['prev_action'] = np.hstack((achieved_vel, achieved_ang_vel))
+
+        # Privileged critic
+        # Add cosine sim perp and point
+        self.observation['critic_pointing_cosine_sim'] = np.array(pointing_cosine_sim).astype(np.float32).reshape(1, )
+        self.observation['critic_perpendicular_cosine_sim'] = np.array(perpendicular_cosine_sim).astype(
+            np.float32).reshape(1, )
+
+        return self.observation
 
     def is_task_done(self) -> Tuple[bool, dict]:
         # NOTE: need to call compute_reward before this to check termination!
         time_limit_exceeded = self.stepCounter >= self.maxSteps
-        singularity_achieved = self.singularity_terminated
-        wrong_success = self.wrong_success
         goal_achieved = self.terminated
-        c = (
-                self.wrong_success is True or self.singularity_terminated is True or self.terminated is True or self.stepCounter > self.maxSteps)
-        terminate_info = {"time_limit_exceeded": time_limit_exceeded, "singularity_achieved": singularity_achieved,
-                          "wrong_success": wrong_success,
+        c = (self.terminated is True or self.stepCounter > self.maxSteps)
+        terminate_info = {"time_limit_exceeded": time_limit_exceeded,
                           "goal_achieved": goal_achieved}
         return c, terminate_info
 
-    def get_condition_number(self) -> float:
-        # get jacobian
-        jacobian = self.con.calculateJacobian(self.ur5, self.end_effector_index, [0, 0, 0], self.get_joint_angles(),
-                                              [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
-        jacobian = np.vstack(jacobian)
-        condition_number = np.linalg.cond(jacobian)
-        return condition_number
-
-    def compute_pointing_orientation_reward(self, achieved_pos: NDArray[Shape['3, 1'], Float],
-                                            desired_pos: NDArray[Shape['3, 1'], Float],
-                                            achieved_or: NDArray[Shape['4, 1'], Float],
-                                            previous_pos: NDArray[Shape['3, 1'], Float],
-                                            previous_or: NDArray[Shape['4, 1'], Float],
-                                            branch_vector: NDArray[Shape['3, 1'], Float]) -> Tuple[float, float]:
-
-        orientation_reward_prev = self.compute_pointing_cos_sim(previous_pos, desired_pos, previous_or, branch_vector)
-        orientation_reward = self.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or, branch_vector)
-        # print("Pointing Orientation reward: ", orientation_reward - orientation_reward_prev, orientation_reward)
-        return (abs(orientation_reward) - abs(orientation_reward_prev)), abs(orientation_reward)
-
-    def compute_pointing_cos_sim(self, achieved_pos: NDArray[Shape['3, 1'], Float],
-                                 desired_pos: NDArray[Shape['3, 1'], Float],
-                                 achieved_or: NDArray[Shape['4, 1'], Float],
-                                 branch_vector: NDArray[Shape['3, 1'], Float]) -> Tuple[float, float]:
-        # Orientation reward is computed as the dot product between the current orientation and the perpendicular vector to the end effector and goal pos vector
-        # This is to encourage the end effector to be perpendicular to the branch
-
-        # Perpendicular vector to branch vector
-        perpendicular_vector = compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector + desired_pos)
-        rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
-        # Initial vectors
-        init_vector = np.array([0, 0, 1])
-        camera_vector = rot_mat.dot(init_vector)
-        pointing_cos_sim = np.dot(camera_vector, perpendicular_vector) / (
-                np.linalg.norm(camera_vector) * np.linalg.norm(perpendicular_vector))
-        # print("Pointing Orientation reward: ", orientation_reward - orientation_reward_prev, orientation_reward)
-        return pointing_cos_sim
-
-    def compute_perpendicular_orientation_reward(self, achieved_or: NDArray[Shape['4, 1'], Float],
-                                                 previous_or: NDArray[Shape['4, 1'], Float],
-                                                 branch_vector: NDArray[Shape['3, 1'], Float]):
-
-        cosine_sim_perp_prev = self.compute_perpendicular_cos_sim(previous_or, branch_vector)
-        cosine_sim_perp = self.compute_perpendicular_cos_sim(achieved_or, branch_vector)
-        # print("Orientation reward: ", abs(orientation_reward) - abs(orientation_reward_prev), orientation_reward)
-        # print("Perpendicular Orientation reward: ", abs(cosine_sim_perp) - abs(cosine_sim_perp_prev), abs(cosine_sim_perp))
-        return (abs(cosine_sim_perp) - abs(cosine_sim_perp_prev)), abs(cosine_sim_perp)
-
-    def compute_perpendicular_cos_sim(self, achieved_or: NDArray[Shape['4, 1'], Float],
-                                      branch_vector: NDArray[Shape['3, 1'], Float]):
-        # Orientation reward is computed as the dot product between the current orientation and the perpendicular
-        # vector to the end effector and goal pos vector This is to encourage the end effector to be perpendicular to
-        # the branch
-
-        # Perpendicular vector to branch vector
-        # perpendicular_vector = compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector + desired_pos)
-        # perpendicular_vector_prev = compute_perpendicular_projection(previous_pos, desired_pos,
-        #                                                              branch_vector + desired_pos)
-        # Get vector for current orientation of end effector
-        rot_mat = np.array(self.con.getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
-        # Initial vectors
-        init_vector = np.array([1, 0, 0])
-        camera_vector = rot_mat.dot(init_vector)
-        # Check antiparallel case as well
-        cosine_sim_perp = np.dot(camera_vector, branch_vector) / (
-                np.linalg.norm(camera_vector) * np.linalg.norm(branch_vector))
-        return cosine_sim_perp
-
-
-    #TODO: Simplify this function
     def compute_reward(self, desired_goal: NDArray[Shape['3, 1'], Float], achieved_pose: NDArray[Shape['6, 1'], Float],
                        previous_pose: NDArray[Shape['6, 1'], Float], singularity: bool, info: dict) -> Tuple[
         float, dict]:
 
-        reward = float(0)
-        reward_info = {}
-        # Give rewards better names, and appropriate scales
         achieved_pos = achieved_pose[:3]
         achieved_or = achieved_pose[3:]
         desired_pos = desired_goal
         previous_pos = previous_pose[:3]
         previous_or = previous_pose[3:]
+        reward = 0.0
         # There will be two different types of achieved positions, one for the end effector and one for the camera
 
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
-        self.delta_movement = float(goal_reward(achieved_pos, previous_pos, desired_pos))
-        self.debug_line = self.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
-        self.debug_line_1 = self.con.addUserDebugLine(previous_pos, self.desired_pos, [0, 0, 1], 20)
+        _ = self.pyb.add_debug_item('line', 'step', lineFromXYZ=achieved_pos, lineToXYZ=desired_pos,
+                                    lineColorRGB=[0, 0, 1], lineWidth=20)
+        _ = self.pyb.add_debug_item('line', 'step', lineFromXYZ=previous_pos, lineToXYZ=desired_pos,
+                                    lineColorRGB=[0, 0, 1], lineWidth=20)
 
-        self.target_dist = float(goal_distance(achieved_pos, desired_pos))
+        # Calculate rewards
+        reward += self.reward.calculate_movement_reward(achieved_pos, desired_pos, previous_pos)
+        reward += self.reward.calculate_distance_reward(achieved_pos, desired_pos)
 
-        movement_reward = self.delta_movement * self.movement_reward_scale
-        # print("Movement reward: ", self.delta_movement)
-        reward_info['movement_reward'] = movement_reward
-        reward += movement_reward
+        point_reward, point_cosine_sim = self.reward.calculate_pointing_orientation_reward(achieved_pos, desired_pos,
+                                                                                           achieved_or, previous_pos,
+                                                                                           previous_or,
+                                                                                           self.tree_goal_branch)
+        reward += point_reward
 
-        distance_reward = (np.exp(-self.target_dist * 5) * self.distance_reward_scale)
-        reward_info['distance_reward'] = distance_reward
-        reward += distance_reward
-        # if self.target_dist<0.2:
+        perp_reward, perp_cosine_sim = self.reward.calculate_perpendicular_orientation_reward(achieved_or, previous_or,
+                                                                                              self.tree_goal_branch)
+        reward += perp_reward
 
-        self.pointing_orientation_reward_unscaled, self.orientation_point_value = self.compute_pointing_orientation_reward(
-            achieved_pos, desired_pos,
-            achieved_or, previous_pos,
-            previous_or,
-            self.tree_goal_branch)
-        # else:
-        #     self.orientation_reward_unscaled = 0
-        #     self.cosine_sim = 0
-        pointing_orientation_reward = (self.pointing_orientation_reward_unscaled *
-                                       self.pointing_orientation_reward_scale)
+        condition_number = self.ur5.get_condition_number()
+        reward += self.reward.calculate_condition_number_reward(condition_number)
 
-        reward_info['pointing_orientation_reward'] = pointing_orientation_reward
-        reward += pointing_orientation_reward
+        # If is successful
+        self.terminated = self.is_state_successfull(achieved_pos, desired_pos, perp_cosine_sim, point_cosine_sim)
+        reward += self.reward.calculate_termination_reward(self.terminated)
 
-        self.perpendicular_orientation_reward_unscaled, self.orientation_perp_value = (
-            self.compute_perpendicular_orientation_reward(
-                achieved_or, previous_or, self.tree_goal_branch))
-        # else:
-        #     self.orientation_reward_unscaled = 0
-        #     self.cosine_sim = 0
-        perpendicular_orientation_reward = (self.perpendicular_orientation_reward_unscaled *
-                                            self.perpendicular_orientation_reward_scale)
-
-        reward_info['perpendicular_orientation_reward'] = perpendicular_orientation_reward
-        reward += perpendicular_orientation_reward
-        # print('Orientation reward: ', orientation_reward)
-        # camera_vector = camera_vector/np.linalg.norm(camera_vector)
-        # perpendicular_vector = perpendicular_vector/np.linalg.norm(perpendicular_vector)
-
-        condition_number = self.get_condition_number()
-        condition_number_reward = 0
-        if singularity:
-            print('Too high condition number!')
-            self.singularity_terminated = False
-            condition_number_reward = 0  # TODO: Replace with an input argument
-        elif self.terminate_on_singularity:
-            condition_number_reward = np.abs(1 / condition_number) * self.condition_reward_scale
-        reward += condition_number_reward
-        reward_info['condition_number_reward'] = condition_number_reward
-
-        is_collision, collision_info = self.check_collisions()
-        is_success_collision = self.check_success_collision()
-        # print('Success collision: ', is_success_collision, is_collision)
-        terminate_reward = 0
-        # print(self.orientation_perp_value, self.orientation_point_value, self.target_dist)
-        # TODO: Point of is collision within a target distance is substitute of touch the required branch. Can you make it better?
-        if is_success_collision and self.target_dist < self.learning_param:
-            print(collision_info)
-            if (self.orientation_perp_value > 0.7) and (
-                    self.orientation_point_value > 0.7):  # and approach_velocity < 0.05:
-                self.terminated = True
-                terminate_reward = 1 * self.terminate_reward_scale
-                reward += terminate_reward
-                print('Successful!')
-            else:
-
-                # self.wrong_success = True
-                # terminate_reward = -1
-                # reward += -0.3
-                print('Unsuccessful!')
-
-        reward_info['terminate_reward'] = terminate_reward
+        is_collision, collision_info = self.ur5.check_collisions(self.tree.tree_id, self.tree.supports)
+        reward += self.reward.calculate_acceptable_collision_reward(collision_info)
+        reward += self.reward.calculate_unacceptable_collision_reward(collision_info)
 
         # check collisions:
-        collision_reward = 0
         if is_collision:
-            if collision_info['collisions_acceptable']:
-                collision_reward = 1 * self.collision_reward_scale
-                self.collisions_acceptable += 1
-                # print('Collision acceptable!')
-            elif collision_info['collisions_unacceptable']:
-                collision_reward = 1 * self.collision_reward_scale
-                self.collisions_unacceptable += 1
-                # print('Collision unacceptable!')
+            self.log_collision_info(collision_info)
 
-        reward += collision_reward
-        reward_info['collision_reward'] = collision_reward
+        reward += self.reward.calculate_slack_reward()
+        reward += self.reward.calculate_velocity_minimization_reward(self.ur5.action)
 
-        slack_reward = 1 * self.slack_reward_scale
-        reward_info['slack_reward'] = slack_reward
-        reward += slack_reward
+        return reward, self.reward.reward_info
 
-        # Minimize joint velocities
-        velocity_mag = np.linalg.norm(self.joint_velocities)
-        velocity_reward = velocity_mag  # -np.clip(velocity_mag, -0.1, 0.1)
-        # reward += velocity_reward
-        reward_info['velocity_reward'] = velocity_reward
-        return reward, reward_info
+    def is_state_successfull(self, achieved_pos, desired_pos, orientation_perp_value, orientation_point_value):
+        terminated = False
+        is_success_collision = self.ur5.check_success_collision(self.tree.tree_id)
+        dist_from_target = np.linalg.norm(achieved_pos - desired_pos)
+        if is_success_collision and dist_from_target < self.learning_param:
+            if (orientation_perp_value > 0.7) and (
+                    orientation_point_value > 0.7):  # and approach_velocity < 0.05:
+                terminated = True
 
+        return terminated
 
-def goal_distance(goal_a: NDArray[Shape['3, 1'], Float], goal_b: NDArray[Shape['3, 1'], Float]) -> float:
-    # Compute the distance between the goal and the achieved goal.
-    assert goal_a.shape == goal_b.shape
-    return np.linalg.norm(goal_a - goal_b, axis=-1)
-
-
-def goal_reward(current: NDArray[Shape['3, 1'], Float], previous: NDArray[Shape['3, 1'], Float],
-                target: NDArray[Shape['3, 1'], Float]):
-    # Compute the reward between the previous and current goal.
-    assert current.shape == previous.shape
-    assert current.shape == target.shape
-    diff_prev = goal_distance(previous, target)
-    diff_curr = goal_distance(current, target)
-    reward = diff_prev - diff_curr
-    return reward
-
-
-def goal_reward_projection(current: NDArray[Shape['3, 1'], Float], previous: NDArray[Shape['3, 1'], Float],
-                           target: NDArray[Shape['3, 1'], Float]):
-    # Compute the reward between the previous and current goal.
-    assert current.shape == previous.shape
-    assert current.shape == target.shape
-    # get parallel projection of current on prev
-    projection = compute_parallel_projection_vector(current - target, previous - target)
-
-    reward = np.linalg.norm(previous - target) - np.linalg.norm(projection)
-    # print(np.linalg.norm(previous - target), np.linalg.norm(projection), np.linalg.norm(current - target))
-
-    return reward
-
-
-# x,y distance
-def goal_distance2d(goal_a: NDArray[Shape['3, 1'], Float], goal_b: NDArray[Shape['3, 1'], Float]):
-    # Compute the distance between the goal and the achieved goal.
-    assert goal_a.shape == goal_b.shape
-    return np.linalg.norm(goal_a[0:2] - goal_b[0:2], axis=-1)
-
-
-def compute_perpendicular_projection(a: NDArray[Shape['3, 1'], Float], b: NDArray[Shape['3, 1'], Float],
-                                     c: NDArray[Shape['3, 1'], Float]):
-    ab = b - a
-    bc = c - b
-    projection = ab - np.dot(ab, bc) / np.dot(bc, bc) * bc
-    return projection
-
-
-def compute_parallel_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
-    projection = np.dot(ab, bc) / np.dot(bc, bc) * bc
-    return projection
-
-
-def compute_perpendicular_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
-    projection = ab - np.dot(ab, bc) / np.dot(bc, bc) * bc
-    return projection
-
+    def log_collision_info(self, collision_info):
+        if collision_info['collisions_acceptable']:
+            self.collisions_acceptable += 1
+            # print('Collision acceptable!')
+        elif collision_info['collisions_unacceptable']:
+            self.collisions_unacceptable += 1
+            # print('Collision unacceptable!')
