@@ -169,7 +169,7 @@ class UR5:
         return jacobian
     def calculate_joint_velocities_from_ee_velocity(self,
                                                     end_effector_velocity: NDArray[Shape['6, 1'], Float]) -> \
-            tuple[ndarray, ndarray]:
+            Tuple[ndarray, ndarray]:
         """Calculate joint velocities from end effector velocity using jacobian"""
         jacobian = self.calculate_jacobian()
         inv_jacobian = np.linalg.pinv(jacobian)
