@@ -15,10 +15,11 @@ from collections import namedtuple
 # ENV is a collection of objects like tree supports and ur5 robot. They interact with each other
 # through the env. UR5 class only needs access to pybullet.
 class UR5:
-    def __init__(self, con, robot_urdf_path: str) -> None:
+    def __init__(self, con, robot_urdf_path: str, pos = [0,0,0]) -> None:
         assert isinstance(robot_urdf_path, str)
 
         self.con = con
+        self.pos = pos
         self.camera_link_index = None
         self.end_effector_index = None
         self.success_link_index = None
@@ -44,7 +45,7 @@ class UR5:
         self.end_effector_index = 13
         self.success_link_index = 14
         flags = self.con.URDF_USE_SELF_COLLISION
-        self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, [0., 0, 0.], [0, 0, 0, 1], flags=flags)
+        self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, self.pos, [0, 0, 0, 1], flags=flags)
 
         self.num_joints = self.con.getNumJoints(self.ur5_robot)
         self.control_joints = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint",
