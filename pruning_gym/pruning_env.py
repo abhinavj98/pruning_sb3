@@ -21,7 +21,8 @@ from pruning_sb3.pruning_gym import ROBOT_URDF_PATH
 from .reward_utils import Reward
 from skimage.draw import disk
 
-
+import copy
+#TODO: Write test cases for this file
 class PruningEnv(gym.Env):
     metadata = {'render.modes': ['rgb_array']}
 
@@ -330,7 +331,6 @@ class PruningEnv(gym.Env):
         done, terminate_info = self.is_task_done()
         truncated = terminate_info['time_limit_exceeded']
         terminated = terminate_info['goal_achieved']
-
         infos = {'is_success': False, "TimeLimit.truncated": False}  # type: ignore
         if terminate_info['time_limit_exceeded']:
             infos["TimeLimit.truncated"] = True  # type: ignore
@@ -355,6 +355,7 @@ class PruningEnv(gym.Env):
                 self.observation_info['achieved_pos'] - self.observation_info['desired_pos'])
 
         # infos['episode'] = {"l": self.stepCounter,  "r": reward}
+        infos['velocty'] = np.linalg.norm(self.action)
         infos.update(reward_infos)
         # return self.observation, reward, done, infos
         # v26
@@ -425,7 +426,7 @@ class PruningEnv(gym.Env):
         image, the current joint angles and the current joint velocities
         """
         #TODO: define all these dict as named tuples/dict
-        self.prev_observation_info = self.observation_info
+        self.prev_observation_info = copy.deepcopy(self.observation_info)
 
         tool_pos, tool_orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
         achieved_vel, achieved_ang_vel = self.ur5.get_current_vel(self.ur5.end_effector_index)
@@ -513,7 +514,6 @@ class PruningEnv(gym.Env):
                                     lineColorRGB=[0, 0, 1], lineWidth=20)
 
         # Calculate rewards
-        reward += self.reward.calculate_movement_reward(achieved_pos, desired_pos, previous_pos)
         reward += self.reward.calculate_distance_reward(achieved_pos, desired_pos)
 
         point_reward, point_cosine_sim = self.reward.calculate_pointing_orientation_reward(achieved_pos, desired_pos,
@@ -530,7 +530,7 @@ class PruningEnv(gym.Env):
         reward += self.reward.calculate_condition_number_reward(condition_number)
 
         # If is successful
-        self.terminated = self.is_state_successfull(achieved_pos, desired_pos, perp_cosine_sim, point_cosine_sim)
+        self.terminated = self.is_state_successful(achieved_pos, desired_pos, perp_cosine_sim, point_cosine_sim)
         reward += self.reward.calculate_termination_reward(self.terminated)
 
         is_collision, collision_info = self.ur5.check_collisions(self.tree.tree_id, self.tree.supports)
@@ -546,7 +546,7 @@ class PruningEnv(gym.Env):
 
         return reward, self.reward.reward_info
 
-    def is_state_successfull(self, achieved_pos, desired_pos, orientation_perp_value, orientation_point_value):
+    def is_state_successful(self, achieved_pos, desired_pos, orientation_perp_value, orientation_point_value):
         terminated = False
         is_success_collision = self.ur5.check_success_collision(self.tree.tree_id)
         dist_from_target = np.linalg.norm(achieved_pos - desired_pos)

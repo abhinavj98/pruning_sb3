@@ -192,7 +192,6 @@ class Tree:
         # elif "ufo" in self.urdf_path:
         #     if vertice[0][2] < 0.1:
         #         return False
-        #TODO: Make this distance ee instead of base
         dist = np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
         projection_length = np.linalg.norm(vertice[1])
         if dist >= 0.8 or not (projection_length > self.projection_mean + self.projection_std):
@@ -209,8 +208,8 @@ class Tree:
         # start_condition_number = self.env.get_condition_number()
         # print(start_condition_number)
         # Check if goal reachable
-        self.env.ur5.remove_ur5_robot()
-        self.env.ur5.setup_ur5_arm()
+        # self.env.ur5.remove_ur5_robot()
+        # self.env.ur5.setup_ur5_arm()
         #TODO: restart from init pos?
         j_angles = self.env.ur5.calculate_ik(vertice[0], None)
 
@@ -274,11 +273,13 @@ class Tree:
     #
     #         print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
     def make_curriculum(self, init_or):
+        # self.env.ur5.remove_ur5_robot()
+        # self.env.ur5.setup_ur5_arm()
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         #Allow pkling and loading
         if not os.path.exists('./pkl3/' + str(path_component[3])):
             os.makedirs('./pkl3/' + str(path_component[3]))
-        for level, distance in enumerate(self.curriculum_distances):
+        for level, max_distance in enumerate(self.curriculum_distances):
             self.curriculum_points[level] = []
             # pkl_path = './pkl3/' + str(path_component[3]) + '/' + str(
             #     path_component[-1][:-5]) + '_curriculum_{}.pkl'.format(distance)
@@ -294,8 +295,8 @@ class Tree:
             ee_pos, _ = self.env.ur5.get_current_pose(self.env.ur5.end_effector_index)
             for point in self.reachable_points:
                 target_dist = np.linalg.norm(np.array(ee_pos) - point[0], axis=-1)
-                if target_dist < distance:
-                    self.curriculum_points[level].append((distance, point))
+                if target_dist < max_distance:
+                    self.curriculum_points[level].append((max_distance, point))
 
                 # with open(pkl_path, 'wb') as f:
                 #     pickle.dump(self.curriculum_points[level], f)

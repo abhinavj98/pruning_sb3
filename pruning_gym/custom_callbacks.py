@@ -1,3 +1,5 @@
+#Fix this file by subclassing
+
 import pickle
 
 from stable_baselines3.common.callbacks import BaseCallback, EventCallback, CallbackList
@@ -77,6 +79,7 @@ class CustomTrainCallback(BaseCallback):
         self._info_dict["perpendicular_cosine_sim_error"] = []
         self._info_dict["euclidean_error"] = []
         self._info_dict["is_success"] = []
+        self._info_dict['velocity'] = []
 
 
 
@@ -309,6 +312,7 @@ class CustomEvalCallback(EventCallback):
         self._info_dict["pointing_cosine_sim_error"] = []
         self._info_dict["perpendicular_cosine_sim_error"] = []
         self._info_dict["euclidean_error"] = []
+        self._info_dict['velocity'] = []
 
     def _on_step(self) -> bool:
 

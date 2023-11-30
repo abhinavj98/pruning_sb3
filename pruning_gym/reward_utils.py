@@ -16,6 +16,7 @@ class Reward:
         self.collision_reward_scale = collision_reward_scale
         self.slack_reward_scale = slack_reward_scale
         self.condition_reward_scale = condition_reward_scale
+        self.velocity_reward_scale = 0.
         self.reward_info = {}
 
     def calculate_perpendicular_orientation_reward(self, achieved_or,
@@ -34,8 +35,8 @@ class Reward:
         # Compute the reward between the previous and current goal.
         assert achieved_pos.shape == desired_pos.shape
         assert achieved_pos.shape == previous_pos.shape
-        diff_prev = np.linalg.norm(achieved_pos - desired_pos)
-        diff_curr = np.linalg.norm(previous_pos - desired_pos)
+        diff_curr = np.linalg.norm(achieved_pos - desired_pos)
+        diff_prev = np.linalg.norm(previous_pos - desired_pos)
         movement_reward = (diff_prev - diff_curr) * self.movement_reward_scale
         self.reward_info['movement_reward'] = movement_reward
         return movement_reward
@@ -84,8 +85,9 @@ class Reward:
         return slack_reward
 
     def calculate_velocity_minimization_reward(self, velocity):
-        velocity_reward = -np.linalg.norm(velocity) * self.movement_reward_scale
+        velocity_reward = -np.linalg.norm(velocity) * self.velocity_reward_scale
         self.reward_info['velocity_reward'] = velocity_reward
+        self.reward_info['velocity'] = velocity
         return velocity_reward
 
 
