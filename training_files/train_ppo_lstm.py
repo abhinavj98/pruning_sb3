@@ -25,10 +25,10 @@ parser = argparse.ArgumentParser()
 set_args(args, parser)
 parsed_args = vars(parser.parse_args())
 parsed_args_dict = organize_args(parsed_args)
-print(args)
+print(parsed_args_dict)
 
 if __name__ == "__main__":
-    init_wandb(args, parsed_args_dict['args_global']['run_name'])
+    init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
 
     if parsed_args_dict['args_env']['use_optical_flow'] and parsed_args_dict['args_env']['optical_flow_subproc']:
         shared_var = optical_flow_create_shared_vars()
