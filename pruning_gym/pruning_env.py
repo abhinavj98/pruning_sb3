@@ -355,7 +355,7 @@ class PruningEnv(gym.Env):
                 self.observation_info['achieved_pos'] - self.observation_info['desired_pos'])
 
         # infos['episode'] = {"l": self.stepCounter,  "r": reward}
-        infos['velocty'] = np.linalg.norm(self.action)
+        infos['velocity'] = np.linalg.norm(self.action)
         infos.update(reward_infos)
         # return self.observation, reward, done, infos
         # v26
@@ -515,6 +515,7 @@ class PruningEnv(gym.Env):
 
         # Calculate rewards
         reward += self.reward.calculate_distance_reward(achieved_pos, desired_pos)
+        reward += self.reward.calculate_movement_reward(achieved_pos, previous_pos, desired_pos)
 
         point_reward, point_cosine_sim = self.reward.calculate_pointing_orientation_reward(achieved_pos, desired_pos,
                                                                                            achieved_or, previous_pos,
