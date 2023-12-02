@@ -44,12 +44,12 @@ args = {
         },
         'collision_reward_scale': {
             'type': float,
-            'default': -0.0005,
+            'default': -0.005,
             'help': 'scaling factor for the collision reward'
         },
         'slack_reward_scale': {
             'type': float,
-            'default': -0.002,
+            'default': -0.005,
             'help': 'scaling factor for the slack reward'
         },
         'pointing_orientation_reward_scale': {
