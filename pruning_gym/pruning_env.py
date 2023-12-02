@@ -61,7 +61,8 @@ class PruningEnv(gym.Env):
         # Gym variables
         self.name = name
         self.action_dim = action_dim
-        self.stepCounter = 0
+        self.step_counter = 0
+        self.global_step_counter = 0
         self.maxSteps = max_steps
         self.tree_count = tree_count
         self.action_scale = action_scale
@@ -184,7 +185,7 @@ class PruningEnv(gym.Env):
         self.observation: dict = dict()
         self.observation_info = dict()
         self.prev_observation_info: dict = dict()
-        self.stepCounter = 0
+        self.step_counter = 0
         self.sum_reward = 0
         self.terminated = False
         self.collisions_acceptable = 0
@@ -197,6 +198,7 @@ class PruningEnv(gym.Env):
         else:
             if episode_counter in curriculum_level_steps:
                 self.curriculum_level += 1
+                print("Curriculum level {} at {}".format(self.curriculum_level, self.global_step_counter))
 
     @staticmethod
     def sample_point(name, episode_counter, curriculum_points) -> Tuple[
@@ -243,14 +245,14 @@ class PruningEnv(gym.Env):
         distance_from_goal, random_point = self.sample_point(self.name, self.episode_counter,
                                                              self.tree.curriculum_points[self.curriculum_level])
         print("Distance from goal: ", distance_from_goal, "Point: ", random_point)
-        if "record" in self.name:
-            # Move to pybullet class
-            """Display red sphere during evaluation"""
-            self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=random_point[0],
-                                    lineToXYZ=[random_point[0][0]+0.005, random_point[0][1]+0.005,\
-                                               random_point[0][2]+0.005],
-                                    lineColorRGB=[1, 0, 0],
-                                    lineWidth=200)
+
+        # Move to pybullet class
+        """Display red line as point"""
+        self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=random_point[0],
+                                lineToXYZ=[random_point[0][0]+0.005, random_point[0][1]+0.005,\
+                                           random_point[0][2]+0.005],
+                                lineColorRGB=[1, 0, 0],
+                                lineWidth=200)
         # here the arm is set right in front of the point -> Change this to curriculum
         # self.set_joint_angles(
         #    self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.ur5.init_pos[1]))
@@ -300,6 +302,7 @@ class PruningEnv(gym.Env):
             jv = velocity
         return jv
     def step(self, action: NDArray[Shape['6, 1'], Float]) -> Tuple[dict, float, bool, bool, dict]:
+
         self.pyb.remove_debug_items("step")
         self.action = action
 
@@ -326,7 +329,8 @@ class PruningEnv(gym.Env):
 
         self.sum_reward += reward
         # self.debug_line = self.pyb.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
-        self.stepCounter += 1
+        self.step_counter += 1
+        self.global_step_counter += 1
 
         done, terminate_info = self.is_task_done()
         truncated = terminate_info['time_limit_exceeded']
@@ -342,8 +346,8 @@ class PruningEnv(gym.Env):
         # Logging end of episode info
         if truncated or terminated:
             self.episode_counter += 1
-            infos['episode'] = {"l": self.stepCounter, "r": self.sum_reward}  # type: ignore
-            print("Episode Length: ", self.stepCounter)
+            infos['episode'] = {"l": self.step_counter, "r": self.sum_reward}  # type: ignore
+            print("Episode Length: ", self.step_counter)
             infos["pointing_cosine_sim_error"] = Reward.compute_pointing_cos_sim(
                 achieved_pos=self.observation_info['achieved_pos'],
                 desired_pos=self.observation_info['desired_pos'],
@@ -362,12 +366,19 @@ class PruningEnv(gym.Env):
         return self.observation, reward, terminated, truncated, infos
 
     def render(self, mode="rgb_array") -> NDArray:  # type: ignore
+        sphere = -1
+        if "record" in self.name:
+            #add sphere
+            sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1],)
         img_rgbd = self.pyb.get_image_at_curr_pose(type='viz')
         img_rgb, _ = self.pyb.seperate_rgbd_rgb_d(img_rgbd, 512, 512)
         if mode == "human":
             import cv2
             cv2.imshow("img", (img_rgb * 255).astype(np.uint8))
             cv2.waitKey(1)
+        if "record" in self.name:
+            #remove sphere
+            self.pyb.con.removeBody(sphere)
 
         return img_rgb
 
@@ -447,6 +458,7 @@ class PruningEnv(gym.Env):
         depth_proxy, rgb = self.get_depth_proxy(self.use_optical_flow, self.optical_flow_subproc,
                                                 prev_rgb=self.prev_observation_info[
                                                     'rgb'], )  # Get this from previous obs
+
         encoded_joint_angles = np.hstack((np.sin(joint_angles), np.cos(joint_angles)))
 
         pointing_cosine_sim = self.reward.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or,
@@ -483,13 +495,21 @@ class PruningEnv(gym.Env):
         self.observation['critic_perpendicular_cosine_sim'] = np.array(perpendicular_cosine_sim).astype(
             np.float32).reshape(1, )
 
+        if "record" in self.name:
+            # add sphere
+            sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1], )
+            rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot', self.ur5.get_view_mat_at_curr_pose())
+            # remove sphere
+            self.observation_info['rgb'] = rgb
+            self.pyb.con.removeBody(sphere)
+
         return self.observation
 
     def is_task_done(self) -> Tuple[bool, dict]:
         # NOTE: need to call compute_reward before this to check termination!
-        time_limit_exceeded = self.stepCounter >= self.maxSteps
+        time_limit_exceeded = self.step_counter >= self.maxSteps
         goal_achieved = self.terminated
-        c = (self.terminated is True or self.stepCounter > self.maxSteps)
+        c = (self.terminated is True or self.step_counter > self.maxSteps)
         terminate_info = {"time_limit_exceeded": time_limit_exceeded,
                           "goal_achieved": goal_achieved}
         return c, terminate_info

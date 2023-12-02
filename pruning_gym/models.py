@@ -91,6 +91,7 @@ class Decoder(nn.Module):
 class AutoEncoder(BaseFeaturesExtractor):
     def __init__(self, observation_space: gym.spaces.Box, features_dim = 72,  in_channels=1):
         super(AutoEncoder, self).__init__(observation_space, features_dim)
+        self.in_channels = in_channels
         output_conv = nn.Conv2d(3, in_channels, 3, padding=1)
         self.encoder = nn.Sequential(
             nn.Conv2d(in_channels, 16, 3, padding='same'),  # b, 16, 224, 224
