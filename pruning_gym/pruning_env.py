@@ -515,7 +515,7 @@ class PruningEnv(gym.Env):
 
         # Calculate rewards
         reward += self.reward.calculate_distance_reward(achieved_pos, desired_pos)
-
+        reward += self.reward.calculate_movement_reward(achieved_pos, previous_pos, desired_pos)
         point_reward, point_cosine_sim = self.reward.calculate_pointing_orientation_reward(achieved_pos, desired_pos,
                                                                                            achieved_or, previous_pos,
                                                                                            previous_or,
