@@ -152,8 +152,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
                 num_layers=n_lstm_layers,
                 **self.lstm_kwargs,
             )
-
-        self.running_mean_var_oflow = RunningMeanStd(shape=(1, 1))
+        num_channels = self.features_extractor.in_channels
+        self.running_mean_var_oflow = RunningMeanStd(shape=(num_channels,1, 1))
         # Setup optimizer with initial learning rate
         if lr_schedule_logstd is not None:
             self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)

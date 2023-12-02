@@ -109,11 +109,13 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.25, 0.35, 0.5)
+            'default': (0.15, 0.2)
+            # 'default': (0.25, 0.35, 0.5)
         },
         'curriculum_level_steps': {
             'type': tuple,
-            'default': (1200, 7200)
+            'default': (1,)
+            # 'default': (1200, 7200)
         },
 
     },
