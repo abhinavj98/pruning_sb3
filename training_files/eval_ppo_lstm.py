@@ -19,8 +19,9 @@ from pruning_sb3.args.args import \
     args
 from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
     set_args, organize_args, add_arg_to_env, init_wandb
-
+from pruning_sb3.pruning_gym.models import AutoEncoder
 import pandas as pd
+from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 class CustomEvalCallback(EventCallback):
     """
     Callback for evaluating an agent.
@@ -197,7 +198,7 @@ parser = argparse.ArgumentParser()
 set_args(args, parser)
 parsed_args = vars(parser.parse_args())
 parsed_args_dict = organize_args(parsed_args)
-print(args)
+print(parsed_args_dict)
 
 if __name__ == "__main__":
     if parsed_args_dict['args_env']['use_optical_flow'] and parsed_args_dict['args_env']['optical_flow_subproc']:
@@ -209,23 +210,47 @@ if __name__ == "__main__":
     load_path_model = None
     load_path_mean_std = None
     if parsed_args_dict['args_global']['load_path']:
-        load_path_model = "../logs/{}/best_model.zip".format(
+        load_path_model = "logs/{}/best_model.zip".format(
             parsed_args_dict['args_global']['load_path'])
-        load_path_mean_std = "../logs/{}/mean_std.obj".format(
+        load_path_mean_std = "logs/{}/mean_std.pkl".format(
             parsed_args_dict['args_global']['load_path'])
     else:
         load_path = None
-
+    args_global = parsed_args_dict['args_global']
+    args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
+    args_record = dict(args_test, **parsed_args_dict['args_record'])
+    args_policy = parsed_args_dict['args_policy']
+
+
+    policy_kwargs = {
+        "features_extractor_class": AutoEncoder,
+        "features_extractor_kwargs": {"features_dim": parsed_args_dict['args_policy']['state_dim'],
+                                      "in_channels": (3 if parsed_args_dict['args_env']['use_optical_flow'] else 1), },
+        "optimizer_class": th.optim.Adam,
+        "log_std_init": parsed_args_dict['args_policy']['log_std_init'],
+        "net_arch": dict(
+            qf=[args_policy['emb_size'] * 2, args_policy['emb_size'],
+                args_policy['emb_size'] // 2],
+            pi=[args_policy['emb_size'] * 2, args_policy['emb_size'],
+                args_policy['emb_size'] // 2]),
+        "share_features_extractor": False,
+        "n_lstm_layers": 1,
+        "features_dim_critic_add": 2, #Assymetric critic
+        "squash_output": True,  # Doesn't work
+    }
+
+    policy = RecurrentActorCriticPolicy
     device = "cuda" if th.cuda.is_available() else "cpu"
     print(device)
     eval_env = Monitor(PruningEnv(**args_test))
     eval_env.reset()
     assert load_path_mean_std
     assert load_path_model
+
     model = RecurrentPPOAE.load(load_path_model)
     model.policy.load_running_mean_std_from_file(load_path_mean_std)
 
     # evaluate_policy(model, eval_env, n_eval_episodes=1, render=False, deterministic=True)
-    eval = CustomEvalCallback(eval_env, model, n_eval_episodes=2)#len(eval_env.trees[0].reachable_points))
+    eval = CustomEvalCallback(eval_env, model, n_eval_episodes=30)#len(eval_env.trees[0].reachable_points))
     eval.eval_policy()

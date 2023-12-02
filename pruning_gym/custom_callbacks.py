@@ -261,7 +261,10 @@ class CustomEvalCallback(EventCallback):
         episode_counts = _locals["episode_counts"][0]
         observation_info = self.record_env.get_attr("observation_info", 0)[0]
         if episode_counts == 0:
+            sphere = self.record_env.pyb.add_sphere(radius=0.05, pos=observation_info["desired_pos"], rgba=[1, 0, 0, 1],)
             render = np.array(self.record_env.render())*255
+            #remove sphere after rendering
+            self.record_env.pyb.remove_body(sphere)
             render = cv2.resize(render, (512, 512), interpolation=cv2.INTER_NEAREST)
             rgb = observation_info["rgb"]*255
             rgb = cv2.resize(rgb, (512, 512), interpolation=cv2.INTER_NEAREST)

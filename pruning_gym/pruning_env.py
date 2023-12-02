@@ -125,7 +125,7 @@ class PruningEnv(gym.Env):
 
         # setup robot arm:
         # new class for ur5
-        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH)
+        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0.5,0,0])
         self.reset_env_variables()
 
         # Tree parameters
@@ -134,7 +134,7 @@ class PruningEnv(gym.Env):
         pos = None
         scale = None
         if "envy" in self.tree_urdf_path:
-            pos = np.array([0, -0.6, 0])
+            pos = np.array([0., -0.6, 0])
             scale = 1
         elif "ufo" in self.tree_urdf_path:
             pos = np.array([-0.5, -0.8, -0.3])
@@ -355,7 +355,7 @@ class PruningEnv(gym.Env):
                 self.observation_info['achieved_pos'] - self.observation_info['desired_pos'])
 
         # infos['episode'] = {"l": self.stepCounter,  "r": reward}
-        infos['velocty'] = np.linalg.norm(self.action)
+        infos['velocity'] = np.linalg.norm(self.action)
         infos.update(reward_infos)
         # return self.observation, reward, done, infos
         # v26

@@ -83,7 +83,7 @@ if __name__ == "__main__":
     }
     policy = RecurrentActorCriticPolicy
 
-    if not load_path:
+    if not load_path_model:
         model = RecurrentPPOAE(policy, env, policy_kwargs=policy_kwargs,
                                learning_rate=linear_schedule(args_policy['learning_rate']),
                                learning_rate_ae=exp_schedule(args_policy['learning_rate_ae']),

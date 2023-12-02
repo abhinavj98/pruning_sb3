@@ -93,8 +93,9 @@ class pyb_utils:
     def add_sphere(self, radius: float, pos: List, rgba: List) -> int:
         colSphereId = -1
         visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=radius, rgbaColor=rgba)
-        self.sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId,
+        sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId,
                                                   pos, [0, 0, 0, 1])
+        return sphereUid
 
     def get_image_at_curr_pose(self, type, view_matrix = None) -> List:
         """Take the current pose of the end effector and set the camera to that pose"""
