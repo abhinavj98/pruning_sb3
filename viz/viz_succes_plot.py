@@ -26,7 +26,6 @@ def plot_violin(df, x):
 if __name__ == '__main__':
     file_path = '../reward.csv'
     df = read_csv_file(file_path)
-    df['is_success'][0] = True
     df['init_point_cosine_sim_abs'] = df['init_point_cosine_sim'].abs()
     df['init_perp_cosine_sim_abs'] = df['init_perp_cosine_sim'].abs()
     df['pointing_cosine_sim_error_abs'] = df['pointing_cosine_sim_error'].abs()
@@ -36,10 +35,11 @@ if __name__ == '__main__':
     #just keep the columns you want
     # plot_success(df)
     #Calculate quat distane between ideal and start
-    # plot_init_conditions('init_point_cosine_sim_abs', 'init_distance')
-    # plot_init_conditions('init_perp_cosine_sim_abs', 'init_distance')
-    # plot_init_conditions('init_point_cosine_sim_abs', 'init_perp_cosine_sim_abs')
-    print(df)
+    plot_init_conditions('init_point_cosine_sim_abs', 'init_distance')
+    plot_init_conditions('init_perp_cosine_sim_abs', 'init_distance')
+    plot_init_conditions('init_point_cosine_sim_abs', 'init_perp_cosine_sim_abs')
+
+    plot_success(df)
     plot_violin(df, 'euclidean_error')
     plot_violin(df, 'pointing_cosine_sim_error_abs')
     plot_violin(df, 'perpendicular_cosine_sim_error_abs')
