@@ -44,12 +44,12 @@ args = {
         },
         'collision_reward_scale': {
             'type': float,
-            'default': -0.0005,
+            'default': -0.005,
             'help': 'scaling factor for the collision reward'
         },
         'slack_reward_scale': {
             'type': float,
-            'default': -0.002,
+            'default': -0.005,
             'help': 'scaling factor for the slack reward'
         },
         'pointing_orientation_reward_scale': {
@@ -108,11 +108,11 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.25, 0.35, 0.45, 0.5)
+            'default': (0.25, 0.35, 0.45, 0.5,)
         },
         'curriculum_level_steps': {
             'type': tuple,
-            'default': (1000, 2000, 5000,)
+            'default': (1000, 2000, 5000)
         },
 
     },
@@ -140,7 +140,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.6,)
+            'default': (0.5,)
         },
         'curriculum_level_steps': {
             'type': tuple,

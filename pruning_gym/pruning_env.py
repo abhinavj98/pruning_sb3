@@ -126,7 +126,7 @@ class PruningEnv(gym.Env):
 
         # setup robot arm:
         # new class for ur5
-        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0.5,0,0])
+        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0,0,0])
         self.reset_env_variables()
 
         # Tree parameters

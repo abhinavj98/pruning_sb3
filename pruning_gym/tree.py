@@ -49,9 +49,9 @@ class Tree:
         # if pickled file exists load and return
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         # TODO: Add reset variable so that even if present it recomputes
-        if not os.path.exists('./pkl3/' + str(path_component[3])):
-            os.makedirs('./pkl3/' + str(path_component[3]))
-        pkl_path = './pkl3/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_reachable_points.pkl'
+        if not os.path.exists('./pkl4/' + str(path_component[3])):
+            os.makedirs('./pkl4/' + str(path_component[3]))
+        pkl_path = './pkl4/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_reachable_points.pkl'
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
                 self.reachable_points = pickle.load(f)
@@ -277,8 +277,8 @@ class Tree:
         # self.env.ur5.setup_ur5_arm()
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         #Allow pkling and loading
-        if not os.path.exists('./pkl3/' + str(path_component[3])):
-            os.makedirs('./pkl3/' + str(path_component[3]))
+        if not os.path.exists('./pkl4/' + str(path_component[3])):
+            os.makedirs('./pkl4/' + str(path_component[3]))
         for level, max_distance in enumerate(self.curriculum_distances):
             self.curriculum_points[level] = []
             # pkl_path = './pkl3/' + str(path_component[3]) + '/' + str(
