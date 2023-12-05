@@ -42,7 +42,7 @@ if __name__ == "__main__":
         load_path_mean_std = "./logs/{}/mean_std.obj".format(
             parsed_args_dict['args_global']['load_path'])
     else:
-        load_path = None
+        load_path_model = None
 
     args_global = parsed_args_dict['args_global']
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
