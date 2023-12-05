@@ -153,6 +153,38 @@ args = {
 
     },
 
+    'args_eval': {
+        'tree_urdf_path': {
+            'type': str,
+            'default': './meshes_and_urdf/urdf/trees/envy/test',
+            'help': 'path to the test URDF file for the tree environment'
+        },
+        'tree_obj_path': {
+            'type': str,
+            'default': './meshes_and_urdf/meshes/trees/envy/test',
+            'help': 'path to the test OBJ file for the tree environment'
+        },
+        'renders': {
+            'type': bool,
+            'default': False,
+            'help': 'whether to render the environment'
+        },
+
+        'curriculum_distances': {
+            'type': tuple,
+            'default': (0.5,)
+        },
+        'curriculum_level_steps': {
+            'type': tuple,
+            'default': ()
+        },
+        'name': {
+            'type': str,
+            'default': 'evalenv'
+        },
+
+    },
+
     'args_record': {
         'name': {
             'type': str,

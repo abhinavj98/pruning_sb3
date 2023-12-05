@@ -220,8 +220,8 @@ if __name__ == "__main__":
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_record = dict(args_test, **parsed_args_dict['args_record'])
+    args_eval = dict(parsed_args_dict['args_train'], **parsed_args_dict['args_eval'])
     args_policy = parsed_args_dict['args_policy']
-    args_test['num_points'] = None 
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     policy = RecurrentActorCriticPolicy
     device = "cuda" if th.cuda.is_available() else "cpu"
     print(device)
-    eval_env = Monitor(PruningEnv(**args_test))
+    eval_env = Monitor(PruningEnv(**args_eval))
     eval_env.reset()
     assert load_path_mean_std
     assert load_path_model
