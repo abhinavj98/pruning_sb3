@@ -369,7 +369,7 @@ class PruningEnv(gym.Env):
         sphere = -1
         if "record" in self.name:
             #add sphere
-            sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1],)
+            sphere = self.pyb.add_sphere(radius=0.01, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1],)
         img_rgbd = self.pyb.get_image_at_curr_pose(type='viz')
         img_rgb, _ = self.pyb.seperate_rgbd_rgb_d(img_rgbd, 512, 512)
         if mode == "human":

@@ -193,7 +193,6 @@ args = {
     },
 
     'args_global': {
-
         'n_envs': {
             'type': int,
             'default': 8,

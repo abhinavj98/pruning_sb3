@@ -151,7 +151,7 @@ def set_args(arg_dict, parser, name = 'main'):
 
 def organize_args(args_dict):
     parse_args_dict = {}
-    args_classes = ['args_global', 'args_train', 'args_test', 'args_record', 'args_callback', 'args_policy', 'args_env']
+    args_classes = ['args_global', 'args_train', 'args_test', 'args_record', 'args_callback', 'args_policy', 'args_env', 'args_eval']
     for arg_name in args_classes:
         parse_args_dict[arg_name] = {}
     for arg_name, arg_params in args_dict.items():
