@@ -109,12 +109,12 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.15, 0.2)
+            'default': (0.6,)
             # 'default': (0.25, 0.35, 0.5)
         },
         'curriculum_level_steps': {
             'type': tuple,
-            'default': (1,)
+            'default': ()
             # 'default': (1200, 7200)
         },
 
@@ -143,7 +143,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.26,)
+            'default': (0.6,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -226,7 +226,7 @@ args = {
         },
         'log_std_init': {
             'type': float,
-            'default': -6,
+            'default': -2.5,
             'help': 'initial value for the log standard deviation'
         },
     },

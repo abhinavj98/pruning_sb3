@@ -61,16 +61,18 @@ class Tree:
             # self.active()
             # for num, i in enumerate(self.reachable_points):
             #     # print(i)
-            #     if num % 10 == 0:
+            #     if num % 1 == 0:
             #         visualShapeId = self.pyb.con.createVisualShape(self.pyb.con.GEOM_SPHERE, radius=0.005,
             #                                                        rgbaColor=[1, 0, 0, 1])
             #         self.sphereUid = self.pyb.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
             #                                                       [0, 0, 0, 1])
             #         point = [i[0][0], i[0][1], i[0][2]]
-            #         normal_vec = i[2]
-            #         self.debug_branch = self.pyb.con.addUserDebugLine(point,
-            #                                                       point + 50 * normal_vec / np.linalg.norm(normal_vec),
-            #                                                       [1, 0, 0], 200)
+            #         # normal_vec = i[2]
+            #         # self.debug_branch = self.pyb.con.addUserDebugLine(point,
+            #         #                                               point + 5 * normal_vec / np.linalg.norm(normal_vec),
+            #         #                                               [1, 0, 0], 50)
+            #         # input("Press Enter to continue...")
+            # self.inactive()
         else:
             self.get_all_points()
             self.get_reachable_points()
@@ -137,15 +139,17 @@ class Tree:
 
             # self.vertex_and_projection.append(
             #     ((self.transformed_vertices[ac[0]] + self.transformed_vertices[ac[1]]) / 2, perpendicular_projection))
-            self.vertex_and_projection.append(
-                ((self.transformed_vertices[ab[0]] + self.transformed_vertices[ab[1]]) / 2, perpendicular_projection,
+            scale = np.random.rand()
+            tree_point = ((1-scale)*self.transformed_vertices[ab[0]] + scale*self.transformed_vertices[ab[1]])
+            self.vertex_and_projection.append((tree_point , perpendicular_projection,
                  normal_vec))
 
             # This projection mean is used to filter corner/flushed faces which do not correspond to a branch
             # Twice as each face has two point aded
             self.projection_sum_x += np.linalg.norm(perpendicular_projection)
             self.projection_sum_x2 += np.linalg.norm(perpendicular_projection) ** 2
-            # if num % 100 == 0:
+            # if num % 1 == 0:
+            #     print(self.tree_id)
             #     self.active()
             #     visualShapeId = self.pyb.con.createVisualShape(self.pyb.con.GEOM_SPHERE, radius=0.001,
             #                                                    rgbaColor=[1, 0, 0, 1])
@@ -156,7 +160,7 @@ class Tree:
             #     self.debug_branch = self.pyb.con.addUserDebugLine(point,
             #                                                   point + 50 * normal_vec / np.linalg.norm(normal_vec),
             #                                                   [1, 0, 0], 200)
-
+            # self.inactive()
             # input("Press Enter to continue...")
         self.projection_mean = self.projection_sum_x / len(self.vertex_and_projection)
         self.projection_std = np.sqrt(
