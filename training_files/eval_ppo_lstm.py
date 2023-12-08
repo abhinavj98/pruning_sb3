@@ -205,7 +205,7 @@ if __name__ == "__main__":
         shared_var = optical_flow_create_shared_vars()
     else:
         shared_var = (None, None)
-    add_arg_to_env('shared_var', shared_var, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
+    add_arg_to_env('shared_var', shared_var, ['args_train', 'args_test', 'args_record', 'args_eval'], parsed_args_dict)
 
     load_path_model = None
     load_path_mean_std = None
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_record = dict(args_test, **parsed_args_dict['args_record'])
-    args_eval = dict(parsed_args_dict['args_train'], **parsed_args_dict['args_eval'])
+    args_eval = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_eval'])
     args_policy = parsed_args_dict['args_policy']
 
     policy_kwargs = {
