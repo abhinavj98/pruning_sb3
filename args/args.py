@@ -24,7 +24,7 @@ args = {
         # Reward parameters
         'movement_reward_scale': {
             'type': float,
-            'default': 4,
+            'default': 2,
             'help': 'scaling factor for the movement reward'
         },
         'distance_reward_scale': {
@@ -49,17 +49,17 @@ args = {
         },
         'slack_reward_scale': {
             'type': float,
-            'default': -0.005,
+            'default': -0.01,
             'help': 'scaling factor for the slack reward'
         },
         'pointing_orientation_reward_scale': {
             'type': float,
-            'default': 2,
+            'default': 1,
             'help': 'scaling factor for the orientation reward'
         },
         'perpendicular_orientation_reward_scale': {
             'type': float,
-            'default': 3,
+            'default': 1.5,
             'help': 'scaling factor for the orientation reward'
         },
         # Gym envirionment parameters
@@ -75,7 +75,7 @@ args = {
         },
         'action_scale': {
             'type': float,
-            'default': 2,
+            'default': 0.1,
             'help': 'scaling factor for the action space'
         },
         'action_dim': {
@@ -108,11 +108,11 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.25, 0.35, 0.45, 0.5,)
+            'default': ( 0.5,)
         },
         'curriculum_level_steps': {
             'type': tuple,
-            'default': (1000, 2000, 5000)
+            'default': ()
         },
 
     },
@@ -244,18 +244,19 @@ args = {
         },
         'learning_rate': {
             'type': float,
-            'default': 0.00005,
+            'default': 0.000025,
             'help': 'learning rate'
         },
         'learning_rate_ae': {
             'type': float,
-            'default': 0.00005,
+            'default': 0.000025,
             'help': 'learning rate for the autoencoder'
         },
         'log_std_init': {
             'type': float,
-            'default': -6,
+            'default': -2.8,
             'help': 'initial value for the log standard deviation'
-        },
-    },
+        
+    	},
+    }
 }

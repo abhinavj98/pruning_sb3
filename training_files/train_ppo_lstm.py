@@ -28,7 +28,7 @@ parsed_args_dict = organize_args(parsed_args)
 print(parsed_args_dict)
 
 if __name__ == "__main__":
-    # init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
+    init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
 
     if parsed_args_dict['args_env']['use_optical_flow'] and parsed_args_dict['args_env']['optical_flow_subproc']:
         shared_var = optical_flow_create_shared_vars()
@@ -50,8 +50,8 @@ if __name__ == "__main__":
     args_record = dict(args_test, **parsed_args_dict['args_record'])
     args_policy = parsed_args_dict['args_policy']
 
-    # env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
-    env = PruningEnv(**args_train)
+    env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
+    #env = PruningEnv(**args_train)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
     eval_env = make_vec_env(PruningEnv, env_kwargs=args_test, vec_env_cls=SubprocVecEnv, n_envs=1)
