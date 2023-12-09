@@ -23,6 +23,7 @@ class UR5:
         self.camera_link_index = None
         self.end_effector_index = None
         self.success_link_index = None
+        self.base_index = None
         self.ur5_robot = None
         self.num_joints = None
         self.control_joints = None
@@ -44,6 +45,7 @@ class UR5:
         self.camera_link_index = 11
         self.end_effector_index = 13
         self.success_link_index = 14
+        self.base_index = 2
         flags = self.con.URDF_USE_SELF_COLLISION
         self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, self.pos, [0, 0, 0, 1], flags=flags)
 
@@ -65,7 +67,7 @@ class UR5:
             jointUpperLimit = info[9]
             jointMaxForce = info[10]
             jointMaxVelocity = info[11]
-            # print("Joint Name: ", jointName, "Joint ID: ", jointID)
+            print("Joint Name: ", jointName, "Joint ID: ", jointID)
             controllable = True if jointName in self.control_joints else False
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
                                    jointMaxVelocity, controllable)  # type: ignore

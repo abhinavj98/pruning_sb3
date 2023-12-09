@@ -75,7 +75,7 @@ args = {
         },
         'action_scale': {
             'type': float,
-            'default': 2,
+            'default': 0.1,
             'help': 'scaling factor for the action space'
         },
         'action_dim': {
@@ -108,11 +108,11 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.25, 0.35, 0.45, 0.5,)
+            'default': (0.6,)
         },
         'curriculum_level_steps': {
             'type': tuple,
-            'default': (1000, 2000, 5000)
+            'default': ()
         },
 
     },
@@ -140,7 +140,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.5,)
+            'default': (0.6,)
         },
         'curriculum_level_steps': {
             'type': tuple,

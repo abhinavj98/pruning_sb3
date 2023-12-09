@@ -38,6 +38,7 @@ class Tree:
         self.projection_sum_x = np.array(0.)
         self.projection_sum_x2 = np.array(0.)
         self.init_xyz = self.env.ur5.get_current_pose(self.env.ur5.end_effector_index)[0]
+        self.base_xyz = self.env.ur5.get_current_pose(self.env.ur5.base_index)[0]
         self.num_points = num_points
         self.reachable_points = []
         self.curriculum_points = dict()
@@ -141,7 +142,7 @@ class Tree:
             #     ((self.transformed_vertices[ac[0]] + self.transformed_vertices[ac[1]]) / 2, perpendicular_projection))
             scale = np.random.rand()
             tree_point = ((1-scale)*self.transformed_vertices[ab[0]] + scale*self.transformed_vertices[ab[1]])
-            self.vertex_and_projection.append((tree_point , perpendicular_projection,
+            self.vertex_and_projection.append((tree_point, perpendicular_projection,
                  normal_vec))
 
             # This projection mean is used to filter corner/flushed faces which do not correspond to a branch
@@ -189,7 +190,7 @@ class Tree:
 
     def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]]) -> bool:
         #TODO: Fix this
-        ur5_base_pos = self.init_xyz  # np.array(self.env.get_current_pose(self.env.end_effector_index)[0])
+        ur5_base_pos = np.array(self.base_xyz)
         if "envy" in self.urdf_path:
             if abs(vertice[0][0]) < 0.05:
                 return False
