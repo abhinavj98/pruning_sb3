@@ -51,7 +51,6 @@ if __name__ == "__main__":
     args_policy = parsed_args_dict['args_policy']
 
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
-    # env = PruningEnv(**args_train)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
     eval_env = make_vec_env(PruningEnv, env_kwargs=args_test, vec_env_cls=SubprocVecEnv, n_envs=1)
@@ -96,7 +95,7 @@ if __name__ == "__main__":
         load_dict = {"learning_rate": linear_schedule(args.LEARNING_RATE),
                      "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE),
                      "learning_rate_logstd": linear_schedule(0.01)}
-        model = RecurrentPPOAE.load(load_path, env=env, custom_objects=load_dict)
+        model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
         model.num_timesteps = 10_000_000
         model._num_timesteps_at_start = 10_000_000
         print("LOADED MODEL")
