@@ -277,6 +277,12 @@ class PruningEnv(gym.Env):
         self.init_perp_cosine_sim = self.reward.compute_perpendicular_cos_sim(np.array(orient),
                                                                               self.tree_goal_branch) + 1e-4
 
+        current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
+        theta, _ = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_branch,
+                                                        pos, self.tree_goal_pos)
+
+        self.init_angular_error = theta
+
         # Add debug branch
         _ = self.pyb.add_debug_item('line', 'step', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_branch,
                                     lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_branch, lineColorRGB=[1, 0, 0],
@@ -361,11 +367,12 @@ class PruningEnv(gym.Env):
             #convert branch to quaternion
             #pointing -> z
             #perpendicular -> x
-        current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(self.observation_info['achieved_or_quat'])).reshape(3, 3)
-        theta, rf = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_branch, self.observation_info['achieved_pos'], self.observation_info['desired_pos'])
-        print(theta)
-        self.pyb.visualize_rot_mat(current_or_mat.T, self.observation_info['achieved_pos'])
-        self.pyb.visualize_rot_mat(rf, self.observation_info['desired_pos'])
+            current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(self.observation_info['achieved_or_quat'])).reshape(3, 3)
+            theta, rf = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_branch, self.observation_info['achieved_pos'], self.observation_info['desired_pos'])
+            infos["angular_error"] = theta
+            # print(theta)
+            # self.pyb.visualize_rot_mat(current_or_mat.T, self.observation_info['achieved_pos'])
+            # self.pyb.visualize_rot_mat(rf, self.observation_info['desired_pos'])
         # infos['episode'] = {"l": self.stepCounter,  "r": reward}
         infos['velocity'] = np.linalg.norm(self.action)
         infos.update(reward_infos)
@@ -488,7 +495,7 @@ class PruningEnv(gym.Env):
         self.observation['desired_goal'] = desired_pos - init_pos
         self.observation['relative_distance'] = achieved_pos - desired_pos
         # Convert orientation into 6D form for continuity
-        self.observation['achieved_or_6d'] = achieved_or_6d
+        self.observation['achieved_or'] = achieved_or_6d
         self.observation['depth_proxy'] = depth_proxy
         # Convert joint angles to sin and cos
         self.observation['joint_angles'] = encoded_joint_angles
@@ -557,7 +564,7 @@ class PruningEnv(gym.Env):
 
         condition_number = self.ur5.get_condition_number()
         reward += self.reward.calculate_condition_number_reward(condition_number)
-        print("pointing: ", point_cosine_sim, "perp: ", perp_cosine_sim)
+        # print("pointing: ", point_cosine_sim, "perp: ", perp_cosine_sim)
         # If is successful
         self.terminated = self.is_state_successful(achieved_pos, desired_pos, perp_cosine_sim, point_cosine_sim)
         reward += self.reward.calculate_termination_reward(self.terminated)

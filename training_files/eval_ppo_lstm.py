@@ -103,7 +103,7 @@ class CustomEvalCallback(EventCallback):
     def _log_final_metrics(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
         infos = locals_["info"]
         if infos["TimeLimit.truncated"] or infos["is_success"]:
-            observation_info = locals_["observation_info"]
+            # observation_info = locals_["observation_info"]
             for key in self._reward_dict_temp.keys():
                 self._reward_dict[key].append(np.mean(self._reward_dict_temp[key]))
             for key in infos.keys():
@@ -112,6 +112,7 @@ class CustomEvalCallback(EventCallback):
             self._info_dict["init_distance"].append(self.eval_env.get_attr("init_distance", 0)[0])
             self._info_dict["init_perp_cosine_sim"].append(self.eval_env.get_attr("init_perp_cosine_sim", 0)[0])
             self._info_dict["init_point_cosine_sim"].append(self.eval_env.get_attr("init_point_cosine_sim", 0)[0])
+            self._info_dict["init_angular_error"].append(self.eval_env.get_attr("init_angular_error", 0)[0])
             branch_loc = self.eval_env.get_attr("tree_goal_pos", 0)[0]
             self._info_dict["pointx"].append(branch_loc[0])
             self._info_dict["pointy"].append(branch_loc[1])
@@ -162,12 +163,14 @@ class CustomEvalCallback(EventCallback):
         self._info_dict["init_distance"] = []
         self._info_dict["init_perp_cosine_sim"] = []
         self._info_dict["init_point_cosine_sim"] = []
+        self._info_dict["init_angular_error"] = []
         self._info_dict["pointx"] = []
         self._info_dict["pointy"] = []
         self._info_dict["pointz"] = []
         self._info_dict["pointing_cosine_sim_error"] = []
         self._info_dict["perpendicular_cosine_sim_error"] = []
         self._info_dict["euclidean_error"] = []
+        self._info_dict["angular_error"] = []
 
 
 
@@ -257,5 +260,5 @@ if __name__ == "__main__":
     model.policy.load_running_mean_std_from_file(load_path_mean_std)
 
     # evaluate_policy(model, eval_env, n_eval_episodes=1, render=False, deterministic=True)
-    eval = CustomEvalCallback(eval_env, model, n_eval_episodes=len(eval_env.trees[0].reachable_points))
+    eval = CustomEvalCallback(eval_env, model, n_eval_episodes=5)#len(eval_env.trees[0].reachable_points))
     eval.eval_policy()
