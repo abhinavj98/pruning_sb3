@@ -362,9 +362,9 @@ class PruningEnv(gym.Env):
             #pointing -> z
             #perpendicular -> x
         current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(self.observation_info['achieved_or_quat'])).reshape(3, 3)
-        theta, rf = Reward.get_angular_distance_to_goal(current_or_mat, self.tree_goal_branch, self.observation_info['achieved_pos'], self.observation_info['desired_pos'])
+        theta, rf = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_branch, self.observation_info['achieved_pos'], self.observation_info['desired_pos'])
         print(theta)
-        self.pyb.visualize_rot_mat(current_or_mat, self.observation_info['achieved_pos'])
+        self.pyb.visualize_rot_mat(current_or_mat.T, self.observation_info['achieved_pos'])
         self.pyb.visualize_rot_mat(rf, self.observation_info['desired_pos'])
         # infos['episode'] = {"l": self.stepCounter,  "r": reward}
         infos['velocity'] = np.linalg.norm(self.action)

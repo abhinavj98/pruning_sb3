@@ -155,8 +155,9 @@ class Reward:
         #get pointing vector
         #red branch
         #blue poitinh
+        #TODO: Decide on system for rot mat
         pointing_vector = Reward.compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector + desired_pos)
-        pointing_vector = -pointing_vector / np.linalg.norm(pointing_vector)
+        pointing_vector = pointing_vector / np.linalg.norm(pointing_vector)
         #get perpendicular vector
         perpendicular_vector = -branch_vector
         perpendicular_vector = perpendicular_vector / np.linalg.norm(perpendicular_vector)
@@ -167,6 +168,6 @@ class Reward:
         #compute difference in rotation matrix
         diff = np.matmul(current_or_mat, rf.T)
         #get theta
-        theta = ((np.trace(diff) - 1) / 2)
+        theta = np.arccos((np.trace(diff) - 1) / 2)
 
         return theta, rf

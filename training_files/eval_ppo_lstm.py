@@ -116,15 +116,7 @@ class CustomEvalCallback(EventCallback):
             self._info_dict["pointx"].append(branch_loc[0])
             self._info_dict["pointy"].append(branch_loc[1])
             self._info_dict["pointz"].append(branch_loc[2])
-            branch_or = self.eval_env.get_attr("tree_goal_branch", 0)[0]
-            self._info_dict["branch_vector_x"].append(branch_or[0])
-            self._info_dict["branch_vector_y"].append(branch_or[1])
-            self._info_dict["branch_vector_z"].append(branch_or[2])
-            #achieved or
-            self._info_dict["final_quaternion_x"].append(observation_info["achieved_or"][0])
-            self._info_dict["final_quaternion_y"].append(observation_info["achieved_or"][1])
-            self._info_dict["final_quaternion_z"].append(observation_info["achieved_or"][2])
-            self._info_dict["final_quaternion_w"].append(observation_info["achieved_or"][3])
+
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         self._collisions_acceptable_buffer.append(self.eval_env.get_attr("collisions_acceptable", 0)[0])
@@ -176,15 +168,6 @@ class CustomEvalCallback(EventCallback):
         self._info_dict["pointing_cosine_sim_error"] = []
         self._info_dict["perpendicular_cosine_sim_error"] = []
         self._info_dict["euclidean_error"] = []
-        #add branch vector
-        self._info_dict["branch_vector_x"] = []
-        self._info_dict["branch_vector_y"] = []
-        self._info_dict["branch_vector_z"] = []
-        #add final quaternion
-        self._info_dict["final_quaternion_x"] = []
-        self._info_dict["final_quaternion_y"] = []
-        self._info_dict["final_quaternion_z"] = []
-        self._info_dict["final_quaternion_w"] = []
 
 
 
