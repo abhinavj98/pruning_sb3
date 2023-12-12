@@ -24,7 +24,7 @@ args = {
         # Reward parameters
         'movement_reward_scale': {
             'type': float,
-            'default': 2,
+            'default': 4,
             'help': 'scaling factor for the movement reward'
         },
         'distance_reward_scale': {
@@ -54,12 +54,12 @@ args = {
         },
         'pointing_orientation_reward_scale': {
             'type': float,
-            'default': 1,
+            'default': 2,
             'help': 'scaling factor for the orientation reward'
         },
         'perpendicular_orientation_reward_scale': {
             'type': float,
-            'default': 1.5,
+            'default': 3,
             'help': 'scaling factor for the orientation reward'
         },
         # Gym envirionment parameters

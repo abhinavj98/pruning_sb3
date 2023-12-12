@@ -82,3 +82,14 @@ def test_compute_pointing_cos_sim(current_pos, goal_pos, current_or, branch, exp
     pcs = Reward.compute_pointing_cos_sim(current_pos, goal_pos, quat, branch_vector)
     print(pcs)
     assert np.isclose(pcs, expected_output, atol=10e-2)
+
+
+def test_get_angular_distance_to_goal():
+    current_or = np.eye(3)
+    goal_or = np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
+
+    theta = Reward.get_angular_distance_to_goal(current_or, np.array([0, 1, 0]), np.array([0, 0, 0]),\
+                                                np.array([0, 0, 1]))
+    print(theta)
+    assert False
+

@@ -43,7 +43,7 @@ class UR5:
     def setup_ur5_arm(self) -> None:
         assert self.ur5_robot is None
         self.camera_link_index = 11
-        self.end_effector_index = 13
+        self.end_effector_index = 14
         self.success_link_index = 14
         self.base_index = 2
         flags = self.con.URDF_USE_SELF_COLLISION
@@ -239,7 +239,7 @@ class UR5:
     def get_current_pose(self, index: int) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """Returns current pose of the end effector. Pos wrt end effector, orientation wrt world"""
         link_state: Tuple = self.con.getLinkState(self.ur5_robot, index, computeForwardKinematics=True)
-        position, orientation = link_state[4], link_state[1]  # Position wrt end effector, orientation wrt COM
+        position, orientation = link_state[4], link_state[5]  # Position wrt end effector, orientation wrt COM
         return position, orientation
 
     def get_current_vel(self, index: int) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:

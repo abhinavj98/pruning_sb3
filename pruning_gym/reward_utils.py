@@ -1,7 +1,7 @@
 import numpy as np
 from typing import List, Tuple
 from nptyping import NDArray, Shape, Float
-from pybullet import getMatrixFromQuaternion
+from pybullet import getMatrixFromQuaternion, getDifferenceQuaternion, getQuaternionFromEuler
 
 
 class Reward:
@@ -87,7 +87,7 @@ class Reward:
     def calculate_velocity_minimization_reward(self, velocity):
         velocity_reward = -np.linalg.norm(velocity) * self.velocity_reward_scale
         self.reward_info['velocity_reward'] = velocity_reward
-        self.reward_info['velocity'] = velocity
+        self.reward_info['velocity'] = np.linalg.norm(velocity)
         return velocity_reward
 
 
@@ -143,3 +143,30 @@ class Reward:
         pointing_cos_sim = np.dot(camera_vector, perpendicular_vector) / (
                 np.linalg.norm(camera_vector) * np.linalg.norm(perpendicular_vector))
         return pointing_cos_sim
+
+    @staticmethod
+    def compute_distance_quaternions(q1, q2):
+        q1_2 = getDifferenceQuaternion(q1, q2)
+        theta = 2 * np.arccos(np.abs(q1_2[3]))
+        return theta
+
+    @staticmethod
+    def get_angular_distance_to_goal(current_or_mat, branch_vector, achieved_pos, desired_pos):
+        #get pointing vector
+        #red branch
+        #blue poitinh
+        pointing_vector = Reward.compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector + desired_pos)
+        pointing_vector = -pointing_vector / np.linalg.norm(pointing_vector)
+        #get perpendicular vector
+        perpendicular_vector = -branch_vector
+        perpendicular_vector = perpendicular_vector / np.linalg.norm(perpendicular_vector)
+        up_vector = -np.cross(perpendicular_vector, pointing_vector)
+        #get rotation matrix
+        rf = np.array([perpendicular_vector, up_vector, pointing_vector])
+        # print(rf)
+        #compute difference in rotation matrix
+        diff = np.matmul(current_or_mat, rf.T)
+        #get theta
+        theta = ((np.trace(diff) - 1) / 2)
+
+        return theta, rf

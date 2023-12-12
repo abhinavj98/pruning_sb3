@@ -141,12 +141,32 @@ class pyb_utils:
         return rgb, depth
 
     def visualize_points(self, points: List):
-        dx = 0.01
+        dx = 0.1
         for point in points:
-            point = point[1]
-            self.add_debug_item('sphere', 'step', lineFromXYZ=point[0],
-                                    lineToXYZ=[point[0][0] + 0.005, point[0][1] + 0.005,\
-                                               point[0][2] + 0.005],
+            loc = point[1][0]
+            branch = point[1][1]
+            self.add_debug_item('sphere', 'step', lineFromXYZ=[loc[0],
+                                                               loc[1],loc[2]],
+                                    lineToXYZ=[loc[0] + 0.005, loc[1] + 0.005,\
+                                               loc[2] + 0.005],
                                     lineColorRGB=[1, 0, 0],
+                                    lineWidth=200)
+            self.add_debug_item('sphere', 'step', lineFromXYZ=[loc[0] - dx * branch[0],
+                                                                loc[1] - dx * branch[1],
+                                                                loc[2] - dx * branch[2]],
+                                    lineToXYZ=[loc[0] + dx * branch[0], loc[1] + dx * branch[1],\
+                                               loc[2] + dx * branch[2]],
+                                    lineColorRGB=[1, 1, 0],
+                                    lineWidth=200)
+        input()
+
+    def visualize_rot_mat(self, rot_mat: List, pos):
+        dx = 0.1
+        colors = np.eye(3)
+        for i in range(3):
+            self.add_debug_item('sphere', 'step', lineFromXYZ=[pos[0], pos[1], pos[2]],
+                                    lineToXYZ=[pos[0] + rot_mat[i][0] * dx, pos[1] + rot_mat[i][1] * dx,\
+                                               pos[2] + rot_mat[i][2] * dx],
+                                    lineColorRGB=colors[i],
                                     lineWidth=200)
 

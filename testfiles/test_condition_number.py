@@ -53,36 +53,36 @@ if __name__ == "__main__":
         action = get_key_pressed(env)
         # if action is wasd, then move the robot
         if ord('a') in action:
-            val = np.array([0.005, 0, 0, 0, 0, 0])
+            val = np.array([0.01, 0, 0, 0, 0, 0])
         elif ord('d') in action:
-            val = np.array([-0.005, 0, 0, 0, 0, 0])
+            val = np.array([-0.01, 0, 0, 0, 0, 0])
         elif ord('s') in action:
-            val = np.array([0, 0.005, 0, 0, 0, 0])
+            val = np.array([0, 0.01, 0, 0, 0, 0])
         elif ord('w') in action:
-            val = np.array([0, -0.005, 0, 0, 0, 0])
+            val = np.array([0, -0.01, 0, 0, 0, 0])
         elif ord('q') in action:
-            val = np.array([0, 0, 0.005, 0, 0, 0])
+            val = np.array([0, 0, 0.01, 0, 0, 0])
         elif ord('e') in action:
-            val = np.array([0, 0, -0.005, 0, 0, 0])
+            val = np.array([0, 0, -0.01, 0, 0, 0])
         elif ord('z') in action:
-            val = np.array([0, 0, 0, 0.005, 0, 0])
+            val = np.array([0, 0, 0, 0.01, 0, 0])
         elif ord('c') in action:
-            val = np.array([0, 0, 0, -0.005, 0, 0])
+            val = np.array([0, 0, 0, -0.01, 0, 0])
         elif ord('x') in action:
-            val = np.array([0, 0, 0, 0, 0.005, 0])
+            val = np.array([0, 0, 0, 0, 0.01, 0])
         elif ord('v') in action:
-            val = np.array([0, 0, 0, 0, -0.005, 0])
+            val = np.array([0, 0, 0, 0, -0.01, 0])
         elif ord('r') in action:
-            val = np.array([0, 0, 0, 0, 0, 0.005])
+            val = np.array([0, 0, 0, 0, 0, 0.01])
         elif ord('f') in action:
-            val = np.array([0, 0, 0, 0, 0, -0.05])
+            val = np.array([0, 0, 0, 0, 0, -0.01])
         elif ord('t') in action:
             env.reset()
         else:
             val = np.array([0, 0, 0, 0, 0, 0])
         # print(val)
         observation, reward, terminated, truncated, infos = env.step(val)
-        print(env.ur5.get_joint_angles())
+        # print(env.ur5.get_joint_angles())
         # print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[6])
         # print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[7])
 
@@ -94,7 +94,7 @@ if __name__ == "__main__":
                                              env.ur5.get_joint_angles(), [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         jacobian = np.vstack(jacobian)
         condition_number = np.linalg.cond(jacobian)
-        print(condition_number, 1 / condition_number)
+        # print(condition_number, 1 / condition_number)
         # # print(env.get_joint_angles())
         # print(env.target_dist)
 

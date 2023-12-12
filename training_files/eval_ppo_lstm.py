@@ -103,17 +103,28 @@ class CustomEvalCallback(EventCallback):
     def _log_final_metrics(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
         infos = locals_["info"]
         if infos["TimeLimit.truncated"] or infos["is_success"]:
+            observation_info = locals_["observation_info"]
             for key in self._reward_dict_temp.keys():
                 self._reward_dict[key].append(np.mean(self._reward_dict_temp[key]))
-            for key in self._info_dict.keys():
-                self._info_dict[key].append(infos[key])
-            self._reward_dict["init_distance"].append(self.eval_env.get_attr("init_distance", 0)[0])
-            self._reward_dict["init_perp_cosine_sim"].append(self.eval_env.get_attr("init_perp_cosine_sim", 0)[0])
-            self._reward_dict["init_point_cosine_sim"].append(self.eval_env.get_attr("init_point_cosine_sim", 0)[0])
-            loc = self.eval_env.get_attr("tree_goal_pos", 0)[0]
-            self._reward_dict["pointx"].append(loc[0])
-            self._reward_dict["pointy"].append(loc[1])
-            self._reward_dict["pointz"].append(loc[2])
+            for key in infos.keys():
+                if key in self._info_dict.keys():
+                    self._info_dict[key].append(infos[key])
+            self._info_dict["init_distance"].append(self.eval_env.get_attr("init_distance", 0)[0])
+            self._info_dict["init_perp_cosine_sim"].append(self.eval_env.get_attr("init_perp_cosine_sim", 0)[0])
+            self._info_dict["init_point_cosine_sim"].append(self.eval_env.get_attr("init_point_cosine_sim", 0)[0])
+            branch_loc = self.eval_env.get_attr("tree_goal_pos", 0)[0]
+            self._info_dict["pointx"].append(branch_loc[0])
+            self._info_dict["pointy"].append(branch_loc[1])
+            self._info_dict["pointz"].append(branch_loc[2])
+            branch_or = self.eval_env.get_attr("tree_goal_branch", 0)[0]
+            self._info_dict["branch_vector_x"].append(branch_or[0])
+            self._info_dict["branch_vector_y"].append(branch_or[1])
+            self._info_dict["branch_vector_z"].append(branch_or[2])
+            #achieved or
+            self._info_dict["final_quaternion_x"].append(observation_info["achieved_or"][0])
+            self._info_dict["final_quaternion_y"].append(observation_info["achieved_or"][1])
+            self._info_dict["final_quaternion_z"].append(observation_info["achieved_or"][2])
+            self._info_dict["final_quaternion_w"].append(observation_info["achieved_or"][3])
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         self._collisions_acceptable_buffer.append(self.eval_env.get_attr("collisions_acceptable", 0)[0])
@@ -143,12 +154,7 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict["pointing_orientation_reward"] = []
         self._reward_dict["perpendicular_orientation_reward"] = []
 
-        self._reward_dict["init_distance"] = []
-        self._reward_dict["init_perp_cosine_sim"] = []
-        self._reward_dict["init_point_cosine_sim"] = []
-        self._reward_dict["pointx"] = []
-        self._reward_dict["pointy"] = []
-        self._reward_dict["pointz"] = []
+
 
         self._reward_dict_temp["movement_reward"] = []
         self._reward_dict_temp["distance_reward"] = []
@@ -161,9 +167,25 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict_temp["pointing_orientation_reward"] = []
         self._reward_dict_temp["perpendicular_orientation_reward"] = []
 
+        self._info_dict["init_distance"] = []
+        self._info_dict["init_perp_cosine_sim"] = []
+        self._info_dict["init_point_cosine_sim"] = []
+        self._info_dict["pointx"] = []
+        self._info_dict["pointy"] = []
+        self._info_dict["pointz"] = []
         self._info_dict["pointing_cosine_sim_error"] = []
         self._info_dict["perpendicular_cosine_sim_error"] = []
         self._info_dict["euclidean_error"] = []
+        #add branch vector
+        self._info_dict["branch_vector_x"] = []
+        self._info_dict["branch_vector_y"] = []
+        self._info_dict["branch_vector_z"] = []
+        #add final quaternion
+        self._info_dict["final_quaternion_x"] = []
+        self._info_dict["final_quaternion_y"] = []
+        self._info_dict["final_quaternion_z"] = []
+        self._info_dict["final_quaternion_w"] = []
+
 
 
     def eval_policy(self):
