@@ -76,6 +76,7 @@ if __name__ == "__main__":
                 args_policy['emb_size'] // 2],
             pi=[args_policy['emb_size'] * 2, args_policy['emb_size'],
                 args_policy['emb_size'] // 2]),
+        "activation_fn": th.nn.ReLU,
         "share_features_extractor": False,
         "n_lstm_layers": 1,
         "features_dim_critic_add": 2, #Assymetric critic
