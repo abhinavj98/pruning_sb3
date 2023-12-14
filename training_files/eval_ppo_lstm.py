@@ -260,5 +260,5 @@ if __name__ == "__main__":
     model.policy.load_running_mean_std_from_file(load_path_mean_std)
 
     # evaluate_policy(model, eval_env, n_eval_episodes=1, render=False, deterministic=True)
-    eval = CustomEvalCallback(eval_env, model, n_eval_episodes=5)#len(eval_env.trees[0].reachable_points))
+    eval = CustomEvalCallback(eval_env, model, n_eval_episodes=len(eval_env.trees[0].reachable_points))
     eval.eval_policy()

@@ -49,7 +49,7 @@ args = {
         },
         'slack_reward_scale': {
             'type': float,
-            'default': -0.01,
+            'default': -0.005,
             'help': 'scaling factor for the slack reward'
         },
         'pointing_orientation_reward_scale': {
@@ -254,7 +254,7 @@ args = {
         },
         'log_std_init': {
             'type': float,
-            'default': -2.8,
+            'default': -3,
             'help': 'initial value for the log standard deviation'
         
     	},
