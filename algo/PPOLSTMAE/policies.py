@@ -221,6 +221,7 @@ class ActorCriticPolicySquashed(BasePolicy):
         self.action_net, self.log_std = self.action_dist.proba_distribution_net(
             latent_dim=latent_dim_pi, log_std_init=self.log_std_init
         )
+        self.action_net.weight.data *= 10
         # if isinstance(self.action_dist, DiagGaussianDistribution):
         #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
         #         latent_dim=latent_dim_pi, log_std_init=self.log_std_init
