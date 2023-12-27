@@ -30,8 +30,8 @@ class pyb_utils:
         else:
             self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
 
-        self.con.setTimeStep(50. / 240.)
-        self.con.setGravity(0, 0, -10)
+        self.con.setTimeStep(150. / 240.)
+        self.enable_gravity()
         self.con.setRealTimeSimulation(False)
         self.proj_mat = self.con.computeProjectionMatrixFOV(
             fov=60, aspect=self.width / self.height, nearVal=self.near_val,
@@ -41,6 +41,12 @@ class pyb_utils:
                                             cameraTargetPosition=[-0.3, -0.06, 0.4])
         self.create_background()
         self.setup_bird_view_visualizer()
+
+    def disable_gravity(self):
+        self.con.setGravity(0, 0, 0)
+
+    def enable_gravity(self):
+        self.con.setGravity(0, 0, -10)
 
     def create_wall_with_texture(self, wall_dim: List, wall_pos: List, euler_rotation: List, wall_texture: int):
         wall_viz = self.con.createVisualShape(shapeType=self.con.GEOM_BOX, halfExtents=wall_dim,

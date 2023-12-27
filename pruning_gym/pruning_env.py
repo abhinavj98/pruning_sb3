@@ -237,8 +237,9 @@ class PruningEnv(gym.Env):
                     break
 
         # Create new ur5 arm body
+        self.pyb.disable_gravity() # Using this instead of actual breaks in the arm
         self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
-
+        self.pyb.enable_gravity()
         # Make this a new function that supports curriculum
         # Set curriculum level
 
