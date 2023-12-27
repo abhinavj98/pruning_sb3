@@ -486,8 +486,8 @@ class PruningEnv(gym.Env):
         self.observation_info['achieved_pos'] = achieved_pos
         self.observation_info['achieved_or_quat'] = achieved_or_quat
         self.observation_info['rgb'] = rgb
-        self.observation_info['pointing_cosine_sim'] = pointing_cosine_sim
-        self.observation_info['perpendicular_cosine_sim'] = perpendicular_cosine_sim
+        self.observation_info['pointing_cosine_sim'] = abs(pointing_cosine_sim)
+        self.observation_info['perpendicular_cosine_sim'] = abs(perpendicular_cosine_sim)
         self.observation_info['target_distance'] = np.linalg.norm(achieved_pos - desired_pos)
 
         # Actual observation

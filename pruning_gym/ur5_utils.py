@@ -82,7 +82,6 @@ class UR5:
         self.set_joint_angles(self.init_joint_angles)
         for _ in range(100):
             self.con.stepSimulation()
-
         self.init_pos = self.con.getLinkState(self.ur5_robot, self.end_effector_index)
         self.action = np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
         self.joint_angles = np.array(self.init_joint_angles).astype(np.float32)

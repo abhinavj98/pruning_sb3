@@ -24,7 +24,7 @@ args = {
         # Reward parameters
         'movement_reward_scale': {
             'type': float,
-            'default': 4,
+            'default': 6,
             'help': 'scaling factor for the movement reward'
         },
         'distance_reward_scale': {
@@ -39,7 +39,7 @@ args = {
         },
         'terminate_reward_scale': {
             'type': float,
-            'default': 1,
+            'default': 2,
             'help': 'scaling factor for the terminate reward'
         },
         'collision_reward_scale': {
@@ -49,24 +49,24 @@ args = {
         },
         'slack_reward_scale': {
             'type': float,
-            'default': -0.005,
+            'default': -0.01,
             'help': 'scaling factor for the slack reward'
         },
         'pointing_orientation_reward_scale': {
             'type': float,
-            'default': 2,
+            'default': 1,
             'help': 'scaling factor for the orientation reward'
         },
         'perpendicular_orientation_reward_scale': {
             'type': float,
-            'default': 3,
+            'default': 4,
             'help': 'scaling factor for the orientation reward'
         },
         # Gym envirionment parameters
 
         'max_steps': {
             'type': int,
-            'default': 150,
+            'default': 50,
             'help': 'maximum number of steps per episode'
         },
         'use_ik': {
@@ -75,7 +75,7 @@ args = {
         },
         'action_scale': {
             'type': float,
-            'default': 0.2,
+            'default': 0.1,#0.4,
             'help': 'scaling factor for the action space'
         },
         'action_dim': {
@@ -140,7 +140,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.6,)
+            'default': (0.5,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -195,7 +195,7 @@ args = {
     'args_global': {
         'n_envs': {
             'type': int,
-            'default': 8,
+            'default': 16,
             'help': 'number of parallel environments to run'
         },
         'run_name': {
@@ -234,12 +234,12 @@ args = {
         },
         'epochs': {
             'type': int,
-            'default': 4,
+            'default': 10,
             'help': 'number of epochs to train for'
         },
         'batch_size': {
             'type': int,
-            'default': 128,
+            'default': 256,
             'help': 'batch size'
         },
         'learning_rate': {
@@ -254,7 +254,7 @@ args = {
         },
         'log_std_init': {
             'type': float,
-            'default': -3,
+            'default': -2.6,
             'help': 'initial value for the log standard deviation'
         
     	},
