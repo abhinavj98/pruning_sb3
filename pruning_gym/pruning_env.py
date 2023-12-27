@@ -237,8 +237,9 @@ class PruningEnv(gym.Env):
                     break
 
         # Create new ur5 arm body
+        self.pyb.disable_gravity() # Using this instead of actual breaks in the arm
         self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
-
+        self.pyb.enable_gravity()
         # Make this a new function that supports curriculum
         # Set curriculum level
 
@@ -355,13 +356,13 @@ class PruningEnv(gym.Env):
             infos['episode'] = {"l": self.step_counter, "r": self.sum_reward}  # type: ignore
             print("Episode Length: ", self.step_counter)
             #Add angular distance
-            infos["pointing_cosine_sim_error"] = Reward.compute_pointing_cos_sim(
+            infos["pointing_cosine_sim_error"] = np.abs(Reward.compute_pointing_cos_sim(
                 achieved_pos=self.observation_info['achieved_pos'],
                 desired_pos=self.observation_info['desired_pos'],
                 achieved_or=self.observation_info['achieved_or_quat'],
-                branch_vector=self.tree_goal_branch)
-            infos["perpendicular_cosine_sim_error"] = Reward.compute_perpendicular_cos_sim(
-                achieved_or=self.observation_info['achieved_or_quat'], branch_vector=self.tree_goal_branch)
+                branch_vector=self.tree_goal_branch))
+            infos["perpendicular_cosine_sim_error"] = np.abs(Reward.compute_perpendicular_cos_sim(
+                achieved_or=self.observation_info['achieved_or_quat'], branch_vector=self.tree_goal_branch))
             infos["euclidean_error"] = np.linalg.norm(
                 self.observation_info['achieved_pos'] - self.observation_info['desired_pos'])
             #convert branch to quaternion
