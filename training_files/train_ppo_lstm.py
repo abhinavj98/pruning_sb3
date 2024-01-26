@@ -39,7 +39,7 @@ if __name__ == "__main__":
     if parsed_args_dict['args_global']['load_path']:
         load_path_model = "./logs/{}/best_model.zip".format(
             parsed_args_dict['args_global']['load_path'])
-        load_path_mean_std = "./logs/{}/mean_std.obj".format(
+        load_path_mean_std = "./logs/{}/mean_std.pkl".format(
             parsed_args_dict['args_global']['load_path'])
     else:
         load_path_model = None
@@ -93,12 +93,14 @@ if __name__ == "__main__":
                                batch_size=args_policy['batch_size'],
                                n_epochs=args_policy['epochs'])
     else:
-        load_dict = {"learning_rate": linear_schedule(args.LEARNING_RATE),
-                     "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE),
+        load_dict = {"learning_rate": linear_schedule(args_policy['learning_rate']),
+                     "learning_rate_ae": exp_schedule(args_policy['learning_rate_ae']),
                      "learning_rate_logstd": linear_schedule(0.01)}
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
-        model.num_timesteps = 10_000_000
-        model._num_timesteps_at_start = 10_000_000
+        
+        model.policy.load_running_mean_std_from_file(load_path_mean_std)
+        model.num_timesteps = 3_000_000
+        model._num_timesteps_at_start = 3_000_000
         print("LOADED MODEL")
     model.set_logger(new_logger)
     print("Using device: ", utils.get_device())

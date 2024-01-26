@@ -669,6 +669,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         image_features = self.features_extractor(
             self._normalize_using_running_mean_std(obs['depth_proxy'], self.running_mean_var_oflow))
         features_actor = th.cat([obs[i] for i in obs.keys() if 'critic' not in i and 'depth_proxy' not in i], dim=1).to(th.float32)
+        print([i for i in obs.keys() if 'critic' not in i and 'depth_proxy' not in i])
         features_actor = th.cat([features_actor, image_features[0]], dim=1).to(th.float32)
         # features_actor = th.cat(
         #     [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],

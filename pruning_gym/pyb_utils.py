@@ -31,7 +31,7 @@ class pyb_utils:
             self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
 
         self.con.setTimeStep(150. / 240.)
-        self.enable_gravity()
+        #self.enable_gravity()
         self.con.setRealTimeSimulation(False)
         self.proj_mat = self.con.computeProjectionMatrixFOV(
             fov=60, aspect=self.width / self.height, nearVal=self.near_val,

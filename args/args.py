@@ -59,14 +59,14 @@ args = {
         },
         'perpendicular_orientation_reward_scale': {
             'type': float,
-            'default': 4,
+            'default': 5,
             'help': 'scaling factor for the orientation reward'
         },
         # Gym envirionment parameters
 
         'max_steps': {
             'type': int,
-            'default': 50,
+            'default': 150,
             'help': 'maximum number of steps per episode'
         },
         'use_ik': {
@@ -75,7 +75,7 @@ args = {
         },
         'action_scale': {
             'type': float,
-            'default': 0.1,#0.4,
+            'default': 0.4,
             'help': 'scaling factor for the action space'
         },
         'action_dim': {
@@ -254,7 +254,7 @@ args = {
         },
         'log_std_init': {
             'type': float,
-            'default': -2.6,
+            'default': -3.5,
             'help': 'initial value for the log standard deviation'
         
     	},
