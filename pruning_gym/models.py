@@ -7,7 +7,7 @@ import torch as th
 from stable_baselines3 import PPO
 from stable_baselines3.common.policies import ActorCriticPolicy, BaseFeaturesExtractor
 import numpy as np
-
+from torchvision.transforms import functional as TVF
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
@@ -89,9 +89,10 @@ class Decoder(nn.Module):
         recon = self.decoder(x.view(-1, 32, 7, 7))
 
 class AutoEncoder(BaseFeaturesExtractor):
-    def __init__(self, observation_space: gym.spaces.Box, features_dim = 72,  in_channels=1):
+    def __init__(self, observation_space: gym.spaces.Box, features_dim = 72,  in_channels=1, size = (224, 224)):
         super(AutoEncoder, self).__init__(observation_space, features_dim)
         self.in_channels = in_channels
+        self.size = size
         output_conv = nn.Conv2d(3, in_channels, 3, padding=1)
         self.encoder = nn.Sequential(
             nn.Conv2d(in_channels, 16, 3, padding='same'),  # b, 16, 224, 224
@@ -139,18 +140,24 @@ class AutoEncoder(BaseFeaturesExtractor):
             nn.ReLU(),
             output_conv, # b, 1, 224, 224
         )
-  
-    def forward(self, observation : Dict) -> th.Tensor:
+
+    def _preprocess(self, img):
+        img = TVF.resize(img, size=self.size, antialias=False)
+        return img
+
+    def forward(self, image) -> th.Tensor:
         # print(observation)
-        encoding = self.encoder(observation).view(-1, 72)
+        image_resized = self._preprocess(image)
+        encoding = self.encoder(image_resized).view(-1, 72)
         fc_out = self.fc(encoding)
         recon = self.decoder(fc_out.view(-1, 32, 7, 7))
-        return (encoding, recon)
+        return encoding, recon
 
 class AutoEncoderSmall(BaseFeaturesExtractor):
-    def __init__(self, observation_space: gym.spaces.Box, features_dim = 128*7*7):
+    def __init__(self, observation_space: gym.spaces.Box, features_dim = 128*7*7, size = (224, 224)):
         #Need features dim for superclass
         super(AutoEncoder, self).__init__(observation_space, features_dim)
+        self.size = size
         self.encoder = nn.Sequential(
             nn.Conv2d(1, 16, 3, padding='same'),  # b, 16, 224, 224
             nn.ReLU(),
@@ -192,9 +199,14 @@ class AutoEncoderSmall(BaseFeaturesExtractor):
             #nn.ReLU()
         )
 
-    def forward(self, observation : Dict) -> th.Tensor:
-        # print(observation)
-        encoding = self.encoder(observation)
+    def _preprocess(self, img):
+        img = F.resize(img, size=self.size, antialias=False)
+        return img
+
+    def forward(self, image) -> th.Tensor:
+        # print(image)
+        image_resized = self._preprocess(image)
+        encoding = self.encoder(image_resized)
         recon = self.decoder(encoding)
         return (encoding, recon)
 

@@ -10,7 +10,7 @@ import numpy as np
 
 from nptyping import NDArray, Shape, Float
 from collections import namedtuple
-
+import random
 
 # ENV is a collection of objects like tree supports and ur5 robot. They interact with each other
 # through the env. UR5 class only needs access to pybullet.
@@ -20,9 +20,10 @@ class UR5:
 
         self.con = con
         self.pos = pos
-        self.camera_link_index = None
+        self.tool0_link_index = None
         self.end_effector_index = None
         self.success_link_index = None
+        self.tool_link_index = None
         self.base_index = None
         self.ur5_robot = None
         self.num_joints = None
@@ -37,15 +38,15 @@ class UR5:
         self.previous_pose = None
         self.init_pos = None
         self.robot_urdf_path = robot_urdf_path
-        self.camera_base_offset = np.array([-0.063179, 0.077119, 0.0420027])
+        self.camera_base_offset = np.array([-0.063179, 0.077119, 0.0420027])#np.array([-0.063179, 0.077119, 0.0420027])#
         self.setup_ur5_arm()
 
     def setup_ur5_arm(self) -> None:
         assert self.ur5_robot is None
-        self.camera_link_index = 11
-        self.end_effector_index = 14
+        self.tool0_link_index = 8
+        self.end_effector_index = 12
         self.success_link_index = 14
-        self.base_index = 2
+        self.base_index = 3
         flags = self.con.URDF_USE_SELF_COLLISION
         self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, self.pos, [0, 0, 0, 1], flags=flags)
 
@@ -165,7 +166,7 @@ class UR5:
         return joints  # type: ignore
 
     def calculate_jacobian(self):
-        jacobian = self.con.calculateJacobian(self.ur5_robot, self.end_effector_index, [0, 0, 0],
+        jacobian = self.con.calculateJacobian(self.ur5_robot, self.tool0_link_index, [0, 0, 0],
                                               self.get_joint_angles(),
                                               [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         jacobian = np.vstack(jacobian)
@@ -248,10 +249,10 @@ class UR5:
         trans, ang = link_state[6], link_state[7]
         return trans, ang
 
-    def create_camera_transform(self, pos, orientation, tilt) -> np.ndarray:
+    def create_camera_transform(self, pos, orientation, pan, tilt, xyz_offset) -> np.ndarray:
         """Create rotation matrix for camera"""
         base_offset_tf = np.identity(4)
-        base_offset_tf[:3, 3] = self.camera_base_offset
+        base_offset_tf[:3, 3] = self.camera_base_offset + xyz_offset
 
         ee_transform = np.identity(4)
         ee_rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
@@ -262,17 +263,26 @@ class UR5:
         tilt_rot = np.array([[1, 0, 0], [0, np.cos(tilt), -np.sin(tilt)], [0, np.sin(tilt), np.cos(tilt)]])
         tilt_tf[:3, :3] = tilt_rot
 
-        tf = ee_transform @ tilt_tf @ base_offset_tf
+        pan_tf = np.identity(4)
+        pan_rot = np.array([[np.cos(pan), 0, np.sin(pan)], [0, 1, 0], [-np.sin(pan), 0, np.cos(pan)]])
+        pan_tf[:3, :3] = pan_rot
+
+
+        tf = ee_transform @ pan_tf @ tilt_tf @ base_offset_tf
         return tf
 
     # TODO: Better types for getCameraImage
     def get_view_mat_at_curr_pose(self) -> np.ndarray:
         """Get view matrix at current pose"""
-        pose, orientation = self.get_current_pose(self.camera_link_index)
+        pose, orientation = self.get_current_pose(self.tool0_link_index)
+        pan_bounds = (-2, 2)
+        tilt_bounds = (-2, 2)
+        pan = np.radians(np.random.uniform(*pan_bounds))
+        tilt = np.radians(2 + np.random.uniform(*tilt_bounds))
+        xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.01, 0.0005, 0.01])
 
-        tilt = np.pi / 18
+        camera_tf = self.create_camera_transform(pose, orientation, pan, tilt, xyz_offset)
 
-        camera_tf = self.create_camera_transform(pose, orientation, tilt)
         # Initial vectors
         camera_vector = np.array([0, 0, 1]) @ camera_tf[:3, :3].T  #
         up_vector = np.array([0, 1, 0]) @ camera_tf[:3, :3].T  #
@@ -281,9 +291,16 @@ class UR5:
         view_matrix = self.con.computeViewMatrix(camera_tf[:3, 3], camera_tf[:3, 3] + 0.1 * camera_vector, up_vector)
         return view_matrix
 
+    def get_camera_location(self):
+        pose, orientation = self.get_current_pose(self.tool0_link_index)
+        tilt = np.pi / 180 * 8
+
+        camera_tf = self.create_camera_transform(pose, orientation, tilt)
+        return camera_tf
+
     def get_condition_number(self) -> float:
         # get jacobian
-        jacobian = self.con.calculateJacobian(self.ur5_robot, self.end_effector_index, [0, 0, 0],
+        jacobian = self.con.calculateJacobian(self.ur5_robot, self.tool0_link_index, [0, 0, 0],
                                               self.get_joint_angles(),
                                               [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         jacobian = np.vstack(jacobian)

@@ -68,7 +68,8 @@ if __name__ == "__main__":
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
         "features_extractor_kwargs": {"features_dim": parsed_args_dict['args_policy']['state_dim'],
-                                      "in_channels": (3 if parsed_args_dict['args_env']['use_optical_flow'] else 1), },
+                                      "in_channels": (3 if parsed_args_dict['args_env']['use_optical_flow'] else 1),
+                                      "size": (224, 224)},
         "optimizer_class": th.optim.Adam,
         "log_std_init": parsed_args_dict['args_policy']['log_std_init'],
         "net_arch": dict(

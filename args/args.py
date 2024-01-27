@@ -108,7 +108,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.5,)
+            'default': (0.6,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -140,7 +140,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.5,)
+            'default': (0.6,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -172,7 +172,7 @@ args = {
 
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.5,)
+            'default': (0.6,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -223,7 +223,7 @@ args = {
         # Training parameters
         'total_timesteps': {
             'type': int,
-            'default': 5_000_000,
+            'default': 10_000_000,
             'help': 'total number of timesteps to train for'
         },
         # For logging purposes keep as multiple of episode length
@@ -256,7 +256,6 @@ args = {
             'type': float,
             'default': -3.5,
             'help': 'initial value for the log standard deviation'
-        
     	},
     }
 }

@@ -4,23 +4,28 @@
 # ((0.13449475169181824, -0.5022648572921753, 0.5729056596755981)
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from gym_env_discrete import PruningEnv
-from models import *
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+from pruning_sb3.pruning_gym.pruning_env import PruningEnv
+from pruning_sb3.pruning_gym.models import *
 import numpy as np
 import cv2
 import random
 import argparse
-from args import args_dict
+from pruning_sb3.args.args_test import args
 import matplotlib.pyplot as plt
 import torchvision.transforms.functional as F
+import torch as th
+from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
+    set_args, organize_args, add_arg_to_env
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
-    events = env.con.getKeyboardEvents()
+    events = env.pyb.con.getKeyboardEvents()
     key_codes = events.keys()
     for key in key_codes:
         pressed_keys.append(key)
     return pressed_keys
+
 
 def plot(imgs, axs, **imshow_kwargs):
 
@@ -48,61 +53,66 @@ def plot(imgs, axs, **imshow_kwargs):
     plt.pause(0.001)
 
 # Create the ArgumentParser object
+
+# Create the ArgumentParser object
 parser = argparse.ArgumentParser()
-
-# Add arguments to the parser based on the dictionary
-for arg_name, arg_params in args_dict.items():
-    parser.add_argument(f'--{arg_name}', **arg_params)
-
-# Parse arguments from the command line
-args = parser.parse_args()
-print(args)
-env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH,\
-              "action_dim" : args.ACTION_DIM_ACTOR, "use_optical_flow" : True, "name": "recordenv", "curriculum_distances": (0.26,),\
-              "curriculum_level_steps": ()}
-env = PruningEnv(**env_kwargs, tree_count=1)
-
-plt.ion()
-_, axs = plt.subplots(nrows=1, ncols=5, squeeze=False)
-plt.show()
-# env.reset()
-val = np.array([0,0,0,0,0,0])
-#Use keyboard to move the robot
-while True:
-    #Read keyboard input using python input
-    action = get_key_pressed(env)
-    #if action is wasd, then move the robot
-    if ord('a') in action:
-        val = np.array([0.2,0,0,0,0,0])
-    elif ord('d') in action:
-        val = np.array([-0.2,0,0,0,0,0])
-    elif ord('s') in action:
-        val = np.array([0,0.2,0,0,0,0])
-    elif ord('w') in action:
-        val = np.array([0,-0.2,0,0,0,0])
-    elif ord('q') in action:
-        val = np.array([0,0,0.2,0,0,0])
-    elif ord('e') in action:
-        val = np.array([0,0,-0.2,0,0,0])
-    elif ord('z') in action:
-        val = np.array([0,0,0,0.2,0,0])
-    elif ord('c') in action:
-        val = np.array([0,0,0,-0.2,0,0])
-    elif ord('x') in action:
-        val = np.array([0,0,0,0,0.2,0])
-    elif ord('v') in action:
-        val = np.array([0,0,0,0,-0.2,0])
-    elif ord('r') in action:
-        val = np.array([0,0,0,0,0,0.2])
-    elif ord('f') in action:
-        val = np.array([0,0,0,0,0,-0.5])
-    elif ord('t') in action:
-        env.reset()
+set_args(args, parser)
+parsed_args = vars(parser.parse_args())
+parsed_args_dict = organize_args(parsed_args)
+args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
+if __name__ == "__main__":
+    print(parsed_args_dict['args_env']['use_optical_flow'])
+    print(parsed_args_dict)
+    if parsed_args_dict['args_env']['use_optical_flow'] and parsed_args_dict['args_env']['optical_flow_subproc']:
+        shared_var = optical_flow_create_shared_vars()
     else:
-        val = np.array([0,0,0,0,0,0])
-    #val = np.array([0.1]*6)
+        shared_var = (None, None)
+    add_arg_to_env('shared_var', shared_var, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
 
-    observation, reward, terminated, truncated, infos = env.step(val)
-    # print(env.observation["depth"].shape)
-    grid = [th.tensor(env.prev_rgb), th.tensor(env.rgb), th.tensor(env.observation['depth'][0]), th.tensor(env.observation["depth"][1]), th.tensor(env.observation["point_mask"])]# - th.mean(th.tensor(env.observation["depth"][0], dtype=th.float32))]
-    plot(grid, axs)
+    args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
+    env = PruningEnv(**args_test, tree_count=1)
+
+    plt.ion()
+    _, axs = plt.subplots(nrows=1, ncols=5, squeeze=False)
+    plt.show()
+    # env.reset()
+    val = np.array([0, 0, 0, 0, 0, 0])
+    # Use keyboard to move the robot
+    while True:
+        # Read keyboard input using python input
+        action = get_key_pressed(env)
+        # if action is wasd, then move the robot
+        if ord('a') in action:
+            val = np.array([0.01, 0, 0, 0, 0, 0])
+        elif ord('d') in action:
+            val = np.array([-0.01, 0, 0, 0, 0, 0])
+        elif ord('s') in action:
+            val = np.array([0, 0.01, 0, 0, 0, 0])
+        elif ord('w') in action:
+            val = np.array([0, -0.01, 0, 0, 0, 0])
+        elif ord('q') in action:
+            val = np.array([0, 0, 0.01, 0, 0, 0])
+        elif ord('e') in action:
+            val = np.array([0, 0, -0.01, 0, 0, 0])
+        elif ord('z') in action:
+            val = np.array([0, 0, 0, 0.01, 0, 0])
+        elif ord('c') in action:
+            val = np.array([0, 0, 0, -0.01, 0, 0])
+        elif ord('x') in action:
+            val = np.array([0, 0, 0, 0, 0.01, 0])
+        elif ord('v') in action:
+            val = np.array([0, 0, 0, 0, -0.01, 0])
+        elif ord('r') in action:
+            val = np.array([0, 0, 0, 0, 0, 0.01])
+        elif ord('f') in action:
+            val = np.array([0, 0, 0, 0, 0, -0.01])
+        elif ord('t') in action:
+            env.reset()
+        else:
+            val = np.array([0, 0, 0, 0, 0, 0])
+        # print(val)
+        observation, reward, terminated, truncated, infos = env.step(val)
+        grid = [th.tensor(env.prev_observation_info[
+                                                    'rgb']), th.tensor(env.observation_info[
+                                                    'rgb']), th.tensor(env.observation['depth_proxy'][0]), th.tensor(env.observation["depth_proxy"][1]), th.tensor(env.observation['depth_proxy'][2])]# - th.mean(th.tensor(env.observation["depth"][0], dtype=th.float32))]
+        plot(grid, axs)

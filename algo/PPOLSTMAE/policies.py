@@ -1,5 +1,6 @@
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../pruning_sb3')))
 
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
@@ -40,6 +41,7 @@ from abc import ABC, abstractmethod
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
+
 class ActorCriticPolicySquashed(BasePolicy):
     """
     Policy class for actor-critic algorithms (has both policy and value prediction).
@@ -73,24 +75,24 @@ class ActorCriticPolicySquashed(BasePolicy):
     """
 
     def __init__(
-        self,
-        observation_space: spaces.Space,
-        action_space: spaces.Space,
-        lr_schedule: Schedule,
-        net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
-        activation_fn: Type[nn.Module] = nn.Tanh,
-        ortho_init: bool = True,
-        use_sde: bool = False,
-        log_std_init: float = 0.0,
-        full_std: bool = True,
-        use_expln: bool = False,
-        squash_output: bool = False,
-        features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
-        features_extractor_kwargs: Optional[Dict[str, Any]] = None,
-        share_features_extractor: bool = True,
-        normalize_images: bool = True,
-        optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
-        optimizer_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            observation_space: spaces.Space,
+            action_space: spaces.Space,
+            lr_schedule: Schedule,
+            net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
+            activation_fn: Type[nn.Module] = nn.Tanh,
+            ortho_init: bool = True,
+            use_sde: bool = False,
+            log_std_init: float = 0.0,
+            full_std: bool = True,
+            use_expln: bool = False,
+            squash_output: bool = False,
+            features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
+            features_extractor_kwargs: Optional[Dict[str, Any]] = None,
+            share_features_extractor: bool = True,
+            normalize_images: bool = True,
+            optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
+            optimizer_kwargs: Optional[Dict[str, Any]] = None,
     ):
         if optimizer_kwargs is None:
             optimizer_kwargs = {}
@@ -156,7 +158,7 @@ class ActorCriticPolicySquashed(BasePolicy):
 
         # Action distribution
         # Replace action distribution with a Squashed
-        self.action_dist = SquashedDiagGaussianDistribution(get_action_dim(action_space))#, self.full_std)
+        self.action_dist = SquashedDiagGaussianDistribution(get_action_dim(action_space))  # , self.full_std)
 
         self._build(lr_schedule)
 
@@ -190,7 +192,8 @@ class ActorCriticPolicySquashed(BasePolicy):
 
         :param n_envs:
         """
-        assert isinstance(self.action_dist, StateDependentNoiseDistribution), "reset_noise() is only available when using gSDE"
+        assert isinstance(self.action_dist,
+                          StateDependentNoiseDistribution), "reset_noise() is only available when using gSDE"
         self.action_dist.sample_weights(self.log_std, batch_size=n_envs)
 
     def _build_mlp_extractor(self) -> None:
@@ -221,7 +224,7 @@ class ActorCriticPolicySquashed(BasePolicy):
         self.action_net, self.log_std = self.action_dist.proba_distribution_net(
             latent_dim=latent_dim_pi, log_std_init=self.log_std_init
         )
-        #multiply action net weight by 10
+        # multiply action net weight by 10
         self.action_net.weight.data *= 10
         # if isinstance(self.action_dist, DiagGaussianDistribution):
         #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
@@ -504,7 +507,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             self.critic = nn.Linear(self.features_dim, lstm_hidden_size)
 
         # Use a separate LSTM for the critic
-        #TODO: TEST
+        # TODO: TEST
         if self.enable_critic_lstm:
             features_dim = self.features_dim if features_dim_critic_add is None else self.features_dim + self.features_dim_critic_add
             self.lstm_critic = nn.LSTM(
@@ -514,34 +517,34 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
                 **self.lstm_kwargs,
             )
         num_channels = self.features_extractor.in_channels
-        self.running_mean_var_oflow = RunningMeanStd(shape=(num_channels,1, 1))
+        self.running_mean_var_oflow = RunningMeanStd(shape=(num_channels, 1, 1))
         # Setup optimizer with initial learning rate
         if lr_schedule_logstd is not None:
-            self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
+            self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1),
+                                                         **self.optimizer_kwargs)
             self.optimizer = self.optimizer_class(
-            [*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(),
-             *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
+                [*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(),
+                 *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
         else:
             self.optimizer = self.optimizer_class(
                 [*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(),
                  *self.action_net.parameters(), self.log_std], lr=lr_schedule(1), **self.optimizer_kwargs)
         if lr_schedule_ae is not None:
             self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1),
-                                             **self.optimizer_kwargs)
+                                                     **self.optimizer_kwargs)
 
     def _normalize_using_running_mean_std(self, x, running_mean_std):
         mean = running_mean_std.mean.to(self.device, dtype=th.float32)
         std = th.sqrt(running_mean_std.var).to(self.device, dtype=th.float32)
 
-        return (x - mean) / std
+        return (x - mean) / (std + 1e-8)
 
     def _unnormalize_using_running_mean_std(self, x, running_mean_std):
         mean = running_mean_std.mean.to(self.device, dtype=th.float32)
         std = th.sqrt(running_mean_std.var).to(self.device, dtype=th.float32)
         return x * std + mean
 
-
-    #Load running_mean_std from pkl file
+    # Load running_mean_std from pkl file
     def load_running_mean_std_from_file(self, path):
         with open(path, 'rb') as f:
             self.running_mean_var_oflow = pickle.load(f)
@@ -668,8 +671,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         # Add running mean and var
         image_features = self.features_extractor(
             self._normalize_using_running_mean_std(obs['depth_proxy'], self.running_mean_var_oflow))
-        features_actor = th.cat([obs[i] for i in obs.keys() if 'critic' not in i and 'depth_proxy' not in i], dim=1).to(th.float32)
-        print([i for i in obs.keys() if 'critic' not in i and 'depth_proxy' not in i])
+        features_actor = th.cat([obs[i] for i in obs.keys() if 'critic' not in i and 'depth_proxy' not in i], dim=1).to(
+            th.float32)
         features_actor = th.cat([features_actor, image_features[0]], dim=1).to(th.float32)
         # features_actor = th.cat(
         #     [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
@@ -679,7 +682,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
 
         if self.share_features_extractor is False:
             features_critic = th.cat([obs[i] for i in obs.keys() if 'depth_proxy' not in i],
-                                    dim=1).to(th.float32)
+                                     dim=1).to(th.float32)
             features_critic = th.cat([features_critic, image_features[0]], dim=1).to(th.float32)
             # features_critic = th.cat(
             #     [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
@@ -745,7 +748,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
                 critic_features = features[1]
             else:
                 critic_features = features
-            latent_vf, lstm_states_vf = self._process_sequence(critic_features, lstm_states, episode_starts, self.lstm_critic)
+            latent_vf, lstm_states_vf = self._process_sequence(critic_features, lstm_states, episode_starts,
+                                                               self.lstm_critic)
         elif self.shared_lstm:
             # Use LSTM from the actor
             latent_pi, _ = self._process_sequence(features, lstm_states, episode_starts, self.lstm_actor)

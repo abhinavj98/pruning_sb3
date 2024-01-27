@@ -5,13 +5,15 @@ from nptyping import NDArray
 import os
 from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH
 import numpy as np
+
+
 class pyb_utils:
-    def __init__(self, env, renders: bool = False, height: int = 224, width: int = 224) -> None:
+    def __init__(self, env, renders: bool = False, cam_height: int = 224, cam_width: int = 224) -> None:
         self.viz_view_matrix = None
         self.viz_proj_matrix = None
         self.renders = renders
-        self.height = height
-        self.width = width
+        self.cam_height = cam_height
+        self.cam_width = cam_width
         self.near_val = 0.01
         self.far_val = 100
         self.env = env
@@ -30,11 +32,11 @@ class pyb_utils:
         else:
             self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
 
-        self.con.setTimeStep(150. / 240.)
-        #self.enable_gravity()
+        self.con.setTimeStep(100. / 240.)
+        # self.enable_gravity()
         self.con.setRealTimeSimulation(False)
         self.proj_mat = self.con.computeProjectionMatrixFOV(
-            fov=60, aspect=self.width / self.height, nearVal=self.near_val,
+            fov=60, aspect=self.cam_width / self.cam_height, nearVal=self.near_val,
             farVal=self.far_val)
 
         self.con.resetDebugVisualizerCamera(cameraDistance=1.06, cameraYaw=-120.3, cameraPitch=-12.48,
@@ -84,8 +86,7 @@ class pyb_utils:
                 self.con.removeUserDebugItem(item)
             self.debug_items_reset = []
 
-
-    def add_debug_item(self, type, where,  **kwargs):
+    def add_debug_item(self, type, where, **kwargs):
         debug_item = self.con.addUserDebugLine(**kwargs)
         if where == 'step':
             self.debug_items_step.append(debug_item)
@@ -100,35 +101,38 @@ class pyb_utils:
         colSphereId = -1
         visualShapeId = self.con.createVisualShape(self.con.GEOM_SPHERE, radius=radius, rgbaColor=rgba)
         sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId,
-                                                  pos, [0, 0, 0, 1])
+                                             pos, [0, 0, 0, 1])
         return sphereUid
 
-    def get_image_at_curr_pose(self, type, view_matrix = None) -> List:
+    def get_image_at_curr_pose(self, type, view_matrix=None) -> List:
         """Take the current pose of the end effector and set the camera to that pose"""
         if type == 'robot':
             if view_matrix is None:
                 raise ValueError('view_matrix cannot be None for robot view')
-            return self.con.getCameraImage(self.width, self.height, viewMatrix=view_matrix,
+            return self.con.getCameraImage(width=self.cam_width, height=self.cam_height, viewMatrix=view_matrix,
                                            projectionMatrix=self.proj_mat,
                                            renderer=self.con.ER_BULLET_HARDWARE_OPENGL,
                                            flags=self.con.ER_NO_SEGMENTATION_MASK, lightDirection=[1, 1, 1])
         elif type == 'viz':
-            return self.con.getCameraImage(512, 512, viewMatrix=self.viz_view_matrix,
-                                             projectionMatrix=self.viz_proj_matrix,
-                                             renderer=self.con.ER_BULLET_HARDWARE_OPENGL,
-                                             flags=self.con.ER_NO_SEGMENTATION_MASK, lightDirection=[1, 1, 1])
+            return self.con.getCameraImage(width = self.cam_width, height = self.cam_height, viewMatrix=self.viz_view_matrix,
+                                           projectionMatrix=self.viz_proj_matrix,
+                                           renderer=self.con.ER_BULLET_HARDWARE_OPENGL,
+                                           flags=self.con.ER_NO_SEGMENTATION_MASK, lightDirection=[1, 1, 1])
+
     def setup_bird_view_visualizer(self):
-        self.viz_view_matrix = self.con.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[-0.3, -0.06, 1.3], distance=1.06,
-                                                                 yaw=-120.3, pitch=-12.48, roll=0, upAxisIndex=2)
-        self.viz_proj_matrix = self.con.computeProjectionMatrixFOV(fov=60, aspect=float(512/512), nearVal=0.1,
-                                                          farVal=100.0)
+        self.viz_view_matrix = self.con.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[-0.3, -0.06, 1.3],
+                                                                          distance=1.06,
+                                                                          yaw=-120.3, pitch=-12.48, roll=0,
+                                                                          upAxisIndex=2)
+        self.viz_proj_matrix = self.con.computeProjectionMatrixFOV(fov=60, aspect=float(self.cam_width / self.cam_height), nearVal=0.1,
+                                                                   farVal=100.0)
 
     @staticmethod
-    def seperate_rgbd_rgb_d(rgbd: List, h: int = 224, w: int = 224) -> Tuple[NDArray, NDArray]:
+    def seperate_rgbd_rgb_d(rgbd: List, height: int, width: int) -> Tuple[NDArray, NDArray]:
         """Seperate rgb and depth from the rgbd image, return RGB and depth"""
-        rgb = np.array(rgbd[2]).reshape(h, w, 4) / 255
+        rgb = np.array(rgbd[2]).reshape(height, width, 4) / 255
         rgb = rgb[:, :, :3]
-        depth = np.array(rgbd[3]).reshape(h, w)
+        depth = np.array(rgbd[3]).reshape(height, width)
         return rgb, depth
 
     @staticmethod
@@ -141,7 +145,7 @@ class pyb_utils:
         """Get RGBD image at current pose"""
         # cur_p = self.ur5.get_current_pose(self.camera_link_index)
         rgbd = self.get_image_at_curr_pose(type, view_matrix)
-        rgb, depth = self.seperate_rgbd_rgb_d(rgbd)
+        rgb, depth = self.seperate_rgbd_rgb_d(rgbd, height=self.cam_height, width=self.cam_width)
         depth = depth.astype(np.float32)
         depth = self.linearize_depth(depth, self.far_val, self.near_val) - 0.5
         return rgb, depth
@@ -152,18 +156,18 @@ class pyb_utils:
             loc = point[1][0]
             branch = point[1][1]
             self.add_debug_item('sphere', 'step', lineFromXYZ=[loc[0],
-                                                               loc[1],loc[2]],
-                                    lineToXYZ=[loc[0] + 0.005, loc[1] + 0.005,\
-                                               loc[2] + 0.005],
-                                    lineColorRGB=[1, 0, 0],
-                                    lineWidth=200)
+                                                               loc[1], loc[2]],
+                                lineToXYZ=[loc[0] + 0.005, loc[1] + 0.005, \
+                                           loc[2] + 0.005],
+                                lineColorRGB=[1, 0, 0],
+                                lineWidth=200)
             self.add_debug_item('sphere', 'step', lineFromXYZ=[loc[0] - dx * branch[0],
-                                                                loc[1] - dx * branch[1],
-                                                                loc[2] - dx * branch[2]],
-                                    lineToXYZ=[loc[0] + dx * branch[0], loc[1] + dx * branch[1],\
-                                               loc[2] + dx * branch[2]],
-                                    lineColorRGB=[1, 1, 0],
-                                    lineWidth=200)
+                                                               loc[1] - dx * branch[1],
+                                                               loc[2] - dx * branch[2]],
+                                lineToXYZ=[loc[0] + dx * branch[0], loc[1] + dx * branch[1], \
+                                           loc[2] + dx * branch[2]],
+                                lineColorRGB=[1, 1, 0],
+                                lineWidth=200)
         input()
 
     def visualize_rot_mat(self, rot_mat: List, pos):
@@ -171,8 +175,7 @@ class pyb_utils:
         colors = np.eye(3)
         for i in range(3):
             self.add_debug_item('sphere', 'step', lineFromXYZ=[pos[0], pos[1], pos[2]],
-                                    lineToXYZ=[pos[0] + rot_mat[i][0] * dx, pos[1] + rot_mat[i][1] * dx,\
-                                               pos[2] + rot_mat[i][2] * dx],
-                                    lineColorRGB=colors[i],
-                                    lineWidth=200)
-
+                                lineToXYZ=[pos[0] + rot_mat[i][0] * dx, pos[1] + rot_mat[i][1] * dx,\
+                                           pos[2] + rot_mat[i][2] * dx],
+                                lineColorRGB=colors[i],
+                                lineWidth=200)

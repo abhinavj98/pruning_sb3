@@ -1,6 +1,6 @@
 import os
 import sys
-
+import cv2
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from typing import Optional, Tuple, Any, List
@@ -20,6 +20,7 @@ from .pyb_utils import pyb_utils
 from pruning_sb3.pruning_gym import ROBOT_URDF_PATH
 from .reward_utils import Reward
 from skimage.draw import disk
+import torch.nn.functional as F
 
 import copy
 #TODO: Write test cases for this file
@@ -29,7 +30,8 @@ class PruningEnv(gym.Env):
     # optical_flow_model = OpticalFlow()
 
     def __init__(self, tree_urdf_path: str, tree_obj_path: str, renders: bool = False, max_steps: int = 500,
-                 learning_param: float = 0.05, tree_count: int = 9999, width: int = 224, height: int = 224,
+                 learning_param: float = 0.05, tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
+                 algo_width: int = 224, algo_height: int = 224,
                  evaluate: bool = False, num_points: Optional[int] = None, action_dim: int = 12,
                  name: str = "PruningEnv",
                  terminate_on_singularity: bool = True, action_scale: int = 1, movement_reward_scale: int = 1,
@@ -69,6 +71,10 @@ class PruningEnv(gym.Env):
         self.terminated = False
         self.use_optical_flow = use_optical_flow
         self.optical_flow_subproc = optical_flow_subproc
+        self.algo_width = algo_width
+        self.algo_height = algo_height
+        self.cam_width = cam_width
+        self.cam_height = cam_height
 
         if self.use_optical_flow:
             if not self.optical_flow_subproc:
@@ -81,13 +87,13 @@ class PruningEnv(gym.Env):
                              perpendicular_orientation_reward_scale, terminate_reward_scale, collision_reward_scale,
                              slack_reward_scale, condition_reward_scale)
 
-        self.pyb = pyb_utils(self, renders, width, height)
+        self.pyb = pyb_utils(self, renders=renders, cam_height=cam_height, cam_width=cam_width)
 
         self.observation_space = spaces.Dict({
             'depth_proxy': spaces.Box(low=-1.,
                                       high=1.0,
-                                      shape=((3, self.pyb.height, self.pyb.width) if self.use_optical_flow else (
-                                          1, self.pyb.height, self.pyb.width)),
+                                      shape=((3, self.algo_height, self.algo_width) if self.use_optical_flow else (
+                                          1, self.algo_height, self.algo_width)),
                                       dtype=np.float32),
             'desired_goal': spaces.Box(low=-5.,
                                        high=5.,
@@ -387,7 +393,7 @@ class PruningEnv(gym.Env):
             #add sphere
             sphere = self.pyb.add_sphere(radius=0.01, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1],)
         img_rgbd = self.pyb.get_image_at_curr_pose(type='viz')
-        img_rgb, _ = self.pyb.seperate_rgbd_rgb_d(img_rgbd, 512, 512)
+        img_rgb, _ = self.pyb.seperate_rgbd_rgb_d(img_rgbd, self.cam_height, self.cam_width)
         if mode == "human":
             import cv2
             cv2.imshow("img", (img_rgb * 255).astype(np.uint8))
@@ -405,8 +411,8 @@ class PruningEnv(gym.Env):
         # TODO: Make this function nicer
         # Function. Be Nice.
 
-        point_mask = np.zeros((self.pyb.height, self.pyb.width), dtype=np.float32)
-        point_mask = np.expand_dims(point_mask, axis=0).astype(np.float32)
+        point_mask = np.zeros((self.pyb.cam_height, self.pyb.cam_width), dtype=np.float32)
+
         proj_matrix = np.asarray(self.pyb.proj_mat).reshape([4, 4], order="F")
         view_matrix = np.asarray(self.ur5.get_view_mat_at_curr_pose()).reshape([4, 4], order="F")
         projection = proj_matrix @ view_matrix @ np.array(
@@ -417,15 +423,18 @@ class PruningEnv(gym.Env):
         # if projection within 1,-1, set point mask to 1
         if projection[0] < 1 and projection[0] > -1 and projection[1] < 1 and projection[1] > -1:
             projection = (projection + 1) / 2
-            row = self.pyb.height - 1 - int(projection[1] * (self.pyb.height))
-            col = int(projection[0] * self.pyb.width)
+            row = self.pyb.cam_height - 1 - int(projection[1] * (self.pyb.cam_height))
+            col = int(projection[0] * self.pyb.cam_width)
             radius = 5  # TODO: Make this a variable proportional to distance
             # modern scikit uses a tuple for center
             rr, cc = disk((row, col), radius)
-            point_mask[0, np.clip(0, rr, 223), np.clip(0, cc,
-                                                       223)] = 1  # TODO: This is a hack, numbers shouldnt exceed max and min anyways
+            point_mask[np.clip(0, rr, self.pyb.cam_height-1), np.clip(0, cc,
+                                                       self.pyb.cam_width-1)] = 1  # TODO: This is a hack, numbers shouldnt exceed max and min anyways
 
-        return point_mask
+        #resize point mask to algo_height, algo_width
+        point_mask_resize = cv2.resize(point_mask, dsize=(self.algo_height, self.algo_width))
+        point_mask_resize = np.expand_dims(point_mask_resize, axis=0).astype(np.float32)
+        return point_mask_resize
 
     def get_depth_proxy(self, use_optical_flow, optical_flow_subproc, prev_rgb):
         #TODO: Make this faster
@@ -471,7 +480,7 @@ class PruningEnv(gym.Env):
         achieved_or_6d = achieved_or_mat[:, :2].reshape(6, ).astype(np.float32)
 
         if 'rgb' not in self.prev_observation_info:
-            self.prev_observation_info['rgb'] = np.zeros((self.pyb.height, self.pyb.width, 3))
+            self.prev_observation_info['rgb'] = np.zeros((self.pyb.cam_height, self.pyb.cam_width, 3))
         depth_proxy, rgb = self.get_depth_proxy(self.use_optical_flow, self.optical_flow_subproc,
                                                 prev_rgb=self.prev_observation_info[
                                                     'rgb'], )  # Get this from previous obs
