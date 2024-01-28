@@ -3,11 +3,11 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 import pytest
-from ..tree import Tree
-from ..ur5_utils import UR5
-from .. import ROBOT_URDF_PATH, MESHES_AND_URDF_PATH
-from ..pyb_utils import pyb_utils
-from ..pruning_env import PruningEnv
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym.tree import Tree
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym.ur5_utils import UR5
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym import ROBOT_URDF_PATH, MESHES_AND_URDF_PATH
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym.pyb_utils import pyb_utils
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym.pruning_env import PruningEnv
 import numpy as np
 @pytest.fixture
 def pyb():

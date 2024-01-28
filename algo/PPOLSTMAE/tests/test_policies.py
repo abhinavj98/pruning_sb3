@@ -5,7 +5,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.
 from gymnasium import spaces
 import pytest
 import torch as th
-from ..policies import RecurrentActorCriticPolicy
+from src.follow_the_leader.follow_the_leader.pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import AutoEncoder
 import numpy as np

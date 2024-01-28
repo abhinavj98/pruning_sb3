@@ -10,7 +10,7 @@ import torch as th
 import wandb
 from nptyping import NDArray, Shape, Float
 
-from .optical_flow import OpticalFlow
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym.optical_flow import OpticalFlow
 
 
 

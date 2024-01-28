@@ -12,13 +12,13 @@ import numpy as np
 from gymnasium import spaces
 from nptyping import NDArray, Shape, Float
 
-from .optical_flow import OpticalFlow
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym.optical_flow import OpticalFlow
 
-from .tree import Tree
-from .ur5_utils import UR5
-from .pyb_utils import pyb_utils
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym.tree import Tree
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym.ur5_utils import UR5
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym.pyb_utils import pyb_utils
 from pruning_sb3.pruning_gym import ROBOT_URDF_PATH
-from .reward_utils import Reward
+from src.follow_the_leader.follow_the_leader.pruning_sb3.pruning_gym.reward_utils import Reward
 from skimage.draw import disk
 
 import copy
