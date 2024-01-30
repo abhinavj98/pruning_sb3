@@ -328,7 +328,8 @@ class PruningEnv(gym.Env):
 
         self.pyb.remove_debug_items("step")
 
-        self.action = action * self.action_scale
+        self.action[:3] = action[:3] * self.action_scale
+        self.action[3:] = action[3:] * self.action_scale * 5
         self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
         singularity = self.ur5.set_joint_velocities(self.ur5.action)
 
