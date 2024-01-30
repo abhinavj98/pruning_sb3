@@ -53,23 +53,23 @@ if __name__ == "__main__":
         action = get_key_pressed(env)
         # if action is wasd, then move the robot
         if ord('a') in action:
-            val = np.array([0.01, 0, 0, 0, 0, 0])
+            val = np.array([0.001, 0, 0, 0, 0, 0])
         elif ord('d') in action:
-            val = np.array([-0.01, 0, 0, 0, 0, 0])
+            val = np.array([-0.001, 0, 0, 0, 0, 0])
         elif ord('s') in action:
-            val = np.array([0, 0.01, 0, 0, 0, 0])
+            val = np.array([0, 0.001, 0, 0, 0, 0])
         elif ord('w') in action:
-            val = np.array([0, -0.01, 0, 0, 0, 0])
+            val = np.array([0, -0.001, 0, 0, 0, 0])
         elif ord('q') in action:
-            val = np.array([0, 0, 0.01, 0, 0, 0])
+            val = np.array([0, 0, 0.001, 0, 0, 0])
         elif ord('e') in action:
-            val = np.array([0, 0, -0.01, 0, 0, 0])
+            val = np.array([0, 0, -0.001, 0, 0, 0])
         elif ord('z') in action:
-            val = np.array([0, 0, 0, 0.01, 0, 0])
+            val = np.array([0, 0, 0, 0.001, 0, 0])
         elif ord('c') in action:
-            val = np.array([0, 0, 0, -0.01, 0, 0])
+            val = np.array([0, 0, 0, -0.001, 0, 0])
         elif ord('x') in action:
-            val = np.array([0, 0, 0, 0, 0.01, 0])
+            val = np.array([0, 0, 0, 0, 0.001, 0])
         elif ord('v') in action:
             val = np.array([0, 0, 0, 0, -0.01, 0])
         elif ord('r') in action:
@@ -79,9 +79,14 @@ if __name__ == "__main__":
         elif ord('t') in action:
             env.reset()
         else:
-            val = np.array([0, 0, 0, 0, 0, 0])
+            val = np.array([0.,0.,0., 0, 0, 0])
         # print(val)
         observation, reward, terminated, truncated, infos = env.step(val)
+        # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
+        #get base position and orientation
+        base_pos, base_quat = env.pyb.con.getBasePositionAndOrientation(env.ur5.ur5_robot)
+        # print(base_pos, base_quat)
+        print(env.ur5.get_current_pose(0))
         # print(env.ur5.get_joint_angles())
         # print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[6])
         # print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[7])
@@ -90,10 +95,16 @@ if __name__ == "__main__":
         # print(infos)
         # print(observation['desired_goal'], observation['achieved_goal'])
         # env.render()
-        jacobian = env.pyb.con.calculateJacobian(env.ur5.ur5_robot, env.ur5.end_effector_index, [0, 0, 0],
-                                             env.ur5.get_joint_angles(), [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
-        jacobian = np.vstack(jacobian)
-        condition_number = np.linalg.cond(jacobian)
+        # jacobian = env.pyb.con.calculateJacobian(env.ur5.ur5_robot, env.ur5.end_effector_index, [0, 0, 0],
+        #                                      env.ur5.get_joint_angles(), [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
+        # jacobian = np.vstack(jacobian)
+        # condition_number = np.linalg.cond(jacobian)
+        # print("as", jacobian)
+        # jacobian = env.pyb.con.calculateJacobian(env.ur5.ur5_robot, env.ur5.tool0_link_index, [0, 0, 0],
+        #                                      env.ur5.get_joint_angles(), [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
+        # jacobian = np.vstack(jacobian)
+        # condition_number = np.linalg.cond(jacobian)
+        # print(jacobian)
         # print(condition_number, 1 / condition_number)
         # # print(env.get_joint_angles())
         # print(env.target_dist)

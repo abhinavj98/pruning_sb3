@@ -73,8 +73,12 @@ class PruningEnv(gym.Env):
         self.optical_flow_subproc = optical_flow_subproc
         self.algo_width = algo_width
         self.algo_height = algo_height
+        #Camera params
         self.cam_width = cam_width
         self.cam_height = cam_height
+        self.pan = 0
+        self.tilt = 0
+        self.xyz_offset = np.zeros(3)
 
         if self.use_optical_flow:
             if not self.optical_flow_subproc:
@@ -253,6 +257,11 @@ class PruningEnv(gym.Env):
         distance_from_goal, random_point = self.sample_point(self.name, self.episode_counter,
                                                              self.tree.curriculum_points[self.curriculum_level])
         print("Distance from goal: ", distance_from_goal, "Point: ", random_point)
+        pan_bounds = (-2, 2)
+        tilt_bounds = (-2, 2)
+        self.pan = np.radians(np.random.uniform(*pan_bounds))
+        self.tilt = np.radians(2 + np.random.uniform(*tilt_bounds))
+        self.xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.01, 0.0005, 0.01])
 
         # Move to pybullet class
         """Display red line as point"""
@@ -414,7 +423,8 @@ class PruningEnv(gym.Env):
         point_mask = np.zeros((self.pyb.cam_height, self.pyb.cam_width), dtype=np.float32)
 
         proj_matrix = np.asarray(self.pyb.proj_mat).reshape([4, 4], order="F")
-        view_matrix = np.asarray(self.ur5.get_view_mat_at_curr_pose()).reshape([4, 4], order="F")
+        view_matrix = np.asarray(self.ur5.get_view_mat_at_curr_pose(pan=self.pan, tilt=self.tilt, xyz_offset=self.xyz_offset
+                                                                    )).reshape([4, 4], order="F")
         projection = proj_matrix @ view_matrix @ np.array(
             [self.tree_goal_pos[0], self.tree_goal_pos[1], self.tree_goal_pos[2], 1])
         # Normalize by w
@@ -438,7 +448,7 @@ class PruningEnv(gym.Env):
 
     def get_depth_proxy(self, use_optical_flow, optical_flow_subproc, prev_rgb):
         #TODO: Make this faster
-        rgb, depth = self.pyb.get_rgbd_at_cur_pose('robot', self.ur5.get_view_mat_at_curr_pose())
+        rgb, depth = self.pyb.get_rgbd_at_cur_pose('robot', self.ur5.get_view_mat_at_curr_pose(pan=self.pan, tilt=self.tilt, xyz_offset=self.xyz_offset))
         point_mask = self.compute_deprojected_point_mask()
         if use_optical_flow:
             # if subprocvenv add the rgb to the queue and wait for the optical flow to be calculated
@@ -524,7 +534,7 @@ class PruningEnv(gym.Env):
         if "record" in self.name:
             # add sphere
             sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1], )
-            rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot', self.ur5.get_view_mat_at_curr_pose())
+            rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot', self.ur5.get_view_mat_at_curr_pose(pan=self.pan, tilt=self.tilt, xyz_offset=self.xyz_offset))
             # remove sphere
             self.observation_info['rgb'] = rgb
             self.pyb.con.removeBody(sphere)

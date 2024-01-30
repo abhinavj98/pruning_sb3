@@ -272,14 +272,9 @@ class UR5:
         return tf
 
     # TODO: Better types for getCameraImage
-    def get_view_mat_at_curr_pose(self) -> np.ndarray:
+    def get_view_mat_at_curr_pose(self, pan, tilt, xyz_offset) -> np.ndarray:
         """Get view matrix at current pose"""
         pose, orientation = self.get_current_pose(self.tool0_link_index)
-        pan_bounds = (-2, 2)
-        tilt_bounds = (-2, 2)
-        pan = np.radians(np.random.uniform(*pan_bounds))
-        tilt = np.radians(2 + np.random.uniform(*tilt_bounds))
-        xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.01, 0.0005, 0.01])
 
         camera_tf = self.create_camera_transform(pose, orientation, pan, tilt, xyz_offset)
 

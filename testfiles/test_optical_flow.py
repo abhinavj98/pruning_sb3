@@ -83,29 +83,29 @@ if __name__ == "__main__":
         action = get_key_pressed(env)
         # if action is wasd, then move the robot
         if ord('a') in action:
-            val = np.array([0.01, 0, 0, 0, 0, 0])
+            val = np.array([0.001, 0, 0, 0, 0, 0])
         elif ord('d') in action:
-            val = np.array([-0.01, 0, 0, 0, 0, 0])
+            val = np.array([-0.001, 0, 0, 0, 0, 0])
         elif ord('s') in action:
-            val = np.array([0, 0.01, 0, 0, 0, 0])
+            val = np.array([0, 0.001, 0, 0, 0, 0])
         elif ord('w') in action:
-            val = np.array([0, -0.01, 0, 0, 0, 0])
+            val = np.array([0, -0.001, 0, 0, 0, 0])
         elif ord('q') in action:
-            val = np.array([0, 0, 0.01, 0, 0, 0])
+            val = np.array([0, 0, 0.001, 0, 0, 0])
         elif ord('e') in action:
-            val = np.array([0, 0, -0.01, 0, 0, 0])
+            val = np.array([0, 0, -0.001, 0, 0, 0])
         elif ord('z') in action:
-            val = np.array([0, 0, 0, 0.01, 0, 0])
+            val = np.array([0, 0, 0, 0.001, 0, 0])
         elif ord('c') in action:
-            val = np.array([0, 0, 0, -0.01, 0, 0])
+            val = np.array([0, 0, 0, -0.001, 0, 0])
         elif ord('x') in action:
-            val = np.array([0, 0, 0, 0, 0.01, 0])
+            val = np.array([0, 0, 0, 0, 0.001, 0])
         elif ord('v') in action:
-            val = np.array([0, 0, 0, 0, -0.01, 0])
+            val = np.array([0, 0, 0, 0, -0.001, 0])
         elif ord('r') in action:
-            val = np.array([0, 0, 0, 0, 0, 0.01])
+            val = np.array([0, 0, 0, 0, 0, 0.001])
         elif ord('f') in action:
-            val = np.array([0, 0, 0, 0, 0, -0.01])
+            val = np.array([0, 0, 0, 0, 0, -0.001])
         elif ord('t') in action:
             env.reset()
         else:
@@ -114,5 +114,5 @@ if __name__ == "__main__":
         observation, reward, terminated, truncated, infos = env.step(val)
         grid = [th.tensor(env.prev_observation_info[
                                                     'rgb']), th.tensor(env.observation_info[
-                                                    'rgb']), th.tensor(env.observation['depth_proxy'][0]), th.tensor(env.observation["depth_proxy"][1]), th.tensor(env.observation['depth_proxy'][2])]# - th.mean(th.tensor(env.observation["depth"][0], dtype=th.float32))]
+                                                    'rgb']), th.tensor(env.observation['depth_proxy'][0]*10), th.tensor(env.observation["depth_proxy"][1]*10), th.tensor(env.observation['depth_proxy'][2])]# - th.mean(th.tensor(env.observation["depth"][0], dtype=th.float32))]
         plot(grid, axs)
