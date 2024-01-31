@@ -20,16 +20,18 @@ class Tree:
                  pos: NDArray[Shape['3,1'], Float] = np.array([0, 0, 0]),
                  orientation: NDArray[Shape['4,1'], Float] = np.array([0, 0, 0, 1]),
                  num_points: Optional[int] = None, scale: int = 1, curriculum_distances: Tuple = (-0.1,),
-                 curriculum_level_steps: Tuple = ()) -> None:
+                 curriculum_level_steps: Tuple = (), reset_count = 0) -> None:
 
 
         assert len(curriculum_distances) - 1 == len(curriculum_level_steps)
+
         self.urdf_path = urdf_path
         self.env = env
         self.pyb = pyb
         self.scale = scale
         self.pos = pos
         self.orientation = orientation
+        self.obj_path = obj_path
         self.tree_obj = pywavefront.Wavefront(obj_path, create_materials=True, collect_faces=True)
         self.vertex_and_projection = []
         self.transformed_vertices = list(map(self.transform_obj_vertex, self.tree_obj.vertices))
@@ -43,7 +45,8 @@ class Tree:
         self.reachable_points = []
         self.curriculum_points = dict()
         self.curriculum_distances = curriculum_distances
-
+        self.curriculum_level_steps = curriculum_level_steps
+        self.reset_count = reset_count
         self.supports = None
         self.tree_id = None
 
@@ -58,6 +61,7 @@ class Tree:
                 self.reachable_points = pickle.load(f)
             print('Loaded reachable points from pickle file ', pkl_path)
             print("Number of reachable points: ", len(self.reachable_points))
+
             # # Uncomment to visualize sphere at each reachable point
             # self.active()
             # for num, i in enumerate(self.reachable_points):
@@ -140,7 +144,7 @@ class Tree:
 
             # self.vertex_and_projection.append(
             #     ((self.transformed_vertices[ac[0]] + self.transformed_vertices[ac[1]]) / 2, perpendicular_projection))
-            scale = np.random.rand()
+            scale = np.random.uniform()
             tree_point = ((1-scale)*self.transformed_vertices[ab[0]] + scale*self.transformed_vertices[ab[1]])
             self.vertex_and_projection.append((tree_point, perpendicular_projection,
                  normal_vec))
@@ -238,6 +242,9 @@ class Tree:
         if self.num_points:
             self.reachable_points = self.reachable_points[0:self.num_points]
         print("Number of reachable points: ", len(self.reachable_points))
+        if len(self.reachable_points) < 1:
+            print("No points in reachable points", self.urdf_path)
+            self.reset_tree()
 
         return self.reachable_points
 
@@ -253,40 +260,33 @@ class Tree:
             #randomize position TOOO:
             randomize = True
             if randomize:
-                pos = pos + np.random.rand(3) * np.array([0.25, 0.1, 0.2])
-                orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi / 180 * 15)
+                pos = pos + np.random.uniform(low = -1, high=1, size = (3,)) * np.array([0.4, 0.1, 0.6])
+                pos[2] = pos[2] - 0.6
+                orientation = pybullet.getQuaternionFromEuler(np.random.uniform(low = -1, high=1, size = (3,)) * np.pi / 180 * 15)
             trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
                               num_points=num_points, curriculum_distances=curriculum_distances,
                               curriculum_level_steps=curriculum_level_steps))
         return trees
 
-    # def make_curriculum(self, init_or):
-    #     #TODO: Fix this
-    #     for level, distance in enumerate(self.curriculum_distances):
-    #         self.curriculum_points[level] = []
-    #         if distance > 0.25:
-    #             self.curriculum_points[level] = [(distance, i) for i in self.reachable_points]
-    #         else:
-    #             for point in self.reachable_points:
-    #                 collision = False
-    #                 start_point = point[0] + np.array([0, distance, 0])
-    #                 # print(start_point, point[0])
-    #                 # set ik to this point
-    #                 j_angles = self.env.ur5.calculate_ik(start_point, init_or)
-    #                 self.env.ur5.set_joint_angles(j_angles)
-    #                 for i in range(100):
-    #                     self.pyb.con.stepSimulation()
-    #                     # check collision
-    #                     collisions = self.env.ur5.check_collisions(self.env.tree.tree_id, self.env.tree.supports)
-    #                     if collisions[0]:
-    #                         collision = True
-    #                         break
-    #                 start_condition_number = self.env.ur5.get_condition_number()
-    #                 if not collision and start_condition_number < 200:
-    #                     self.curriculum_points[level].append((distance, point))
-    #
-    #         print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
-    def make_curriculum(self, init_or):
+
+    def reset_tree(self):
+        self.reset_count += 1
+        if self.reset_count > 10:
+            print("Reset count exceeded for tree ", self.urdf_path)
+            return
+        self.pos = np.array([0,0,0.6]) + np.random.uniform(low = -1, high=1, size = (3,)) * np.array([0.4, 0.5, 2])
+        self.pos[2] = self.pos[2] - 2
+        orientation = pybullet.getQuaternionFromEuler(np.random.uniform(low = -1, high=1, size = (3,)) * np.pi / 180 * 15)
+        self.__init__(self.env, self.pyb, urdf_path=self.urdf_path, obj_path=self.obj_path, pos=self.pos, orientation=orientation, scale=self.scale,
+                              num_points=self.num_points, curriculum_distances=self.curriculum_distances,
+                              curriculum_level_steps=self.curriculum_level_steps, reset_count=self.reset_count)
+
+        self.make_curriculum()
+        # self.tree = Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
+        #                       num_points=num_points, curriculum_distances=curriculum_distances,
+        #                       curriculum_level_steps=curriculum_level_steps))
+
+    def make_curriculum(self, init_or = None):
         # self.env.ur5.remove_ur5_robot()
         # self.env.ur5.setup_ur5_arm()
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
@@ -316,5 +316,8 @@ class Tree:
                 #     pickle.dump(self.curriculum_points[level], f)
 
             # if pkl path exists else create
+            if len(self.curriculum_points[level]) < 1:
+                print("No points in curriculum level ", level)
+                self.reset_tree()
 
             print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
