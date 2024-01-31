@@ -2,7 +2,7 @@ import glob
 import os
 import pickle
 from typing import Optional, Tuple, List
-
+import pybullet
 import numpy as np
 import pywavefront
 from nptyping import NDArray, Shape, Float
@@ -191,6 +191,10 @@ class Tree:
     def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]]) -> bool:
         #TODO: Fix this
         ur5_base_pos = np.array(self.base_xyz)
+        from pruning_sb3.pruning_gym.reward_utils import Reward
+        pcs = Reward.compute_perpendicular_cos_sim(self.env.ur5.init_pos[1], vertice[1])
+        if pcs > 0.8:
+            return False
         if "envy" in self.urdf_path:
             if abs(vertice[0][0]) < 0.05:
                 return False
@@ -246,10 +250,11 @@ class Tree:
                              sorted(glob.glob(trees_obj_path + '/*.obj'))):
             if len(trees) >= num_trees:
                 break
-            #randomize position
+            #randomize position TOOO:
             randomize = True
             if randomize:
-                pos = pos + np.random.rand(3) * 0.1
+                pos = pos + np.random.rand(3) * 0.2
+                orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi / 180 * 15)
             trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
                               num_points=num_points, curriculum_distances=curriculum_distances,
                               curriculum_level_steps=curriculum_level_steps))

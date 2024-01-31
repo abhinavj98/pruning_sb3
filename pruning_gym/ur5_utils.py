@@ -7,6 +7,7 @@ from numpy import ndarray
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 import numpy as np
+import pybullet
 
 from nptyping import NDArray, Shape, Float
 from collections import namedtuple
@@ -48,7 +49,12 @@ class UR5:
         self.success_link_index = 14
         self.base_index = 3
         flags = self.con.URDF_USE_SELF_COLLISION
-        self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, self.pos, [0, 0, 0, 1], flags=flags)
+        #randomize pos TODO
+        randomize = True
+        if randomize:
+            pos = self.pos + np.random.rand(3) * 0.05
+            orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi/180*10)
+        self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, pos, orientation, flags=flags)
 
         self.num_joints = self.con.getNumJoints(self.ur5_robot)
         self.control_joints = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint",
