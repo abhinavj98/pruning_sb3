@@ -246,6 +246,10 @@ class Tree:
                              sorted(glob.glob(trees_obj_path + '/*.obj'))):
             if len(trees) >= num_trees:
                 break
+            #randomize position
+            randomize = True
+            if randomize:
+                pos = pos + np.random.rand(3) * 0.1
             trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
                               num_points=num_points, curriculum_distances=curriculum_distances,
                               curriculum_level_steps=curriculum_level_steps))

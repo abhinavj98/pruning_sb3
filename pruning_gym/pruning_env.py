@@ -215,6 +215,7 @@ class PruningEnv(gym.Env):
     def sample_point(name, episode_counter, curriculum_points) -> Tuple[
         Tuple[float, float, float], Tuple[float, float, float]]:
         """Sample a point from the tree"""
+        #calculate perpendicular cosine similarity
         if "eval" in name:
             distance, random_point = curriculum_points[episode_counter % len(curriculum_points)]
             print("Eval counter: ", episode_counter, "Point: ", random_point, "points ", len(curriculum_points))
@@ -252,10 +253,15 @@ class PruningEnv(gym.Env):
         #self.pyb.enable_gravity()
         # Make this a new function that supports curriculum
         # Set curriculum level
-
+        random_point = None
         # Sample new point
-        distance_from_goal, random_point = self.sample_point(self.name, self.episode_counter,
+        while random_point is None:
+            distance_from_goal, random_point = self.sample_point(self.name, self.episode_counter,
                                                              self.tree.curriculum_points[self.curriculum_level])
+            pcs = Reward.compute_perpendicular_cos_sim(self.ur5.init_pos[1], random_point[1])
+            if pcs > 0.8:
+                random_point = None
+
         print("Distance from goal: ", distance_from_goal, "Point: ", random_point)
         pan_bounds = (-2, 2)
         tilt_bounds = (-2, 2)
@@ -329,7 +335,7 @@ class PruningEnv(gym.Env):
         self.pyb.remove_debug_items("step")
 
         self.action[:3] = action[:3] * self.action_scale
-        self.action[3:] = action[3:] * self.action_scale * 5
+        self.action[3:] = action[3:] * self.action_scale
         self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
         singularity = self.ur5.set_joint_velocities(self.ur5.action)
 
