@@ -167,7 +167,7 @@ args = {
 
         'n_envs': {
             'type': int,
-            'default': 1,
+            'default': 2,
             'help': 'number of parallel environments to run'
         },
         'run_name': {

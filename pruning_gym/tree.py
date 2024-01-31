@@ -91,11 +91,11 @@ class Tree:
             #         self.sphereUid = self.pyb.con.createMultiBody(0.0, -1, visualShapeId, [i[0][0], i[0][1], i[0][2]],
             #                                               [0, 0, 0, 1])
             #     input("Press Enter to continue...")
-            with open(pkl_path, 'wb') as f:
-                pickle.dump(self.reachable_points, f)
-
-            print('Saved reachable points to pickle file ', self.urdf_path[:-5] + '_reachable_points.pkl')
-            print("Number of reachable points: ", len(self.reachable_points))
+            # with open(pkl_path, 'wb') as f:
+            #     pickle.dump(self.reachable_points, f)
+            #
+            # print('Saved reachable points to pickle file ', self.urdf_path[:-5] + '_reachable_points.pkl')
+            # print("Number of reachable points: ", len(self.reachable_points))
 
         # if self.curriculum_distances:
         #     self.make_curriculum(self.curriculum_distances)
@@ -253,7 +253,7 @@ class Tree:
             #randomize position TOOO:
             randomize = True
             if randomize:
-                pos = pos + np.random.rand(3) * 0.2
+                pos = pos + np.random.rand(3) * np.array([0.25, 0.1, 0.2])
                 orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi / 180 * 15)
             trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
                               num_points=num_points, curriculum_distances=curriculum_distances,

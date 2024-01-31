@@ -83,6 +83,7 @@ class PruningEnv(gym.Env):
         if self.use_optical_flow:
             if not self.optical_flow_subproc:
                 self.optical_flow_model = OpticalFlow(subprocess=False)
+
         #     self.optical_flow_model = OpticalFlow()
         # Reward variables
 
@@ -216,6 +217,9 @@ class PruningEnv(gym.Env):
         Tuple[float, float, float], Tuple[float, float, float]]:
         """Sample a point from the tree"""
         #calculate perpendicular cosine similarity
+        if len(curriculum_points) == 0:
+            print("No points in curriculum")
+            return None, None
         if "eval" in name:
             distance, random_point = curriculum_points[episode_counter % len(curriculum_points)]
             print("Eval counter: ", episode_counter, "Point: ", random_point, "points ", len(curriculum_points))
@@ -255,12 +259,12 @@ class PruningEnv(gym.Env):
         # Set curriculum level
         random_point = None
         # Sample new point
-        while random_point is None:
-            distance_from_goal, random_point = self.sample_point(self.name, self.episode_counter,
-                                                             self.tree.curriculum_points[self.curriculum_level])
-            pcs = Reward.compute_perpendicular_cos_sim(self.ur5.init_pos[1], random_point[1])
-            if pcs > 0.8:
-                random_point = None
+
+        distance_from_goal, random_point = self.sample_point(self.name, self.episode_counter,
+                                                         self.tree.curriculum_points[self.curriculum_level])
+        if random_point is None:
+            self.reset()
+        pcs = Reward.compute_perpendicular_cos_sim(self.ur5.init_pos[1], random_point[1])
 
         print("Distance from goal: ", distance_from_goal, "Point: ", random_point)
         pan_bounds = (-2, 2)
@@ -460,8 +464,9 @@ class PruningEnv(gym.Env):
         if use_optical_flow:
             # if subprocvenv add the rgb to the queue and wait for the optical flow to be calculated
             if optical_flow_subproc:
-                self.shared_queue.put((rgb, prev_rgb, self.pid))
+                self.shared_queue.put((rgb, prev_rgb, self.pid, self.name))
                 while not self.pid in self.shared_dict.keys():
+                    # print("Waiting for optical flow", self.name, self.pid, self.shared_queue)
                     pass
                 optical_flow = self.shared_dict[self.pid]
                 depth_proxy = np.concatenate((optical_flow, point_mask))

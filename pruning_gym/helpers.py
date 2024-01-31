@@ -83,7 +83,7 @@ def set_seed(seed: int = 42) -> None:
     print(f"Random seed set as {seed}")
 
 
-def optical_flow_create_shared_vars():
+def optical_flow_create_shared_vars(num_envs: int = 1):
     manager = mp.Manager()
     # queue = multiprocessing.Queue()
     shared_dict = manager.dict()
@@ -93,7 +93,7 @@ def optical_flow_create_shared_vars():
         ctx = mp.get_context("forkserver")
     else:
         ctx = mp.get_context("spawn")
-    process = ctx.Process(target=OpticalFlow, args=((224, 224), True, shared_var),
+    process = ctx.Process(target=OpticalFlow, args=((224, 224), True, shared_var, num_envs),
                           daemon=True)  # type: ignore[attr-defined]
     # pytype: enable=attribute-error
     process.start()
