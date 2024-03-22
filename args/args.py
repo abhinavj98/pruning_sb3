@@ -108,11 +108,16 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.6,)
+            'default': (0.8,)
         },
         'curriculum_level_steps': {
             'type': tuple,
             'default': ()
+        },
+        'tree_count': {
+            'type': int,
+            'default': 100,
+            'help': 'number of trees to load'
         },
 
     },
@@ -135,12 +140,12 @@ args = {
         },
         'num_points': {
             'type': int,
-            'default': 20,
+            'default': 40,
             'help': 'number of points to sample in a tree during evaluation'
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.6,)
+            'default': (0.8,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -172,7 +177,7 @@ args = {
 
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.6,)
+            'default': (0.8,)
         },
         'curriculum_level_steps': {
             'type': tuple,

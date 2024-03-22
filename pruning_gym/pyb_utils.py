@@ -150,11 +150,20 @@ class pyb_utils:
         depth = self.linearize_depth(depth, self.far_val, self.near_val) - 0.5
         return rgb, depth
 
-    def visualize_points(self, points: List):
+    def visualize_points(self, points: List, type: str) -> None:
         dx = 0.1
         for point in points:
-            loc = point[1][0]
-            branch = point[1][1]
+            if type == "curriculum":
+                loc = point[1][0]
+                branch = point[1][1]
+                normal_vec = point[1][2]
+            elif type == "reachable":
+                loc = point[0]
+                branch = point[1]
+                normal_vec = point[2]
+            #         self.debug_branch = self.pyb.con.addUserDebugLine(point,
+            #                                                       point + 5 * normal_vec / np.linalg.norm(normal_vec),
+            #                                                       [1, 0, 0], 2)
             self.add_debug_item('sphere', 'step', lineFromXYZ=[loc[0],
                                                                loc[1], loc[2]],
                                 lineToXYZ=[loc[0] + 0.005, loc[1] + 0.005, \
@@ -168,7 +177,6 @@ class pyb_utils:
                                            loc[2] + dx * branch[2]],
                                 lineColorRGB=[1, 1, 0],
                                 lineWidth=200)
-        input()
 
     def visualize_rot_mat(self, rot_mat: List, pos):
         dx = 0.1

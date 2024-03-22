@@ -1,6 +1,6 @@
 import glob
 import os
-folder = "envy/train"
+folder = "envy/test"
 OBJ_FOLDER = "./meshes_and_urdf/meshes/trees/"+folder
 
 for name in glob.glob(OBJ_FOLDER+'/*.obj'):

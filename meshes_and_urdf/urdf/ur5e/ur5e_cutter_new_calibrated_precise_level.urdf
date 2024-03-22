@@ -58,14 +58,14 @@
         <color rgba="0.7 0.7 0.7 1.0"/>
       </material>
     </visual>
-<!--    <collision>-->
-<!--&lt;!&ndash;	  <origin rpy="0.0 0.0 0.0" xyz="-0.02 0.0 0.0"/>&ndash;&gt;-->
-<!--	  <origin rpy="0.0 0.0 0.0" xyz="0 0.0 -0.3786"/>-->
-<!--      <geometry>-->
-<!--&lt;!&ndash;        <box size="0.04 0.5 0.5"/>&ndash;&gt;-->
-<!--        <box size="0.5 0.5 0.75711"/>-->
-<!--      </geometry>-->
-<!--    </collision>-->
+    <collision>
+<!--	  <origin rpy="0.0 0.0 0.0" xyz="-0.02 0.0 0.0"/>-->
+	  <origin rpy="0.0 0.0 0.0" xyz="0 0.0 -0.3786"/>
+      <geometry>
+<!--        <box size="0.04 0.5 0.5"/>-->
+        <box size="0.5 0.5 0.75711"/>
+      </geometry>
+    </collision>
     <inertial>
       <mass value="4.0"/>
       <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
@@ -394,7 +394,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0.0"/>
       <geometry>
-        <mesh filename="ur5e/visual/cutter_top_mount.obj" scale="1.0 1.0 1.0 "/>
+        <mesh filename="ur5e/visual/cutter_top_mount_for_rotation.obj" scale="1.0 1.0 1.0 "/>
       </geometry>
       <material name="LightGrey" />
     </visual>
@@ -402,7 +402,7 @@
      <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="ur5e/collision/cutter_top_mount.obj" scale="1.0 1.0 1.0"/>
+        <mesh filename="ur5e/collision/cutter_top_mount_for_rotation.obj" scale="1.0 1.0 1.0"/>
       </geometry>
     </collision>
 

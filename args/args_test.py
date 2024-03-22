@@ -94,12 +94,12 @@ args = {
         },
         'tree_urdf_path': {
             'type': str,
-            'default': './meshes_and_urdf/urdf/trees/envy/test',
+            'default': './meshes_and_urdf/urdf/trees/envy/train',
             'help': 'path to the train URDF file for the tree environment'
         },
         'tree_obj_path': {
             'type': str,
-            'default': './meshes_and_urdf/meshes/trees/envy/test',
+            'default': './meshes_and_urdf/meshes/trees/envy/train',
             'help': 'path to the train OBJ file for the tree environment'
         },
         'renders': {
@@ -109,13 +109,18 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.6,)
+            'default': (0.8,)
             # 'default': (0.25, 0.35, 0.5)
         },
         'curriculum_level_steps': {
             'type': tuple,
             'default': ()
             # 'default': (1200, 7200)
+        },
+        'tree_count': {
+            'type': int,
+            'default': 3,
+            'help': 'number of trees to load'
         },
 
     },
@@ -143,7 +148,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.6,)
+            'default': (0.8,)
         },
         'curriculum_level_steps': {
             'type': tuple,

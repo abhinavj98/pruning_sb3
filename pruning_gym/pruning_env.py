@@ -40,7 +40,7 @@ class PruningEnv(gym.Env):
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  use_optical_flow: bool = False, optical_flow_subproc: bool = False,
                  shared_var: Tuple[Optional[Any], Optional[Any]] = (None, None), scale: bool = False,
-                 curriculum_distances: Tuple = (0.26,), curriculum_level_steps: Tuple = (),
+                 curriculum_distances: Tuple = (0.8,), curriculum_level_steps: Tuple = (),
                  use_ik: bool = True) -> None:
         super(PruningEnv, self).__init__()
 
@@ -162,7 +162,8 @@ class PruningEnv(gym.Env):
         for tree in self.trees:
             self.tree = tree
             self.tree.active()
-            tree.make_curriculum(self.ur5.init_pos[1])
+            tree.make_curriculum()
+            self.pyb.visualize_points(tree.curriculum_points[0], "curriculum")
             self.tree.inactive()
 
         self.tree = random.sample(self.trees, 1)[0]

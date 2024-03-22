@@ -50,10 +50,13 @@ class UR5:
         self.base_index = 3
         flags = self.con.URDF_USE_SELF_COLLISION
         #randomize pos TODO
-        randomize = True
+        randomize = False
         if randomize:
             pos = self.pos + np.random.rand(3) * 0.05
             orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi/180*10)
+        else:
+            pos = self.pos
+            orientation = pybullet.getQuaternionFromEuler([0, 0, 0])
         self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, pos, orientation, flags=flags)
 
         self.num_joints = self.con.getNumJoints(self.ur5_robot)
@@ -84,12 +87,12 @@ class UR5:
                                                force=0)
             self.joints[info.name] = info
 
-        self.set_collision_filter()
-
+        # self.set_collision_filter()
         self.init_joint_angles = (-np.pi / 2, -2., 2.16, -3.14, -1.57, np.pi)
         self.set_joint_angles(self.init_joint_angles)
         for _ in range(100):
             self.con.stepSimulation()
+
         self.init_pos = self.con.getLinkState(self.ur5_robot, self.end_effector_index)
         self.action = np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
         self.joint_angles = np.array(self.init_joint_angles).astype(np.float32)
@@ -103,6 +106,14 @@ class UR5:
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 10, 11, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 7, 11, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 6, 11, 0)
+
+    def unset_collision_filter(self):
+        # TO SET CUTTER DISABLE COLLISIONS WITH SELF
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 9, 11, 1)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 8, 11, 1)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 10, 11, 1)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 7, 11, 1)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 6, 11, 1)
 
     def disable_self_collision(self):
         for i in range(self.num_joints):
