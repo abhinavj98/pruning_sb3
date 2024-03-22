@@ -417,13 +417,21 @@ class CustomEvalCallback(EventCallback):
             for key in self._info_dict.keys():
                 self.logger.record("eval/"+key, np.mean(self._info_dict[key]))
 
+
+            #Save current model
+            if self.best_model_save_path is not None:
+                self.model.save(os.path.join(self.best_model_save_path, "current_model"))
+                with open(os.path.join(self.best_model_save_path, "current_mean_std.pkl"), "wb") as f:
+                    pickle.dump(self.model.policy.running_mean_var_oflow, f)
+
             if mean_reward > self.best_mean_reward:
                 if self.verbose >= 1:
                     print("New best mean reward!")
                 if self.best_model_save_path is not None:
                     self.model.save(os.path.join(self.best_model_save_path, "best_model"))
-                    with open(os.path.join(self.best_model_save_path, "mean_std.pkl"), "wb") as f:
+                    with open(os.path.join(self.best_model_save_path, "best_mean_std.pkl"), "wb") as f:
                         pickle.dump(self.model.policy.running_mean_var_oflow, f)
+
                 self.best_mean_reward = mean_reward
                 # Trigger callback on new best model, if needed
                 if self.callback_on_new_best is not None:
