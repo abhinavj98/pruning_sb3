@@ -20,7 +20,7 @@ args = {
         },
         'optical_flow_subproc': {
             'type': bool,
-            'default': True
+            'default': False
         },
         # Reward parameters
         'movement_reward_scale': {

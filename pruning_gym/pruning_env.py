@@ -11,7 +11,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from nptyping import NDArray, Shape, Float
-
+import time
 from .optical_flow import OpticalFlow
 
 from .tree import Tree
@@ -25,7 +25,7 @@ import torch.nn.functional as F
 import copy
 #TODO: Write test cases for this file
 class PruningEnv(gym.Env):
-    metadata = {'render.modes': ['rgb_array']}
+    metadata = {'render.modes': ['rgb_array', 'human']}
 
     # optical_flow_model = OpticalFlow()
 
@@ -54,8 +54,8 @@ class PruningEnv(gym.Env):
         self.pid = os.getpid()
         # self.shared_dict[self.pid] = None
         # Pybullet GUI variables
+        self.render_mode = "rgb_array"
         self.renders = renders
-        self.render_mode = 'rgb_array'
         self.eval = evaluate
         # Obj/URDF paths
         self.tree_urdf_path = tree_urdf_path
@@ -161,10 +161,10 @@ class PruningEnv(gym.Env):
 
         for tree in self.trees:
             self.tree = tree
-            self.tree.active()
+            #self.tree.active()
             tree.make_curriculum()
-            self.pyb.visualize_points(tree.curriculum_points[0], "curriculum")
-            self.tree.inactive()
+            #self.pyb.visualize_points(tree.curriculum_points[0], "curriculum")
+            #self.tree.inactive()
 
         self.tree = random.sample(self.trees, 1)[0]
         self.tree.active()
@@ -408,7 +408,7 @@ class PruningEnv(gym.Env):
         # v26
         return self.observation, reward, terminated, truncated, infos
 
-    def render(self, mode="rgb_array") -> NDArray:  # type: ignore
+    def render(self, mode=None) -> NDArray:  # type: ignore
         sphere = -1
         if "record" in self.name:
             #add sphere
@@ -467,13 +467,12 @@ class PruningEnv(gym.Env):
             if optical_flow_subproc:
                 self.shared_queue.put((rgb, prev_rgb, self.pid, self.name))
                 while not self.pid in self.shared_dict.keys():
-                    # print("Waiting for optical flow", self.name, self.pid, self.shared_queue)
                     pass
                 optical_flow = self.shared_dict[self.pid]
                 depth_proxy = np.concatenate((optical_flow, point_mask))
                 del self.shared_dict[self.pid]
             else:
-                optical_flow = self.optical_flow_model.calculate_optical_flow(rgb, prev_rgb)
+                optical_flow = self.optical_flow_model.calculate_optical_flow(rgb, prev_rgb)[0]
                 depth_proxy = np.concatenate((optical_flow, point_mask))
         else:
             depth_proxy = np.expand_dims(depth.astype(np.float32), axis=0)
@@ -558,7 +557,7 @@ class PruningEnv(gym.Env):
         # NOTE: need to call compute_reward before this to check termination!
         time_limit_exceeded = self.step_counter >= self.maxSteps
         goal_achieved = self.terminated
-        c = (self.terminated is True or self.step_counter > self.maxSteps)
+        c = self.step_counter > self.maxSteps#(self.terminated is True or self.step_counter > self.maxSteps)
         terminate_info = {"time_limit_exceeded": time_limit_exceeded,
                           "goal_achieved": goal_achieved}
         return c, terminate_info

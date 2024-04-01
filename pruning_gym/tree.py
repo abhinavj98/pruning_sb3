@@ -145,6 +145,7 @@ class Tree:
             self.projection_sum_x2 / len(self.vertex_and_projection) - self.projection_mean ** 2)
 
     def active(self):
+        print("activating tree")
         assert self.tree_id is None
         assert self.supports is None
         print('Loading tree from ', self.urdf_path)

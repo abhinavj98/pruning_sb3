@@ -37,9 +37,9 @@ if __name__ == "__main__":
     add_arg_to_env('shared_var', shared_var, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
 
     if parsed_args_dict['args_global']['load_path']:
-        load_path_model = "./logs/{}/best_model.zip".format(
+        load_path_model = "./logs/{}/current_model.zip".format(
             parsed_args_dict['args_global']['load_path'])
-        load_path_mean_std = "./logs/{}/mean_std.pkl".format(
+        load_path_mean_std = "./logs/{}/current_mean_std.pkl".format(
             parsed_args_dict['args_global']['load_path'])
     else:
         load_path_model = None
@@ -100,8 +100,8 @@ if __name__ == "__main__":
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
         
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
-        model.num_timesteps = 3_000_000
-        model._num_timesteps_at_start = 3_000_000
+        model.num_timesteps = 2_500_000
+        model._num_timesteps_at_start = 2_500_000
         print("LOADED MODEL")
     model.set_logger(new_logger)
     print("Using device: ", utils.get_device())

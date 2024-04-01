@@ -34,9 +34,10 @@ class OpticalFlow:
                 previous_rgb_array.append(previous_rgb)
                 pid_list.append(pid)
                 # print(name)
+                # Different queues for record/eval/test
                 if "test" in name or "eval" in name or "record" in name:
                     break
-            # print(len(pid_list))
+                #print("of len", len(pid_list))
             optical_flow = self.calculate_optical_flow(rgb_array, previous_rgb_array)
 
             for i, pid in enumerate(pid_list):
@@ -52,6 +53,9 @@ class OpticalFlow:
         #convert to np array
         current_rgb = np.array(current_rgb)
         previous_rgb = np.array(previous_rgb)
+        if len(current_rgb.shape)==3:
+            current_rgb = np.expand_dims(current_rgb, 0)
+            previous_rgb = np.expand_dims(previous_rgb, 0)
         current_rgb, previous_rgb = self._preprocess(th.tensor(current_rgb).permute(0, 3, 1, 2),
                                                      th.tensor(previous_rgb).permute(0, 3, 1, 2))
         with th.no_grad():

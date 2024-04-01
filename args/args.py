@@ -19,12 +19,12 @@ args = {
         },
         'optical_flow_subproc': {
             'type': bool,
-            'default': True
+            'default': False
         },
         # Reward parameters
         'movement_reward_scale': {
             'type': float,
-            'default': 6,
+            'default': 5,
             'help': 'scaling factor for the movement reward'
         },
         'distance_reward_scale': {
@@ -39,7 +39,7 @@ args = {
         },
         'terminate_reward_scale': {
             'type': float,
-            'default': 2,
+            'default': 0.01,
             'help': 'scaling factor for the terminate reward'
         },
         'collision_reward_scale': {
@@ -54,19 +54,19 @@ args = {
         },
         'pointing_orientation_reward_scale': {
             'type': float,
-            'default': 1,
+            'default': 2,
             'help': 'scaling factor for the orientation reward'
         },
         'perpendicular_orientation_reward_scale': {
             'type': float,
-            'default': 5,
+            'default': 3,
             'help': 'scaling factor for the orientation reward'
         },
         # Gym envirionment parameters
 
         'max_steps': {
             'type': int,
-            'default': 150,
+            'default': 100,
             'help': 'maximum number of steps per episode'
         },
         'use_ik': {
@@ -108,7 +108,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.8,)
+            'default': (0.6,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -145,7 +145,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.8,)
+            'default': (0.6,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -177,7 +177,7 @@ args = {
 
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.8,)
+            'default': (0.6,)
         },
         'curriculum_level_steps': {
             'type': tuple,

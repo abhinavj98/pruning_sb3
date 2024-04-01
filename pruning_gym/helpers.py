@@ -11,7 +11,7 @@ import wandb
 from nptyping import NDArray, Shape, Float
 
 from .optical_flow import OpticalFlow
-
+import time
 
 
 def init_wandb(args, name):
@@ -97,6 +97,7 @@ def optical_flow_create_shared_vars(num_envs: int = 1):
                           daemon=True)  # type: ignore[attr-defined]
     # pytype: enable=attribute-error
     process.start()
+    time.sleep(1)
     return shared_var
 
 

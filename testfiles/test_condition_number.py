@@ -35,7 +35,7 @@ if __name__ == "__main__":
     print(parsed_args_dict['args_env']['use_optical_flow'])
     print(parsed_args_dict)
     if parsed_args_dict['args_env']['use_optical_flow'] and parsed_args_dict['args_env']['optical_flow_subproc']:
-        shared_var = optical_flow_create_shared_vars()
+        shared_var = optical_flow_create_shared_vars(parsed_args_dict['args_global']['n_envs'])
     else:
         shared_var = (None, None)
     add_arg_to_env('shared_var', shared_var, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
