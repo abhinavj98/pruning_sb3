@@ -38,7 +38,7 @@ class Tree:
         self.projection_std = np.array(0.)
         self.projection_sum_x = np.array(0.)
         self.projection_sum_x2 = np.array(0.)
-        self.base_xyz = self.e:x1:::nv.ur5.get_current_pose(self.env.ur5.base_index)[0]
+        self.base_xyz = self.env.ur5.get_current_pose(self.env.ur5.base_index)[0]
         self.num_points = num_points
         self.reachable_points = []
         self.curriculum_points = dict()
