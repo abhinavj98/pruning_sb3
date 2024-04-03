@@ -389,7 +389,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 if self.use_sde:
                     self.policy.reset_noise(self.batch_size)
 
-                values, log_prob, entropy, recon = self.policy.evaluate_actions(
+                values, log_prob, entropy, depth_proxy, depth_proxy_recon = self.policy.evaluate_actions(
                     rollout_data.observations,
                     actions,
                     rollout_data.lstm_states,
@@ -427,8 +427,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
                 # Value loss using the TD(gae_lambda) target
                 # Mask padded sequences
-                #TODO: Test
-                ae_l2_loss = self.mse_loss(F.interpolate(rollout_data.observations['depth_proxy'], size=(112, 112)), recon)
+                # TODO: depth proxy no more in obs
+                ae_l2_loss = self.mse_loss(F.interpolate(depth_proxy, size=(112, 112)), depth_proxy_recon)
                 ae_losses.append(ae_l2_loss.item())
                 value_loss = th.mean(((rollout_data.returns - values_pred) ** 2)[mask])
                 # Depth prediction loss
@@ -480,18 +480,14 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
         # Logs
-        for data in self.rollout_buffer.get(1):
-            plot_img = data.observations['depth_proxy']
-        with th.no_grad():
-            _, recon = self.policy.features_extractor(plot_img)
-        of_image = self.normalize_image(recon[0,:2,:,:])
-        plot_img = self.normalize_image(plot_img)
-        of_mask = self.normalize_image(recon[0,2,:,:].unsqueeze(0))
-
+        of_image = self.normalize_image(depth_proxy_recon[0,:2,:,:])
+        plot_img = self.normalize_image(depth_proxy[0, :2, :, :])
+        plot_mask = depth_proxy[0, 2, :, :].unsqueeze(0)
+        of_mask = depth_proxy_recon[0,2,:,:].unsqueeze(0)
         of_image_grid = torchvision.utils.make_grid(
-            [of_image, F.interpolate(plot_img[:,:2,:,:], size=(112, 112)).squeeze(0)])
+            [of_image, F.interpolate(plot_img.unsqueeze(0), size=(112, 112)).squeeze(0)])
         of_mask_grid = torchvision.utils.make_grid(
-            [of_mask, F.interpolate(plot_img[:,2:,:,:], size=(112, 112)).squeeze(0)])
+            [of_mask, F.interpolate(plot_mask.unsqueeze(0), size=(112, 112)).squeeze(0)])
         self.logger.record("autoencoder/of_mask", Image(of_mask_grid, "CHW"))
         self.logger.record("autoencoder/depth_proxy", Image(of_image_grid, "CHW"))
         self.logger.record("train/ae_loss", np.mean(ae_losses))

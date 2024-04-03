@@ -30,11 +30,11 @@ parsed_args_dict = organize_args(parsed_args)
 
 if __name__ == "__main__":
 
-    if parsed_args_dict['args_env']['use_optical_flow'] and parsed_args_dict['args_env']['optical_flow_subproc']:
-        shared_var = optical_flow_create_shared_vars(parsed_args_dict['args_global']['n_envs'])
-    else:
-        shared_var = (None, None)
-    add_arg_to_env('shared_var', shared_var, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
+    # if parsed_args_dict['args_env']['use_optical_flow'] and parsed_args_dict['args_env']['optical_flow_subproc']:
+    #     shared_var = optical_flow_create_shared_vars(parsed_args_dict['args_global']['n_envs'])
+    # else:
+    #     shared_var = (None, None)
+    # add_arg_to_env('shared_var', shared_var, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
 
     if parsed_args_dict['args_global']['load_path']:
         load_path = "../logs/run/best_model.zip"  # "./logs/{}/best_model.zip".format(args.LOAD_PATH)#./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
@@ -95,6 +95,9 @@ if __name__ == "__main__":
                                n_epochs=parsed_args_dict['args_policy']['epochs'])
 
     model.set_logger(new_logger)
+    print("Policy on device: ", model.policy.device)
+    print("Model on device: ", model.device)
+    print("Optical flow on device: ", model.policy.optical_flow_model.device)
     print("Using device: ", utils.get_device())
 
     model.learn(10000000, callback=[train_callback, eval_callback], progress_bar=False, reset_num_timesteps=False)

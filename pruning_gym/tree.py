@@ -236,7 +236,7 @@ class Tree:
                               curriculum_level_steps=self.curriculum_level_steps, reset_count=self.reset_count)
 
         self.make_curriculum()
-        # self.tree = Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
+        # self.tree = Tree(env, pyb_con, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
         #                       num_points=num_points, curriculum_distances=curriculum_distances,
         #                       curriculum_level_steps=curriculum_level_steps))
 

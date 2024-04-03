@@ -18,7 +18,7 @@ from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optic
 
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
-    events = env.pyb.con.getKeyboardEvents()
+    events = env.pyb_con.con.getKeyboardEvents()
     key_codes = events.keys()
     for key in key_codes:
         pressed_keys.append(key)
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     env = PruningEnv(**args_test, tree_count=1)
     env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485, -0.7777109569760938, 3.210501267258541))
     for _ in range(100):
-        env.pyb.con.stepSimulation()
+        env.pyb_con.con.stepSimulation()
     # env.reset()
     val = np.array([0, 0, 0, 0, 0, 0])
     # Use keyboard to move the robot
@@ -84,7 +84,7 @@ if __name__ == "__main__":
         observation, reward, terminated, truncated, infos = env.step(val)
         # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
         #get base position and orientation
-        base_pos, base_quat = env.pyb.con.getBasePositionAndOrientation(env.ur5.ur5_robot)
+        base_pos, base_quat = env.pyb_con.con.getBasePositionAndOrientation(env.ur5.ur5_robot)
         # print(base_pos, base_quat)
         print(env.ur5.get_current_pose(0))
         # print(env.ur5.get_joint_angles())
@@ -95,12 +95,12 @@ if __name__ == "__main__":
         # print(infos)
         # print(observation['desired_goal'], observation['achieved_goal'])
         # env.render()
-        # jacobian = env.pyb.con.calculateJacobian(env.ur5.ur5_robot, env.ur5.end_effector_index, [0, 0, 0],
+        # jacobian = env.pyb_con.con.calculateJacobian(env.ur5.ur5_robot, env.ur5.end_effector_index, [0, 0, 0],
         #                                      env.ur5.get_joint_angles(), [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         # jacobian = np.vstack(jacobian)
         # condition_number = np.linalg.cond(jacobian)
         # print("as", jacobian)
-        # jacobian = env.pyb.con.calculateJacobian(env.ur5.ur5_robot, env.ur5.tool0_link_index, [0, 0, 0],
+        # jacobian = env.pyb_con.con.calculateJacobian(env.ur5.ur5_robot, env.ur5.tool0_link_index, [0, 0, 0],
         #                                      env.ur5.get_joint_angles(), [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         # jacobian = np.vstack(jacobian)
         # condition_number = np.linalg.cond(jacobian)

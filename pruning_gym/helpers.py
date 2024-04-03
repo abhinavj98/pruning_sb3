@@ -84,6 +84,7 @@ def set_seed(seed: int = 42) -> None:
 
 
 def optical_flow_create_shared_vars(num_envs: int = 1):
+    #TODO = make this torch multiprocessing
     manager = mp.Manager()
     # queue = multiprocessing.Queue()
     shared_dict = manager.dict()
@@ -93,6 +94,7 @@ def optical_flow_create_shared_vars(num_envs: int = 1):
         ctx = mp.get_context("forkserver")
     else:
         ctx = mp.get_context("spawn")
+    #replace shared dict and queue with pipe?
     process = ctx.Process(target=OpticalFlow, args=((224, 224), True, shared_var, num_envs),
                           daemon=True)  # type: ignore[attr-defined]
     # pytype: enable=attribute-error

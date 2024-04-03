@@ -12,7 +12,6 @@ import numpy as np
 from gymnasium import spaces
 from nptyping import NDArray, Shape, Float
 import time
-from .optical_flow import OpticalFlow
 
 from .tree import Tree
 from .ur5_utils import UR5
@@ -70,7 +69,7 @@ class PruningEnv(gym.Env):
         self.action_scale = action_scale
         self.terminated = False
         self.use_optical_flow = use_optical_flow
-        self.optical_flow_subproc = optical_flow_subproc
+        # self.optical_flow_subproc = optical_flow_subproc
         self.algo_width = algo_width
         self.algo_height = algo_height
         #Camera params
@@ -79,10 +78,10 @@ class PruningEnv(gym.Env):
         self.pan = 0
         self.tilt = 0
         self.xyz_offset = np.zeros(3)
-
-        if self.use_optical_flow:
-            if not self.optical_flow_subproc:
-                self.optical_flow_model = OpticalFlow(subprocess=False)
+        #
+        # if self.use_optical_flow:
+        #     if not self.optical_flow_subproc:
+        #         self.optical_flow_model = OpticalFlow(subprocess=False)
 
         #     self.optical_flow_model = OpticalFlow()
         # Reward variables
@@ -95,11 +94,25 @@ class PruningEnv(gym.Env):
         self.pyb = pyb_utils(self, renders=renders, cam_height=cam_height, cam_width=cam_width)
 
         self.observation_space = spaces.Dict({
-            'depth_proxy': spaces.Box(low=-1.,
-                                      high=1.0,
-                                      shape=((3, self.algo_height, self.algo_width) if self.use_optical_flow else (
-                                          1, self.algo_height, self.algo_width)),
-                                      dtype=np.float32),
+            # 'depth_proxy': spaces.Box(low=-1.,
+            #                           high=1.0,
+            #                           shape=((3, self.algo_height, self.algo_width) if self.use_optical_flow else (
+            #                               1, self.algo_height, self.algo_width)),
+            #                           dtype=np.uint8),
+
+            #rgb is hwc but pytorch is chw
+            'rgb': spaces.Box(low= 0,
+                              high= 255,
+                              shape=(self.cam_height, self.cam_width, 3),
+                              dtype=np.uint8),
+            'prev_rgb': spaces.Box(low=0.,
+                              high=255,
+                              shape=(self.cam_height, self.cam_width, 3),
+                              dtype=np.uint8),
+            'point_mask':  spaces.Box(low=0.,
+                              high=1.,
+                              shape=(1, self.algo_height, self.algo_width),
+                              dtype=np.float32),
             'desired_goal': spaces.Box(low=-5.,
                                        high=5.,
                                        shape=(3,), dtype=np.float32),
@@ -120,6 +133,7 @@ class PruningEnv(gym.Env):
             'relative_distance': spaces.Box(low=-1., high=1., shape=(3,), dtype=np.float32),
             'critic_perpendicular_cosine_sim': spaces.Box(low=-0., high=1., shape=(1,), dtype=np.float32),
             'critic_pointing_cosine_sim': spaces.Box(low=-0., high=1., shape=(1,), dtype=np.float32),
+
 
         })
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
@@ -163,17 +177,17 @@ class PruningEnv(gym.Env):
             self.tree = tree
             #self.tree.active()
             tree.make_curriculum()
-            #self.pyb.visualize_points(tree.curriculum_points[0], "curriculum")
+            #self.pyb_con.visualize_points(tree.curriculum_points[0], "curriculum")
             #self.tree.inactive()
 
         self.tree = random.sample(self.trees, 1)[0]
         self.tree.active()
 
         # for i in range(len(self.tree.curriculum_distances)):
-        #     self.pyb.visualize_points(self.tree.curriculum_points[i])
+        #     self.pyb_con.visualize_points(self.tree.curriculum_points[i])
         #     import time
         #     time.sleep(2)
-        #     self.pyb.remove_debug_items("step")
+        #     self.pyb_con.remove_debug_items("step")
 
         #Curriculum variables
         self.eval_counter = 0
@@ -253,9 +267,9 @@ class PruningEnv(gym.Env):
                     break
 
         # Create new ur5 arm body
-        #self.pyb.disable_gravity() # Using this instead of actual breaks in the arm
+        #self.pyb_con.disable_gravity() # Using this instead of actual breaks in the arm
         self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
-        #self.pyb.enable_gravity()
+        #self.pyb_con.enable_gravity()
         # Make this a new function that supports curriculum
         # Set curriculum level
         random_point = None
@@ -346,15 +360,15 @@ class PruningEnv(gym.Env):
 
         for i in range(1):
             self.pyb.con.stepSimulation()
-            # print(self.pyb.con.getJointStateMultiDof(self.ur5.ur5_robot, self.ur5.end_effector_index))
+            # print(self.pyb_con.con.getJointStateMultiDof(self.ur5.ur5_robot, self.ur5.end_effector_index))
             # if self.renders: time.sleep(5./240.) 
 
         # Need observations before reward
         self.set_extended_observation()
         current_pose = np.hstack((self.observation_info['achieved_pos'], self.observation_info['achieved_or_quat']))
         if 'achieved_pos' not in self.prev_observation_info.keys():
-            self.prev_observation_info['achieved_pos'] = np.zeros(3)
-            self.prev_observation_info['achieved_or_quat'] = np.zeros(4)
+            self.prev_observation_info['achieved_pos'] = self.ur5.init_pos[0]
+            self.prev_observation_info['achieved_or_quat'] = self.ur5.init_pos[1]
         previous_pose = np.hstack(
             (self.prev_observation_info['achieved_pos'], self.prev_observation_info['achieved_or_quat']))
         reward, reward_infos = self.compute_reward(self.observation_info['desired_pos'], current_pose,
@@ -362,7 +376,7 @@ class PruningEnv(gym.Env):
                                                    None)
 
         self.sum_reward += reward
-        # self.debug_line = self.pyb.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
+        # self.debug_line = self.pyb_con.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
         self.step_counter += 1
         self.global_step_counter += 1
 
@@ -399,8 +413,8 @@ class PruningEnv(gym.Env):
             theta, rf = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_branch, self.observation_info['achieved_pos'], self.observation_info['desired_pos'])
             infos["angular_error"] = theta
             # print(theta)
-            # self.pyb.visualize_rot_mat(current_or_mat.T, self.observation_info['achieved_pos'])
-            # self.pyb.visualize_rot_mat(rf, self.observation_info['desired_pos'])
+            # self.pyb_con.visualize_rot_mat(current_or_mat.T, self.observation_info['achieved_pos'])
+            # self.pyb_con.visualize_rot_mat(rf, self.observation_info['desired_pos'])
         # infos['episode'] = {"l": self.stepCounter,  "r": reward}
         infos['velocity'] = np.linalg.norm(self.action)
         infos.update(reward_infos)
@@ -455,29 +469,29 @@ class PruningEnv(gym.Env):
 
         #resize point mask to algo_height, algo_width
         point_mask_resize = cv2.resize(point_mask, dsize=(self.algo_height, self.algo_width))
-        point_mask_resize = np.expand_dims(point_mask_resize, axis=0).astype(np.float32)
-        return point_mask_resize
+        point_mask = np.expand_dims(point_mask_resize, axis=0).astype(np.float32)
+        return point_mask
 
-    def get_depth_proxy(self, use_optical_flow, optical_flow_subproc, prev_rgb):
-        #TODO: Make this faster
-        rgb, depth = self.pyb.get_rgbd_at_cur_pose('robot', self.ur5.get_view_mat_at_curr_pose(pan=self.pan, tilt=self.tilt, xyz_offset=self.xyz_offset))
-        point_mask = self.compute_deprojected_point_mask()
-        if use_optical_flow:
-            # if subprocvenv add the rgb to the queue and wait for the optical flow to be calculated
-            if optical_flow_subproc:
-                self.shared_queue.put((rgb, prev_rgb, self.pid, self.name))
-                while not self.pid in self.shared_dict.keys():
-                    pass
-                optical_flow = self.shared_dict[self.pid]
-                depth_proxy = np.concatenate((optical_flow, point_mask))
-                del self.shared_dict[self.pid]
-            else:
-                optical_flow = self.optical_flow_model.calculate_optical_flow(rgb, prev_rgb)[0]
-                depth_proxy = np.concatenate((optical_flow, point_mask))
-        else:
-            depth_proxy = np.expand_dims(depth.astype(np.float32), axis=0)
-            depth_proxy = np.concatenate((depth_proxy, point_mask))
-        return depth_proxy, rgb
+    # def get_depth_proxy(self, use_optical_flow, optical_flow_subproc, prev_rgb):
+    #     #TODO: Make this faster
+    #     rgb, depth = self.pyb_con.get_rgbd_at_cur_pose('robot', self.ur5.get_view_mat_at_curr_pose(pan=self.pan, tilt=self.tilt, xyz_offset=self.xyz_offset))
+    #     point_mask = self.compute_deprojected_point_mask()
+    #     if use_optical_flow:
+    #         # if subprocvenv add the rgb to the queue and wait for the optical flow to be calculated
+    #         if optical_flow_subproc:
+    #             self.shared_queue.put((rgb, prev_rgb, self.pid, self.name))
+    #             while not self.pid in self.shared_dict.keys():
+    #                 pass
+    #             optical_flow = self.shared_dict[self.pid]
+    #             depth_proxy = np.concatenate((optical_flow, point_mask))
+    #             del self.shared_dict[self.pid]
+    #         else:
+    #             optical_flow = self.optical_flow_model.calculate_optical_flow(rgb, prev_rgb)[0]
+    #             depth_proxy = np.concatenate((optical_flow, point_mask))
+    #     else:
+    #         depth_proxy = np.expand_dims(depth.astype(np.float32), axis=0)
+    #         depth_proxy = np.concatenate((depth_proxy, point_mask))
+    #     return depth_proxy, rgb
 
     def set_extended_observation(self) -> dict:
         """
@@ -501,11 +515,23 @@ class PruningEnv(gym.Env):
         achieved_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(achieved_or_quat)).reshape(3, 3)
         achieved_or_6d = achieved_or_mat[:, :2].reshape(6, ).astype(np.float32)
 
-        if 'rgb' not in self.prev_observation_info:
-            self.prev_observation_info['rgb'] = np.zeros((self.pyb.cam_height, self.pyb.cam_width, 3))
-        depth_proxy, rgb = self.get_depth_proxy(self.use_optical_flow, self.optical_flow_subproc,
-                                                prev_rgb=self.prev_observation_info[
-                                                    'rgb'], )  # Get this from previous obs
+        # if 'rgb' not in self.prev_observation_info:
+        #     self.prev_observation_info['rgb'] = np.zeros((self.pyb_con.cam_height, self.pyb_con.cam_width, 3))
+
+        #get this out of the environment and into subprocvec
+        #TODO - just keep rgb images and create depth_proxy in forward
+
+        # depth_proxy, rgb = self.get_depth_proxy(self.use_optical_flow, self.optical_flow_subproc,
+        #                                         prev_rgb=self.prev_observation_info[
+        #                                             'rgb'], )  # Get this from previous obs
+        rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot',
+                                                   self.ur5.get_view_mat_at_curr_pose(pan=self.pan, tilt=self.tilt,
+                                                                                      xyz_offset=self.xyz_offset))
+        if 'rgb' not in self.observation:
+            prev_rgb = np.zeros((self.pyb.cam_height, self.pyb.cam_width, 3))
+        else:
+            prev_rgb = self.observation['rgb']
+        point_mask = self.compute_deprojected_point_mask()
 
         encoded_joint_angles = np.hstack((np.sin(joint_angles), np.cos(joint_angles)))
 
@@ -517,7 +543,7 @@ class PruningEnv(gym.Env):
         self.observation_info['desired_pos'] = desired_pos
         self.observation_info['achieved_pos'] = achieved_pos
         self.observation_info['achieved_or_quat'] = achieved_or_quat
-        self.observation_info['rgb'] = rgb
+        # self.observation_info['rgb'] = rgb
         self.observation_info['pointing_cosine_sim'] = abs(pointing_cosine_sim)
         self.observation_info['perpendicular_cosine_sim'] = abs(perpendicular_cosine_sim)
         self.observation_info['target_distance'] = np.linalg.norm(achieved_pos - desired_pos)
@@ -528,7 +554,10 @@ class PruningEnv(gym.Env):
         self.observation['relative_distance'] = achieved_pos - desired_pos
         # Convert orientation into 6D form for continuity
         self.observation['achieved_or'] = achieved_or_6d
-        self.observation['depth_proxy'] = depth_proxy
+        #Image stuff
+        self.observation['rgb'] = rgb
+        self.observation['prev_rgb'] = prev_rgb
+        self.observation['point_mask'] = point_mask
         # Convert joint angles to sin and cos
         self.observation['joint_angles'] = encoded_joint_angles
         # self.observation[
@@ -576,9 +605,9 @@ class PruningEnv(gym.Env):
 
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
-        # _ = self.pyb.add_debug_item('line', 'step', lineFromXYZ=achieved_pos, lineToXYZ=desired_pos,
+        # _ = self.pyb_con.add_debug_item('line', 'step', lineFromXYZ=achieved_pos, lineToXYZ=desired_pos,
         #                             lineColorRGB=[0, 0, 1], lineWidth=20)
-        # _ = self.pyb.add_debug_item('line', 'step', lineFromXYZ=previous_pos, lineToXYZ=desired_pos,
+        # _ = self.pyb_con.add_debug_item('line', 'step', lineFromXYZ=previous_pos, lineToXYZ=desired_pos,
         #                             lineColorRGB=[0, 0, 1], lineWidth=20)
 
         # Calculate rewards
