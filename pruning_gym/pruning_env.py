@@ -2,7 +2,7 @@ import os
 import sys
 import cv2
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
+from memory_profiler import profile
 from typing import Optional, Tuple, Any, List
 import os
 import random
@@ -37,8 +37,7 @@ class PruningEnv(gym.Env):
                  distance_reward_scale: int = 1, condition_reward_scale: int = 1, terminate_reward_scale: int = 1,
                  collision_reward_scale: int = 1, slack_reward_scale: int = 1,
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
-                 use_optical_flow: bool = False, optical_flow_subproc: bool = False,
-                 shared_var: Tuple[Optional[Any], Optional[Any]] = (None, None), scale: bool = False,
+                 scale: bool = False,
                  curriculum_distances: Tuple = (0.8,), curriculum_level_steps: Tuple = (),
                  use_ik: bool = True) -> None:
         super(PruningEnv, self).__init__()
@@ -46,12 +45,6 @@ class PruningEnv(gym.Env):
         assert tree_urdf_path is not None
         assert tree_obj_path is not None
 
-        # TODO: Assumes shared variables is always present, to not use shared var have to pass (None, None). Make
-        #  shared_var as None
-        self.shared_queue = shared_var[0]
-        self.shared_dict = shared_var[1]
-        self.pid = os.getpid()
-        # self.shared_dict[self.pid] = None
         # Pybullet GUI variables
         self.render_mode = "rgb_array"
         self.renders = renders
@@ -68,8 +61,6 @@ class PruningEnv(gym.Env):
         self.tree_count = tree_count
         self.action_scale = action_scale
         self.terminated = False
-        self.use_optical_flow = use_optical_flow
-        # self.optical_flow_subproc = optical_flow_subproc
         self.algo_width = algo_width
         self.algo_height = algo_height
         #Camera params
@@ -78,12 +69,7 @@ class PruningEnv(gym.Env):
         self.pan = 0
         self.tilt = 0
         self.xyz_offset = np.zeros(3)
-        #
-        # if self.use_optical_flow:
-        #     if not self.optical_flow_subproc:
-        #         self.optical_flow_model = OpticalFlow(subprocess=False)
 
-        #     self.optical_flow_model = OpticalFlow()
         # Reward variables
 
         # New class for reward
@@ -94,18 +80,12 @@ class PruningEnv(gym.Env):
         self.pyb = pyb_utils(self, renders=renders, cam_height=cam_height, cam_width=cam_width)
 
         self.observation_space = spaces.Dict({
-            # 'depth_proxy': spaces.Box(low=-1.,
-            #                           high=1.0,
-            #                           shape=((3, self.algo_height, self.algo_width) if self.use_optical_flow else (
-            #                               1, self.algo_height, self.algo_width)),
-            #                           dtype=np.uint8),
-
             #rgb is hwc but pytorch is chw
             'rgb': spaces.Box(low= 0,
                               high= 255,
                               shape=(self.cam_height, self.cam_width, 3),
                               dtype=np.uint8),
-            'prev_rgb': spaces.Box(low=0.,
+            'prev_rgb': spaces.Box(low=0,
                               high=255,
                               shape=(self.cam_height, self.cam_width, 3),
                               dtype=np.uint8),
@@ -125,10 +105,7 @@ class PruningEnv(gym.Env):
             'joint_angles': spaces.Box(low=-1,
                                        high=1,
                                        shape=(12,), dtype=np.float32),
-            # 'joint_velocities': spaces.Box(low=-6,
-            #                                high=6,
-            #                                shape=(6,), dtype=np.float32),
-            'prev_action': spaces.Box(low=-1., high=1.,
+            'prev_action_achieved': spaces.Box(low=-1., high=1.,
                                       shape=(self.action_dim,), dtype=np.float32),
             'relative_distance': spaces.Box(low=-1., high=1., shape=(3,), dtype=np.float32),
             'critic_perpendicular_cosine_sim': spaces.Box(low=-0., high=1., shape=(1,), dtype=np.float32),
@@ -564,7 +541,7 @@ class PruningEnv(gym.Env):
         #     'joint_velocities'] = self.ur5.action  # Check the name of this variable and figure where it is set
         # Action actually achieved
 
-        self.observation['prev_action'] = np.hstack((achieved_vel, achieved_ang_vel))
+        self.observation['prev_action_achieved'] = np.hstack((achieved_vel, achieved_ang_vel))
 
         # Privileged critic
         # Add cosine sim perp and point

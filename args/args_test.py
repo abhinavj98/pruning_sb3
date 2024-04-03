@@ -14,14 +14,6 @@ args = {
     },
 
     'args_env': {
-        'use_optical_flow': {
-            'type': bool,
-            'default': True
-        },
-        'optical_flow_subproc': {
-            'type': bool,
-            'default': False
-        },
         # Reward parameters
         'movement_reward_scale': {
             'type': float,

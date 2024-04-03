@@ -132,3 +132,4 @@ pruning_sb3/logs/*
 runs/
 *.csv
 logs/
+*.dat

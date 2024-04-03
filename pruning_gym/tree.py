@@ -12,7 +12,7 @@ from pruning_sb3.pruning_gym.helpers import compute_perpendicular_projection_vec
 
 from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH, ROBOT_URDF_PATH, SUPPORT_AND_POST_PATH
 from pruning_sb3.pruning_gym.reward_utils import Reward
-
+from memory_profiler import profile
 class Tree:
     """ Class representing a tree mesh. It is used to sample points on the surface of the tree."""
 
@@ -38,7 +38,7 @@ class Tree:
         self.projection_std = np.array(0.)
         self.projection_sum_x = np.array(0.)
         self.projection_sum_x2 = np.array(0.)
-        self.base_xyz = self.env.ur5.get_current_pose(self.env.ur5.base_index)[0]
+        self.base_xyz = self.e:x1:::nv.ur5.get_current_pose(self.env.ur5.base_index)[0]
         self.num_points = num_points
         self.reachable_points = []
         self.curriculum_points = dict()
@@ -143,7 +143,6 @@ class Tree:
         self.projection_mean = self.projection_sum_x / len(self.vertex_and_projection)
         self.projection_std = np.sqrt(
             self.projection_sum_x2 / len(self.vertex_and_projection) - self.projection_mean ** 2)
-
     def active(self):
         print("activating tree")
         assert self.tree_id is None

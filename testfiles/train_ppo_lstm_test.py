@@ -29,13 +29,6 @@ parsed_args_dict = organize_args(parsed_args)
 
 
 if __name__ == "__main__":
-
-    # if parsed_args_dict['args_env']['use_optical_flow'] and parsed_args_dict['args_env']['optical_flow_subproc']:
-    #     shared_var = optical_flow_create_shared_vars(parsed_args_dict['args_global']['n_envs'])
-    # else:
-    #     shared_var = (None, None)
-    # add_arg_to_env('shared_var', shared_var, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
-
     if parsed_args_dict['args_global']['load_path']:
         load_path = "../logs/run/best_model.zip"  # "./logs/{}/best_model.zip".format(args.LOAD_PATH)#./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
     else:
@@ -66,7 +59,7 @@ if __name__ == "__main__":
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
         "features_extractor_kwargs": {"features_dim": parsed_args_dict['args_policy']['state_dim'],
-                                      "in_channels": (3 if parsed_args_dict['args_env']['use_optical_flow'] else 1), },
+                                      "in_channels": 3, },
         "optimizer_class": th.optim.Adam,
         "log_std_init": parsed_args_dict['args_policy']['log_std_init'],
         "net_arch": dict(
