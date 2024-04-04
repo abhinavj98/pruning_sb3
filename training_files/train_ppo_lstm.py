@@ -28,13 +28,13 @@ parsed_args_dict = organize_args(parsed_args)
 print(parsed_args_dict)
 
 if __name__ == "__main__":
-    init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
+    # init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
+    if make_dataset:
+        # Make an environment as usual
+        data_env = PruningEnv(**parsed_args_dict['args_env'])
 
-    if parsed_args_dict['args_env']['use_optical_flow'] and parsed_args_dict['args_env']['optical_flow_subproc']:
-        shared_var = optical_flow_create_shared_vars()
-    else:
-        shared_var = (None, None)
-    add_arg_to_env('shared_var', shared_var, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
+        # Put trees and curriculim points in shared memory
+        # Pass the shared memory to training env
 
     if parsed_args_dict['args_global']['load_path']:
         load_path_model = "./logs/{}/current_model.zip".format(
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
         "features_extractor_kwargs": {"features_dim": parsed_args_dict['args_policy']['state_dim'],
-                                      "in_channels": (3 if parsed_args_dict['args_env']['use_optical_flow'] else 1),
+                                      "in_channels": 3,
                                       "size": (224, 224)},
         "optimizer_class": th.optim.Adam,
         "log_std_init": parsed_args_dict['args_policy']['log_std_init'],
@@ -104,6 +104,10 @@ if __name__ == "__main__":
         model._num_timesteps_at_start = 2_500_000
         print("LOADED MODEL")
     model.set_logger(new_logger)
+
+    print("Policy on device: ", model.policy.device)
+    print("Model on device: ", model.device)
+    print("Optical flow on device: ", model.policy.optical_flow_model.device)
     print("Using device: ", utils.get_device())
 
     # env.reset()

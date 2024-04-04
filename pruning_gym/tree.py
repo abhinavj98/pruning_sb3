@@ -76,6 +76,8 @@ class Tree:
 
             print('Saved reachable points to pickle file ', self.urdf_path[:-5] + '_reachable_points.pkl')
             print("Number of reachable points: ", len(self.reachable_points))
+        self.make_curriculum()
+
 
         # if self.curriculum_distances:
         #     self.make_curriculum(self.curriculum_distances)
@@ -279,3 +281,7 @@ class Tree:
                 # self.reset_tree()
 
             print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
+            # Memory management
+            del self.transformed_vertices
+            del self.vertex_and_projection
+            del self.reachable_points

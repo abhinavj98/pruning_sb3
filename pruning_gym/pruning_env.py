@@ -150,12 +150,12 @@ class PruningEnv(gym.Env):
                                                  num_trees=self.tree_count, curriculum_distances=curriculum_distances,
                                                  curriculum_level_steps=curriculum_level_steps)
 
-        for tree in self.trees:
-            self.tree = tree
-            #self.tree.active()
-            tree.make_curriculum()
-            #self.pyb_con.visualize_points(tree.curriculum_points[0], "curriculum")
-            #self.tree.inactive()
+        # for tree in self.trees:
+        #     self.tree = tree
+        #     #self.tree.active()
+        #     tree.make_curriculum()
+        #     #self.pyb_con.visualize_points(tree.curriculum_points[0], "curriculum")
+        #     #self.tree.inactive()
 
         self.tree = random.sample(self.trees, 1)[0]
         self.tree.active()

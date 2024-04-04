@@ -236,7 +236,7 @@ args = {
         },
         'batch_size': {
             'type': int,
-            'default': 256,
+            'default': 64,
             'help': 'batch size'
         },
         'learning_rate': {
