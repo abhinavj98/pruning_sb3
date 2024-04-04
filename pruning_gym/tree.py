@@ -12,7 +12,7 @@ from pruning_sb3.pruning_gym.helpers import compute_perpendicular_projection_vec
 
 from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH, ROBOT_URDF_PATH, SUPPORT_AND_POST_PATH
 from pruning_sb3.pruning_gym.reward_utils import Reward
-from memory_profiler import profile
+# from memory_profiler import profile
 class Tree:
     """ Class representing a tree mesh. It is used to sample points on the surface of the tree."""
 

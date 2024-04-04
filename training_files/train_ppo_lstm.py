@@ -29,12 +29,12 @@ print(parsed_args_dict)
 
 if __name__ == "__main__":
     # init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
-    if make_dataset:
-        # Make an environment as usual
-        data_env = PruningEnv(**parsed_args_dict['args_env'])
-
-        # Put trees and curriculim points in shared memory
-        # Pass the shared memory to training env
+    # if make_dataset:
+    #     # Make an environment as usual
+    #     data_env = PruningEnv(**parsed_args_dict['args_env'])
+    #
+    #     # Put trees and curriculim points in shared memory
+    #     # Pass the shared memory to training env
 
     if parsed_args_dict['args_global']['load_path']:
         load_path_model = "./logs/{}/current_model.zip".format(

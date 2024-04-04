@@ -2,7 +2,7 @@ import os
 import sys
 import cv2
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from memory_profiler import profile
+# from memory_profiler import profile
 from typing import Optional, Tuple, Any, List
 import os
 import random
@@ -130,6 +130,11 @@ class PruningEnv(gym.Env):
         # new class for ur5
         self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0.5,0.,0])
         self.reset_env_variables()
+        # Curriculum variables
+        self.eval_counter = 0
+        self.curriculum_level = 0
+        self.curriculum_level_steps = curriculum_level_steps
+        self.curriculum_distances = curriculum_distances
 
         # Tree parameters
         self.tree_goal_pos = np.array([1, 0, 0])  # initial object pos
@@ -145,11 +150,20 @@ class PruningEnv(gym.Env):
 
         assert scale is not None
         assert pos is not None
-        self.trees = Tree.make_trees_from_folder(self, self.pyb, self.tree_urdf_path, self.tree_obj_path, pos=pos,
-                                                 orientation=np.array([0, 0, 0, 1]), scale=scale, num_points=num_points,
-                                                 num_trees=self.tree_count, curriculum_distances=curriculum_distances,
-                                                 curriculum_level_steps=curriculum_level_steps)
+        make_trees = True
+        if make_trees:
+            self.trees = Tree.make_trees_from_folder(self, self.pyb, self.tree_urdf_path, self.tree_obj_path, pos=pos,
+                                                     orientation=np.array([0, 0, 0, 1]), scale=scale, num_points=num_points,
+                                                     num_trees=self.tree_count, curriculum_distances=curriculum_distances,
+                                                     curriculum_level_steps=curriculum_level_steps)
+            # self.trees = tuple(self.trees)
+            #put trees in shared memory
+        else:
+            pass
+            #load trees from shared memory
 
+        # from pympler.asizeof import asizeof
+        # print("SIZE::::", asizeof(self.trees))
         # for tree in self.trees:
         #     self.tree = tree
         #     #self.tree.active()
@@ -166,11 +180,7 @@ class PruningEnv(gym.Env):
         #     time.sleep(2)
         #     self.pyb_con.remove_debug_items("step")
 
-        #Curriculum variables
-        self.eval_counter = 0
-        self.curriculum_level = 0
-        self.curriculum_level_steps = curriculum_level_steps
-        self.curriculum_distances = curriculum_distances
+
 
         # Init and final logging
         self.init_distance = 0
