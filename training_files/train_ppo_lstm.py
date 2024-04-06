@@ -19,7 +19,8 @@ from pruning_sb3.args.args import \
     args
 from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
     set_args, organize_args, add_arg_to_env, init_wandb
-
+from stable_baselines3.common.vec_env.base_vec_env import CloudpickleWrapper
+import multiprocessing as mp
 # Add arguments to the parser based on the dictionary
 parser = argparse.ArgumentParser()
 set_args(args, parser)
@@ -28,14 +29,9 @@ parsed_args_dict = organize_args(parsed_args)
 print(parsed_args_dict)
 
 if __name__ == "__main__":
+    manager = mp.Manager()
+    shared_list = manager.list()
     # init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
-    # if make_dataset:
-    #     # Make an environment as usual
-    #     data_env = PruningEnv(**parsed_args_dict['args_env'])
-    #
-    #     # Put trees and curriculim points in shared memory
-    #     # Pass the shared memory to training env
-
     if parsed_args_dict['args_global']['load_path']:
         load_path_model = "./logs/{}/current_model.zip".format(
             parsed_args_dict['args_global']['load_path'])
@@ -43,12 +39,17 @@ if __name__ == "__main__":
             parsed_args_dict['args_global']['load_path'])
     else:
         load_path_model = None
+    add_arg_to_env('shared_tree_list', shared_list, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
 
     args_global = parsed_args_dict['args_global']
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_record = dict(args_test, **parsed_args_dict['args_record'])
     args_policy = parsed_args_dict['args_policy']
+
+    data_env = PruningEnv(**args_train, make_trees=True)
+    for i in data_env.trees:
+        shared_list.append(i)
 
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)

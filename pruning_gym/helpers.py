@@ -86,6 +86,7 @@ def set_seed(seed: int = 42) -> None:
 def optical_flow_create_shared_vars(num_envs: int = 1):
     #TODO = make this torch multiprocessing
     manager = mp.Manager()
+
     # queue = multiprocessing.Queue()
     shared_dict = manager.dict()
     shared_queue = manager.Queue()

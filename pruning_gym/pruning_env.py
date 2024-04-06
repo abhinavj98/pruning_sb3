@@ -20,6 +20,7 @@ from pruning_sb3.pruning_gym import ROBOT_URDF_PATH
 from .reward_utils import Reward
 from skimage.draw import disk
 import torch.nn.functional as F
+from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH, ROBOT_URDF_PATH, SUPPORT_AND_POST_PATH
 
 import copy
 #TODO: Write test cases for this file
@@ -39,12 +40,12 @@ class PruningEnv(gym.Env):
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  scale: bool = False,
                  curriculum_distances: Tuple = (0.8,), curriculum_level_steps: Tuple = (),
-                 use_ik: bool = True) -> None:
+                 use_ik: bool = True, make_trees = False, shared_tree_list = None) -> None:
         super(PruningEnv, self).__init__()
 
         assert tree_urdf_path is not None
         assert tree_obj_path is not None
-
+        print(shared_tree_list)
         # Pybullet GUI variables
         self.render_mode = "rgb_array"
         self.renders = renders
@@ -52,6 +53,8 @@ class PruningEnv(gym.Env):
         # Obj/URDF paths
         self.tree_urdf_path = tree_urdf_path
         self.tree_obj_path = tree_obj_path
+        self.supports = None
+        self.tree_id = None
         # Gym variables
         self.name = name
         self.action_dim = action_dim
@@ -150,8 +153,8 @@ class PruningEnv(gym.Env):
 
         assert scale is not None
         assert pos is not None
-        make_trees = True
-        if make_trees:
+        self.make_trees = make_trees
+        if self.make_trees:
             self.trees = Tree.make_trees_from_folder(self, self.pyb, self.tree_urdf_path, self.tree_obj_path, pos=pos,
                                                      orientation=np.array([0, 0, 0, 1]), scale=scale, num_points=num_points,
                                                      num_trees=self.tree_count, curriculum_distances=curriculum_distances,
@@ -159,8 +162,9 @@ class PruningEnv(gym.Env):
             # self.trees = tuple(self.trees)
             #put trees in shared memory
         else:
-            pass
+            self.trees = shared_tree_list
             #load trees from shared memory
+        # print("Treeees",self.trees, len(self.trees))
 
         # from pympler.asizeof import asizeof
         # print("SIZE::::", asizeof(self.trees))
@@ -170,9 +174,8 @@ class PruningEnv(gym.Env):
         #     tree.make_curriculum()
         #     #self.pyb_con.visualize_points(tree.curriculum_points[0], "curriculum")
         #     #self.tree.inactive()
-
-        self.tree = random.sample(self.trees, 1)[0]
-        self.tree.active()
+        self.sample_tree()
+        self.activate_tree(self.pyb)
 
         # for i in range(len(self.tree.curriculum_distances)):
         #     self.pyb_con.visualize_points(self.tree.curriculum_points[i])
@@ -193,17 +196,22 @@ class PruningEnv(gym.Env):
         self.observation: dict = dict()
         self.observation_info = dict()
         self.prev_observation_info: dict = dict()
+    def sample_tree(self):
+        tree_idx = random.randint(0, len(self.trees) - 1)
+        # print(tree_idx)
+        self.tree = self.trees[tree_idx]  # Can we make this a function which a server serves a tree
+
 
     def reset_env_variables(self) -> None:
-        # Env variables that will change
-        self.observation: dict = dict()
-        self.observation_info = dict()
-        self.prev_observation_info: dict = dict()
-        self.step_counter = 0
-        self.sum_reward = 0
-        self.terminated = False
-        self.collisions_acceptable = 0
-        self.collisions_unacceptable = 0
+            # Env variables that will change
+            self.observation: dict = dict()
+            self.observation_info = dict()
+            self.prev_observation_info: dict = dict()
+            self.step_counter = 0
+            self.sum_reward = 0
+            self.terminated = False
+            self.collisions_acceptable = 0
+            self.collisions_unacceptable = 0
 
     def set_curriculum_level(self, episode_counter, curriculum_level_steps):
         """Set curriculum level"""
@@ -237,7 +245,7 @@ class PruningEnv(gym.Env):
         self.reset_env_variables()
         self.reset_counter += 1
         # Remove and add tree to avoid collisions with tree while resetting
-        self.tree.inactive()
+        self.inactivate_tree(self.pyb)
 
         # Function for remove body
         self.ur5.remove_ur5_robot()
@@ -249,7 +257,7 @@ class PruningEnv(gym.Env):
 
         if self.reset_counter % self.randomize_tree_count == 0:
             while True:
-                self.tree = random.sample(self.trees, 1)[0]
+                self.sample_tree()
                 if len(self.tree.curriculum_points[self.curriculum_level]) > 0:
                     break
 
@@ -293,7 +301,7 @@ class PruningEnv(gym.Env):
             self.pyb.con.stepSimulation()
         self.tree_goal_pos = random_point[0]
         self.tree_goal_branch = random_point[1]
-        self.tree.active()
+        self.activate_tree(self.pyb)
 
         pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
 
@@ -336,6 +344,24 @@ class PruningEnv(gym.Env):
         else:
             jv = velocity
         return jv
+
+    def activate_tree(self, pyb):
+        print("activating tree")
+        assert self.tree_id is None
+        assert self.supports is None
+        print('Loading tree from ', self.tree.urdf_path)
+        self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.6, 0],
+                                         list(pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
+                                         globalScaling=1)
+        self.tree_id = pyb.con.loadURDF(self.tree.urdf_path, self.tree.pos, self.tree.orientation, globalScaling=self.tree.scale)
+
+    def inactivate_tree(self, pyb):
+        assert self.tree_id is not None
+        assert self.supports is not None
+        pyb.con.removeBody(self.tree_id)
+        pyb.con.removeBody(self.supports)
+        self.tree_id = None
+        self.supports = None
     def step(self, action: NDArray[Shape['6, 1'], Float]) -> Tuple[dict, float, bool, bool, dict]:
 
         self.pyb.remove_debug_items("step")
@@ -617,7 +643,7 @@ class PruningEnv(gym.Env):
         self.terminated = self.is_state_successful(achieved_pos, desired_pos, perp_cosine_sim, point_cosine_sim)
         reward += self.reward.calculate_termination_reward(self.terminated)
 
-        is_collision, collision_info = self.ur5.check_collisions(self.tree.tree_id, self.tree.supports)
+        is_collision, collision_info = self.ur5.check_collisions(self.tree_id, self.supports)
         reward += self.reward.calculate_acceptable_collision_reward(collision_info)
         reward += self.reward.calculate_unacceptable_collision_reward(collision_info)
 
@@ -632,7 +658,7 @@ class PruningEnv(gym.Env):
 
     def is_state_successful(self, achieved_pos, desired_pos, orientation_perp_value, orientation_point_value):
         terminated = False
-        is_success_collision = self.ur5.check_success_collision(self.tree.tree_id)
+        is_success_collision = self.ur5.check_success_collision(self.tree_id)
         dist_from_target = np.linalg.norm(achieved_pos - desired_pos)
         if is_success_collision and dist_from_target < self.learning_param:
             if (orientation_perp_value > 0.7) and (
