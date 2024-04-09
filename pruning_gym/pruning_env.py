@@ -124,9 +124,9 @@ class PruningEnv(gym.Env):
         self.use_ik = use_ik
         self.action = np.zeros(self.action_dim)
 
-        self.reset_counter = 0
+        self.reset_counter = -1 #Forces random tree selection at start
         self.episode_counter = 0
-        self.randomize_tree_count = 1
+        self.randomize_tree_count = 5
         self.learning_param = learning_param
 
         # setup robot arm:
@@ -251,7 +251,7 @@ class PruningEnv(gym.Env):
         self.ur5.remove_ur5_robot()
         self.pyb.remove_debug_items("reset")
         self.pyb.remove_debug_items("step")
-
+        self.pyb.con.resetSimulation()
         # Sample new tree if reset_counter is a multiple of randomize_tree_count
         self.set_curriculum_level(self.episode_counter, self.curriculum_level_steps)
 
@@ -263,6 +263,7 @@ class PruningEnv(gym.Env):
 
         # Create new ur5 arm body
         #self.pyb_con.disable_gravity() # Using this instead of actual breaks in the arm
+        self.pyb.create_background()
         self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
         #self.pyb_con.enable_gravity()
         # Make this a new function that supports curriculum
@@ -596,9 +597,10 @@ class PruningEnv(gym.Env):
         return self.observation
 
     def is_task_done(self) -> Tuple[bool, dict]:
+        # Terminate if time limit exceeded
         # NOTE: need to call compute_reward before this to check termination!
         time_limit_exceeded = self.step_counter >= self.maxSteps
-        goal_achieved = self.terminated
+        goal_achieved = False#self.terminated
         c = self.step_counter > self.maxSteps#(self.terminated is True or self.step_counter > self.maxSteps)
         terminate_info = {"time_limit_exceeded": time_limit_exceeded,
                           "goal_achieved": goal_achieved}

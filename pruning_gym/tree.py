@@ -37,7 +37,7 @@ class Tree:
         self.projection_std = np.array(0.)
         self.projection_sum_x = np.array(0.)
         self.projection_sum_x2 = np.array(0.)
-        self.base_xyz = env.ur5.get_current_pose(env.ur5.base_index)[0]
+        self.base_xyz = env.ur5.get_current_pose(env.ur5.end_effector_index)[0]
         self.num_points = num_points
         self.reachable_points = []
         self.curriculum_points = dict()
@@ -231,8 +231,8 @@ class Tree:
         # self.env.ur5.setup_ur5_arm()
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         #Allow pkling and loading
-        if not os.path.exists('./pkl5/' + str(path_component[3])):
-            os.makedirs('./pkl5/' + str(path_component[3]))
+        # if not os.path.exists('./pkl5/' + str(path_component[3])):
+        #     os.makedirs('./pkl5/' + str(path_component[3]))
         for level, max_distance in enumerate(self.curriculum_distances):
             self.curriculum_points[level] = []
             # pkl_path = './pkl3/' + str(path_component[3]) + '/' + str(

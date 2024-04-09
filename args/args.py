@@ -58,7 +58,7 @@ args = {
 
         'max_steps': {
             'type': int,
-            'default': 100,
+            'default': 80,
             'help': 'maximum number of steps per episode'
         },
         'use_ik': {
@@ -226,7 +226,7 @@ args = {
         # For logging purposes keep as multiple of episode length
         'steps_per_epoch': {
             'type': int,
-            'default': 150,
+            'default': 80,
             'help': 'number of timesteps per epoch'
         },
         'epochs': {

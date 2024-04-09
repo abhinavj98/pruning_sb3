@@ -21,6 +21,7 @@ from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optic
     set_args, organize_args, add_arg_to_env, init_wandb
 from stable_baselines3.common.vec_env.base_vec_env import CloudpickleWrapper
 import multiprocessing as mp
+import copy
 # Add arguments to the parser based on the dictionary
 parser = argparse.ArgumentParser()
 set_args(args, parser)
@@ -31,7 +32,7 @@ print(parsed_args_dict)
 if __name__ == "__main__":
     manager = mp.Manager()
     shared_list = manager.list()
-    # init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
+    init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
     if parsed_args_dict['args_global']['load_path']:
         load_path_model = "./logs/{}/current_model.zip".format(
             parsed_args_dict['args_global']['load_path'])
@@ -49,7 +50,9 @@ if __name__ == "__main__":
 
     data_env = PruningEnv(**args_train, make_trees=True)
     for i in data_env.trees:
-        shared_list.append(i)
+        shared_list.append(copy.deepcopy(i))
+        del i
+    del data_env
 
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
