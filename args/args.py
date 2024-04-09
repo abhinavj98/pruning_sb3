@@ -2,12 +2,12 @@ args = {
     'args_callback': {
         'eval_freq': {
             'type': int,
-            'default': 10000,
+            'default': 8000,
             'help': 'frequency of evaluation'
         },
         'n_eval_episodes': {
             'type': int,
-            'default': 20,
+            'default': 40,
             'help': 'number of episodes to run during evaluation'
         },
     },
