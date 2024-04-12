@@ -203,7 +203,7 @@ args = {
         },
         'epochs': {
             'type': int,
-            'default': 4,
+            'default': 5,
             'help': 'number of epochs to train for'
         },
         'batch_size': {

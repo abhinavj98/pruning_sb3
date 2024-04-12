@@ -131,7 +131,7 @@ class PruningEnv(gym.Env):
 
         # setup robot arm:
         # new class for ur5
-        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0.5,0.,0])
+        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0.5,0.15,0])
         self.reset_env_variables()
         # Curriculum variables
         self.eval_counter = 0
@@ -169,11 +169,13 @@ class PruningEnv(gym.Env):
         # from pympler.asizeof import asizeof
         # print("SIZE::::", asizeof(self.trees))
         # for tree in self.trees:
+        #
         #     self.tree = tree
-        #     #self.tree.active()
-        #     tree.make_curriculum()
-        #     #self.pyb_con.visualize_points(tree.curriculum_points[0], "curriculum")
-        #     #self.tree.inactive()
+        #     self.activate_tree(self.pyb)
+        #     # tree.make_curriculum()
+        #     self.pyb.visualize_points(tree.curriculum_points[0], "curriculum")
+        #     input()
+        #     self.inactivate_tree(self.pyb)
         self.sample_tree()
         self.activate_tree(self.pyb)
 
@@ -262,6 +264,7 @@ class PruningEnv(gym.Env):
                     break
 
         # Create new ur5 arm body
+
         #self.pyb_con.disable_gravity() # Using this instead of actual breaks in the arm
         self.pyb.create_background()
         self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
@@ -269,6 +272,8 @@ class PruningEnv(gym.Env):
         # Make this a new function that supports curriculum
         # Set curriculum level
         random_point = None
+        #show all points in curriculum
+
         # Sample new point
 
         distance_from_goal, random_point = self.sample_point(self.name, self.episode_counter,
@@ -369,7 +374,7 @@ class PruningEnv(gym.Env):
 
         self.pyb.remove_debug_items("step")
         self.action[:3] = action[:3] * self.action_scale
-        self.action[3:] = action[3:] * self.action_scale*2
+        self.action[3:] = action[3:] * self.action_scale
         self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
         singularity = self.ur5.set_joint_velocities(self.ur5.action)
 

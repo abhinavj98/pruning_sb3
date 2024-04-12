@@ -88,7 +88,7 @@ class UR5:
             self.joints[info.name] = info
 
         # self.set_collision_filter()
-        self.init_joint_angles = (-np.pi / 2, -2., 2.16, -3.14, -1.57, np.pi)
+        self.init_joint_angles = (-np.pi / 2, -2.3, 2.16, -3.14, -1.57, np.pi)
         self.set_joint_angles(self.init_joint_angles)
         for _ in range(100):
             self.con.stepSimulation()
