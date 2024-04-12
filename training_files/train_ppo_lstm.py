@@ -86,7 +86,7 @@ if __name__ == "__main__":
         "share_features_extractor": False,
         "n_lstm_layers": 2,
         "features_dim_critic_add": 2, #Assymetric critic
-        "lstm_hidden_size": 256,
+        "lstm_hidden_size": 128,
         # "squash_output": True,  # Doesn't work
     }
     policy = RecurrentActorCriticPolicy
