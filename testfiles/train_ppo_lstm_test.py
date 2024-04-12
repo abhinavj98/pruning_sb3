@@ -21,15 +21,15 @@ from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optic
     set_args, organize_args, add_arg_to_env
 from stable_baselines3.common.vec_env.base_vec_env import CloudpickleWrapper
 import multiprocessing as mp
-from multiprocessing.managers import BaseManager
-# Create the ArgumentParser object
-parser = argparse.ArgumentParser()
-set_args(args, parser)
-parsed_args = vars(parser.parse_args())
-parsed_args_dict = organize_args(parsed_args)
+from pruning_sb3.pruning_gym.helpers import init_wandb
 
 
 if __name__ == "__main__":
+    # Create the ArgumentParser object
+    parser = argparse.ArgumentParser()
+    set_args(args, parser)
+    parsed_args = vars(parser.parse_args())
+    parsed_args_dict = organize_args(parsed_args)
     manager = mp.Manager()
     shared_list = manager.list()
     if parsed_args_dict['args_global']['load_path']:
@@ -92,7 +92,7 @@ if __name__ == "__main__":
         model = RecurrentPPOAE(policy, env, policy_kwargs=policy_kwargs,
                                learning_rate=linear_schedule(parsed_args_dict['args_policy']['learning_rate']),
                                learning_rate_ae=exp_schedule(parsed_args_dict['args_policy']['learning_rate_ae']),
-                               learning_rate_logstd=linear_schedule(0.01),
+                               learning_rate_logstd=None,
                                n_steps=parsed_args_dict['args_policy']['steps_per_epoch'],
                                batch_size=parsed_args_dict['args_policy']['batch_size'],
                                n_epochs=parsed_args_dict['args_policy']['epochs'])

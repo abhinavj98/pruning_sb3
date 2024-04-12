@@ -19,7 +19,7 @@ def init_wandb(args, name):
        with open("../keys.json") as f:
          os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
 
-    wandb.tensorboard.patch(root_logdir="./runs", pytorch=True)
+    wandb.tensorboard.patch(root_logdir="runs", pytorch=True)
     wandb.init(
         # set the wandb project where this run will be logged
         project="ppo_lstm",

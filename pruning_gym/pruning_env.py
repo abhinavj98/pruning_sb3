@@ -335,12 +335,14 @@ class PruningEnv(gym.Env):
         if self.use_ik:
             jv, jacobian = self.ur5.calculate_joint_velocities_from_ee_velocity(velocity)
             # check if actual ee velocity is close to desired ee velocity
-            actual_ee_vel = np.matmul(jacobian, jv)
-            #TODO:Log ee_vel_error
-            self.ee_vel_error = abs(actual_ee_vel - velocity) / (velocity + 1e-5)
-            if (self.ee_vel_error > 0.1).any():
-                print("Nope")
-                jv = np.zeros(6)
+            # actual_ee_vel = np.matmul(jacobian, jv)
+            # #TODO:Log ee_vel_error
+            # self.ee_vel_error = abs(actual_ee_vel - velocity) / (velocity + 1e-5)
+            # print("EE vel error: ", self.ee_vel_error, velocity, actual_ee_vel)
+            # if (self.ee_vel_error > 0.1).any():
+            #     print("Nope")
+            #     jv = np.zeros(6)
+
         #If not using ik, just set joint velocities to be regressed by actor
         else:
             jv = velocity
@@ -366,9 +368,8 @@ class PruningEnv(gym.Env):
     def step(self, action: NDArray[Shape['6, 1'], Float]) -> Tuple[dict, float, bool, bool, dict]:
 
         self.pyb.remove_debug_items("step")
-
         self.action[:3] = action[:3] * self.action_scale
-        self.action[3:] = action[3:] * self.action_scale
+        self.action[3:] = action[3:] * self.action_scale*2
         self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
         singularity = self.ur5.set_joint_velocities(self.ur5.action)
 

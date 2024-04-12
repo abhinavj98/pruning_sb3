@@ -94,6 +94,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             normalize_advantage: bool = True,
             ent_coef: float = 0.001,
             vf_coef: float = 0.5,
+            ae_coeff: float = 1,
             max_grad_norm: float = 0.5,
             use_sde: bool = False,
             sde_sample_freq: int = -1,
@@ -142,6 +143,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         self.normalize_advantage = normalize_advantage
         self.target_kl = target_kl
         self._last_lstm_states = None
+        self.ae_coeff = ae_coeff
 
         if _init_setup_model:
             self._setup_model()
@@ -336,16 +338,21 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         # TODO: Move to callback
         self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
         self.logger.record("train/learning_rate_ae", self.lr_schedule_ae(self._current_progress_remaining))
-        self.logger.record("train/learning_rate_logstd", self.lr_schedule_logstd(self._current_progress_remaining))
+        if self.learning_rate_logstd is not None:
+            self.logger.record("train/learning_rate_logstd", self.lr_schedule_logstd(self._current_progress_remaining))
+            update_learning_rate(self.policy.optimizer_logstd, self.lr_schedule_logstd(self._current_progress_remaining))
+
         update_learning_rate(self.policy.optimizer, self.lr_schedule(self._current_progress_remaining))
         update_learning_rate(self.policy.optimizer_ae, self.lr_schedule_ae(self._current_progress_remaining))
-        update_learning_rate(self.policy.optimizer_logstd, self.lr_schedule_logstd(self._current_progress_remaining))
 
     def _custom_setup_lr_schedule(self) -> None:
         """Transform to callable if needed."""
         self.lr_schedule = get_schedule_fn(self.learning_rate)
         self.lr_schedule_ae = get_schedule_fn(self.learning_rate_ae)
-        self.lr_schedule_logstd = get_schedule_fn(self.learning_rate_logstd)
+        if self.learning_rate_logstd is not None:
+            self.lr_schedule_logstd = get_schedule_fn(self.learning_rate_logstd)
+        else:
+            self.lr_schedule_logstd = None
 
     def train(self) -> None:
         """
@@ -429,7 +436,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 # Mask padded sequences
                 # TODO: depth proxy no more in obs
                 ae_l2_loss = self.mse_loss(F.interpolate(depth_proxy, size=(112, 112)), depth_proxy_recon)
-                ae_losses.append(ae_l2_loss.item())
+                ae_losses.append(ae_l2_loss.item()*self.ae_coeff)
                 value_loss = th.mean(((rollout_data.returns - values_pred) ** 2)[mask])
                 # Depth prediction loss
                 #TODO: Add depth prediction loss
@@ -444,7 +451,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
                 entropy_losses.append(entropy_loss.item())
 
-                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + ae_l2_loss
+                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + ae_l2_loss*self.ae_coeff
 
                 # Calculate approximate form of reverse KL Divergence for early stopping
                 # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -464,14 +471,16 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 # Optimization step  
                 self.policy.optimizer.zero_grad()
                 self.policy.optimizer_ae.zero_grad()
-                self.policy.optimizer_logstd.zero_grad()
+                if self.learning_rate_logstd is not None:
+                    self.policy.optimizer_logstd.zero_grad()
 
                 loss.backward()
                 # Clip grad norm
                 th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                 self.policy.optimizer.step()
                 self.policy.optimizer_ae.step()
-                self.policy.optimizer_logstd.step()
+                if self.learning_rate_logstd is not None:
+                    self.policy.optimizer_logstd.step()
 
             if not continue_training:
                 break

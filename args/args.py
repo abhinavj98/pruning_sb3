@@ -1,8 +1,9 @@
+# Repace bool elements with flags (Bool doesnt work)
 args = {
     'args_callback': {
         'eval_freq': {
             'type': int,
-            'default': 8000,
+            'default': 4000,
             'help': 'frequency of evaluation'
         },
         'n_eval_episodes': {
@@ -31,7 +32,7 @@ args = {
         },
         'terminate_reward_scale': {
             'type': float,
-            'default': 0.01,
+            'default': 0.1,
             'help': 'scaling factor for the terminate reward'
         },
         'collision_reward_scale': {
@@ -62,12 +63,14 @@ args = {
             'help': 'maximum number of steps per episode'
         },
         'use_ik': {
-            'type': bool,
-            'default': True
+            'action': "store_true",
+            'default': True,
+            'help': 'whether to render the environment'
         },
+
         'action_scale': {
             'type': float,
-            'default': 0.4,
+            'default': 0.1,
             'help': 'scaling factor for the action space'
         },
         'action_dim': {
@@ -94,13 +97,13 @@ args = {
             'help': 'path to the train OBJ file for the tree environment'
         },
         'renders': {
-            'type': bool,
+            'action': "store_true",
             'default': False,
             'help': 'whether to render the environment'
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.6,)
+            'default': (0.5,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -125,8 +128,8 @@ args = {
             'default': './meshes_and_urdf/meshes/trees/envy/test',
             'help': 'path to the test OBJ file for the tree environment'
         },
-        'renders': {
-            'type': bool,
+         'renders': {
+            'action': "store_true",
             'default': False,
             'help': 'whether to render the environment'
         },
@@ -137,7 +140,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.6,)
+            'default': (0.5,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -161,15 +164,15 @@ args = {
             'default': './meshes_and_urdf/meshes/trees/envy/test',
             'help': 'path to the test OBJ file for the tree environment'
         },
-        'renders': {
-            'type': bool,
+         'renders': {
+            'action': "store_true",
             'default': False,
             'help': 'whether to render the environment'
         },
 
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.6,)
+            'default': (0.5,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -231,7 +234,7 @@ args = {
         },
         'epochs': {
             'type': int,
-            'default': 10,
+            'default': 5,
             'help': 'number of epochs to train for'
         },
         'batch_size': {
@@ -253,6 +256,10 @@ args = {
             'type': float,
             'default': -3.5,
             'help': 'initial value for the log standard deviation'
-    	},
+        },
+        'ae_coeff': {
+            'type': int,
+            'default': 1,
+        }
     }
 }

@@ -228,7 +228,7 @@ class ActorCriticPolicySquashed(BasePolicy):
             latent_dim=latent_dim_pi, log_std_init=self.log_std_init
         )
         # multiply action net weight by 10
-        self.action_net.weight.data *= 10
+        # self.action_net.weight.data *= 10
         # if isinstance(self.action_dist, DiagGaussianDistribution):
         #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
         #         latent_dim=latent_dim_pi, log_std_init=self.log_std_init
@@ -539,6 +539,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             self.optimizer = self.optimizer_class(
                 [*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(),
                  *self.action_net.parameters(), self.log_std], lr=lr_schedule(1), **self.optimizer_kwargs)
+            self.optimizer_logstd = None
         if lr_schedule_ae is not None:
             self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1),
                                                      **self.optimizer_kwargs)

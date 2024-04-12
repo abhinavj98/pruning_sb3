@@ -157,7 +157,7 @@ class UR5:
         singularity = False
 
         # TODO: Find a better way to handle singularity than not moving
-        if (abs(joint_velocities) > 0.25).any():
+        if (abs(joint_velocities) > 1.7).any():
             singularity = True
             joint_velocities = np.zeros(6)
         for i, name in enumerate(self.control_joints):
