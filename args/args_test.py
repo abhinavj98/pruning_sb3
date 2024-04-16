@@ -94,6 +94,11 @@ args = {
             'default': './meshes_and_urdf/meshes/trees/envy/train',
             'help': 'path to the train OBJ file for the tree environment'
         },
+        'tree_labelled_path': {
+            'type': str,
+            'default': './meshes_and_urdf/meshes/trees/envy/train_labelled',
+            'help': 'path to the train OBJ file for the tree environment'
+        },
         'renders': {
             'type': bool,
             'default': False,
@@ -128,6 +133,11 @@ args = {
             'default': './meshes_and_urdf/meshes/trees/envy/test',
             'help': 'path to the test OBJ file for the tree environment'
         },
+        'tree_labelled_path': {
+            'type': str,
+            'default': './meshes_and_urdf/meshes/trees/envy/test_labelled',
+            'help': 'path to the test OBJ file for the tree environment'
+        },
         'renders': {
             'type': bool,
             'default': False,
@@ -145,6 +155,11 @@ args = {
         'curriculum_level_steps': {
             'type': tuple,
             'default': ()
+        },
+        'tree_count': {
+            'type': int,
+            'default': 1,
+            'help': 'number of trees to load'
         },
         'name': {
             'type': str,

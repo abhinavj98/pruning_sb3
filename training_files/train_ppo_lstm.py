@@ -33,7 +33,7 @@ if __name__ == "__main__":
     print(parsed_args_dict)
     manager = mp.Manager()
     shared_list = manager.list()
-    init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
+    # init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
     if parsed_args_dict['args_global']['load_path']:
         load_path_model = "./logs/{}/current_model.zip".format(
             parsed_args_dict['args_global']['load_path'])
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     if not load_path_model:
         model = RecurrentPPOAE(policy, env, policy_kwargs=policy_kwargs,
                                learning_rate=linear_schedule(args_policy['learning_rate']),
-                               learning_rate_ae=exp_schedule(args_policy['learning_rate_ae']),
+                               learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),
                                learning_rate_logstd=None,
                                n_steps=args_policy['steps_per_epoch'],
                                batch_size=args_policy['batch_size'],
@@ -102,13 +102,13 @@ if __name__ == "__main__":
                                ae_coeff=args_policy['ae_coeff'])
     else:
         load_dict = {"learning_rate": linear_schedule(args_policy['learning_rate']),
-                     "learning_rate_ae": exp_schedule(args_policy['learning_rate_ae']),
-                     "learning_rate_logstd": linear_schedule(0.01)}
+                     "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
+                     "learning_rate_logstd": None}
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
         
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
-        model.num_timesteps = 456_000
-        model._num_timesteps_at_start = 456_000
+        model.num_timesteps = 2_000_000
+        model._num_timesteps_at_start = 2_000_000
         print("LOADED MODEL")
     model.set_logger(new_logger)
 

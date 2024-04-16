@@ -44,7 +44,7 @@ if __name__ == "__main__":
     add_arg_to_env('shared_tree_list', shared_list, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
 
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
-    env = PruningEnv(**args_test, tree_count=1, make_trees=True)
+    env = PruningEnv(**args_test, make_trees=True)
     env.action_scale = 1
     env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485, -0.7777109569760938, 3.210501267258541))
     for _ in range(100):
@@ -86,8 +86,10 @@ if __name__ == "__main__":
             val = np.array([0.,0.,0., 0., 0., 0.])
         # print(val)
         observation, reward, terminated, truncated, infos = env.step(val)
+
         # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
         #get base position and orientation
+        print(env.ur5.get_current_pose(env.ur5.end_effector_index)[0])
         base_pos, base_quat = env.pyb.con.getBasePositionAndOrientation(env.ur5.ur5_robot)
         # print(base_pos, base_quat)
         # print(env.ur5.get_current_pose(0))

@@ -164,6 +164,7 @@ class pyb_utils:
             #         self.debug_branch = self.pyb_con.con.addUserDebugLine(point,
             #                                                       point + 5 * normal_vec / np.linalg.norm(normal_vec),
             #                                                       [1, 0, 0], 2)
+
             self.add_debug_item('sphere', 'step', lineFromXYZ=[loc[0],
                                                                loc[1], loc[2]],
                                 lineToXYZ=[loc[0] + 0.005, loc[1] + 0.005, \

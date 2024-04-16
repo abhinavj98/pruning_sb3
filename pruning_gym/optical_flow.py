@@ -1,6 +1,7 @@
 import torch as th
 from torchvision.models.optical_flow import Raft_Small_Weights, raft_small
 from torchvision.transforms import functional as F
+import os
 import numpy as np
 
 class OpticalFlow:
@@ -10,6 +11,8 @@ class OpticalFlow:
         self.transforms = weights.transforms()
         model = raft_small(weights=Raft_Small_Weights.DEFAULT, progress=False).to(self.device)
         self.model = model.eval()
+        if os.name != 'nt':
+            self.model = th.compile(model)
         self.size = size
         self.subprocess = subprocess
         self.shared_queue, self.shared_dict = shared_var

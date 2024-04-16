@@ -29,7 +29,7 @@ class PruningEnv(gym.Env):
 
     # optical_flow_model = OpticalFlow()
 
-    def __init__(self, tree_urdf_path: str, tree_obj_path: str, renders: bool = False, max_steps: int = 500,
+    def __init__(self, tree_urdf_path: str, tree_obj_path: str, tree_labelled_path: str,  renders: bool = False, max_steps: int = 500,
                  learning_param: float = 0.05, tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
                  algo_width: int = 224, algo_height: int = 224,
                  evaluate: bool = False, num_points: Optional[int] = None, action_dim: int = 12,
@@ -53,6 +53,7 @@ class PruningEnv(gym.Env):
         # Obj/URDF paths
         self.tree_urdf_path = tree_urdf_path
         self.tree_obj_path = tree_obj_path
+        self.tree_labelled_path = tree_labelled_path
         self.supports = None
         self.tree_id = None
         # Gym variables
@@ -155,7 +156,7 @@ class PruningEnv(gym.Env):
         assert pos is not None
         self.make_trees = make_trees
         if self.make_trees:
-            self.trees = Tree.make_trees_from_folder(self, self.pyb, self.tree_urdf_path, self.tree_obj_path, pos=pos,
+            self.trees = Tree.make_trees_from_folder(self, self.pyb, self.tree_urdf_path, self.tree_obj_path, self.tree_labelled_path, pos=pos,
                                                      orientation=np.array([0, 0, 0, 1]), scale=scale, num_points=num_points,
                                                      num_trees=self.tree_count, curriculum_distances=curriculum_distances,
                                                      curriculum_level_steps=curriculum_level_steps)
@@ -169,13 +170,13 @@ class PruningEnv(gym.Env):
         # from pympler.asizeof import asizeof
         # print("SIZE::::", asizeof(self.trees))
         # for tree in self.trees:
-        #
         #     self.tree = tree
         #     self.activate_tree(self.pyb)
         #     # tree.make_curriculum()
-        #     self.pyb.visualize_points(tree.curriculum_points[0], "curriculum")
+        #     self.pyb.visualize_points(tree.vertex_and_projection, "reachable")
         #     input()
         #     self.inactivate_tree(self.pyb)
+        #     self.pyb.remove_debug_items("step")
         self.sample_tree()
         self.activate_tree(self.pyb)
 
@@ -374,7 +375,7 @@ class PruningEnv(gym.Env):
 
         self.pyb.remove_debug_items("step")
         self.action[:3] = action[:3] * self.action_scale
-        self.action[3:] = action[3:] * self.action_scale
+        self.action[3:] = action[3:] * self.action_scale/2
         self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
         singularity = self.ur5.set_joint_velocities(self.ur5.action)
 

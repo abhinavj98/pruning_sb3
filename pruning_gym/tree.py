@@ -12,6 +12,7 @@ from pruning_sb3.pruning_gym.helpers import compute_perpendicular_projection_vec
 
 from pruning_sb3.pruning_gym.reward_utils import Reward
 # from memory_profiler import profile
+
 class Tree:
     """ Class representing a tree mesh. It is used to sample points on the surface of the tree."""
 
@@ -19,12 +20,17 @@ class Tree:
                  pos: NDArray[Shape['3,1'], Float] = np.array([0, 0, 0]),
                  orientation: NDArray[Shape['4,1'], Float] = np.array([0, 0, 0, 1]),
                  num_points: Optional[int] = None, scale: int = 1, curriculum_distances: Tuple = (-0.1,),
-                 curriculum_level_steps: Tuple = (), reset_count = 0) -> None:
+                 curriculum_level_steps: Tuple = (), reset_count = 0, labelled_obj_path: str = None) -> None:
 
 
         assert len(curriculum_distances) - 1 == len(curriculum_level_steps)
-
+        self.label = {
+            (0.117647, 0.235294, 0.039216): "SPUR",
+            (0.313725, 0.313725, 0.313725): "TRUNK",
+            (0.254902, 0.176471, 0.058824): "BRANCH"
+        }
         self.urdf_path = urdf_path
+        self.labelled_obj_path = labelled_obj_path
         # self.env = env
         # self.pyb = pyb
         self.scale = scale
@@ -32,12 +38,14 @@ class Tree:
         self.orientation = orientation
         self.obj_path = obj_path
         tree_obj = pywavefront.Wavefront(obj_path, create_materials=True, collect_faces=True)
+        labelled_tree_obj = pywavefront.Wavefront(labelled_obj_path, create_materials=True, collect_faces=True)
         self.vertex_and_projection = []
         self.projection_mean = np.array(0.)
         self.projection_std = np.array(0.)
         self.projection_sum_x = np.array(0.)
         self.projection_sum_x2 = np.array(0.)
-        self.base_xyz = env.ur5.get_current_pose(env.ur5.end_effector_index)[0]
+        self.base_xyz = env.ur5.get_current_pose(env.ur5.base_index)[0]
+        self.ee_xyz = env.ur5.get_current_pose(env.ur5.end_effector_index)[0]
         self.num_points = num_points
         self.reachable_points = []
         self.curriculum_points = dict()
@@ -46,34 +54,58 @@ class Tree:
         self.reset_count = reset_count
 
 
-        #Filter trunk points?
-        # self.filtered_vertices = list(filter(self.filter_trunk_points, self.tree_obj.vertices))
-        self.transformed_vertices = list(map(lambda x: self.transform_obj_vertex(x, pyb), tree_obj.vertices))
+
+        #create a dictionary of vertices and assign label using close enough vertex on labelled tree obj
+        vertex_to_label = {}
+        for i, vertex in enumerate(tree_obj.vertices):
+            vertex_to_label[vertex] = None
+
+
+        for j, labelled_vertex in enumerate(labelled_tree_obj.vertices):
+            min_dist = 100000
+            for i in self.label.keys():
+                #assign label that is closest
+                dist = np.linalg.norm(np.array(labelled_vertex[3:]) - np.array(i))
+                if dist < min_dist:
+                    min_dist = dist
+                    vertex_to_label[labelled_vertex[:3]] = self.label[i]
+
+        #append the label to each vertex
+        tree_obj_vertices_labelled = []
+        for i, vertex in enumerate(tree_obj.vertices):
+            tree_obj_vertices_labelled.append(vertex + (vertex_to_label[vertex],))
+
+
+        self.transformed_vertices = list(map(lambda x: self.transform_obj_vertex(x, pyb), tree_obj_vertices_labelled))
 
         # if pickled file exists load and return
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
         # TODO: Add reset variable so that even if present it recomputes
         if not os.path.exists('./pkl/' + str(path_component[3])):
             os.makedirs('./pkl/' + str(path_component[3]))
-        pkl_path = './pkl/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_reachable_points.pkl'
+        pkl_path = './pkl/' + str(path_component[3]) + '/' + str(path_component[-1][:-5]) + '_points.pkl'
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
                 data = pickle.load(f)
                 self.pos = data[0]
                 self.orientation = data[1]
-                self.reachable_points = data[2]
-            print('Loaded reachable points from pickle file ', pkl_path)
-            print("Number of reachable points: ", len(self.reachable_points))
+                self.vertex_and_projection = data[2]
+            print('Loaded points from pickle file ', pkl_path)
+            print("Number of points: ", len(self.vertex_and_projection))
         else:
-            self.get_all_points(tree_obj)
-            self.get_reachable_points(env, pyb)
+            self.get_all_points(tree_obj)           #vertex_and_projection
+            self.filter_outliers()
+
             # dump reachable points to file using pickle
 
             with open(pkl_path, 'wb') as f:
-                pickle.dump((self.pos, self.orientation, self.reachable_points), f)
+                pickle.dump((self.pos, self.orientation, self.vertex_and_projection), f)
 
-            print('Saved reachable points to pickle file ', self.urdf_path[:-5] + '_reachable_points.pkl')
-            print("Number of reachable points: ", len(self.reachable_points))
+            print('Saved points to pickle file ', self.urdf_path[:-5] + '_points.pkl')
+            print("Number of points: ", len(self.vertex_and_projection))
+        print("Position: ", self.pos, "Orientation: ", self.orientation)
+        self.get_reachable_points(env, pyb)
+        print("Number of reachable points: ", len(self.reachable_points))
         self.make_curriculum(env)
 
 
@@ -87,7 +119,7 @@ class Tree:
         vertex_pos = np.array(vertex[0:3]) * self.scale
         vertex_orientation = [0, 0, 0, 1]  # Dont care about orientation
         vertex_w_transform = pyb.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation)
-        return np.array(vertex_w_transform[0])
+        return np.array(vertex_w_transform[0]), vertex[3]
     def filter_trunk_points(self, vertex) -> bool:
         vertex_pos = np.array(vertex[0:3])
         vertex_orientation = [0, 0, 0, 1]  # Dont care about orientation
@@ -102,16 +134,16 @@ class Tree:
             # Order the sides of the face by length
             ab = (
                 face[0], face[1],
-                np.linalg.norm(self.transformed_vertices[face[0]] - self.transformed_vertices[face[1]]))
+                np.linalg.norm(self.transformed_vertices[face[0]][0] - self.transformed_vertices[face[1]][0]))
             ac = (
                 face[0], face[2],
-                np.linalg.norm(self.transformed_vertices[face[0]] - self.transformed_vertices[face[2]]))
+                np.linalg.norm(self.transformed_vertices[face[0]][0] - self.transformed_vertices[face[2]][0]))
             bc = (
                 face[1], face[2],
-                np.linalg.norm(self.transformed_vertices[face[1]] - self.transformed_vertices[face[2]]))
+                np.linalg.norm(self.transformed_vertices[face[1]][0] - self.transformed_vertices[face[2]][0]))
 
-            normal_vec = np.cross(self.transformed_vertices[ac[0]] - self.transformed_vertices[ac[1]],
-                                  self.transformed_vertices[bc[0]] - self.transformed_vertices[bc[1]])
+            normal_vec = np.cross(self.transformed_vertices[ac[0]][0] - self.transformed_vertices[ac[1]][0],
+                                  self.transformed_vertices[bc[0]][0] - self.transformed_vertices[bc[1]][0])
             # Only front facing faces
             if np.dot(normal_vec, [0, 1, 0]) < 0:
                 continue
@@ -129,14 +161,22 @@ class Tree:
             # |    \
             # b______\c
             perpendicular_projection = compute_perpendicular_projection_vector(
-                self.transformed_vertices[ac[0]] - self.transformed_vertices[ac[1]],
-                self.transformed_vertices[bc[0]] - self.transformed_vertices[bc[1]])
+                self.transformed_vertices[ac[0]][0] - self.transformed_vertices[ac[1]][0],
+                self.transformed_vertices[bc[0]][0] - self.transformed_vertices[bc[1]][0])
 
             scale = np.random.uniform()
-            tree_point = ((1-scale)*self.transformed_vertices[ab[0]] + scale*self.transformed_vertices[ab[1]])
-            self.vertex_and_projection.append((tree_point, perpendicular_projection,
-                 normal_vec))
+            tree_point = ((1-scale)*self.transformed_vertices[ab[0]][0] + scale*self.transformed_vertices[ab[1]][0])
 
+            #Label the face as the majority label of the vertices
+            labels = [self.transformed_vertices[ab[0]][1], self.transformed_vertices[ab[1]][1], self.transformed_vertices[ac[0]][1], self.transformed_vertices[ac[1]][1], self.transformed_vertices[bc[0]][1], self.transformed_vertices[bc[1]][1]]
+            label = max(set(labels), key=labels.count)
+
+
+
+            if label != "SPUR":
+                continue
+            self.vertex_and_projection.append((tree_point, perpendicular_projection,
+                                               normal_vec, label))
             # This projection mean is used to filter corner/flushed faces which do not correspond to a branch
             self.projection_sum_x += np.linalg.norm(perpendicular_projection)
             self.projection_sum_x2 += np.linalg.norm(perpendicular_projection) ** 2
@@ -146,17 +186,20 @@ class Tree:
 
 
 
-
+    def filter_outliers(self):
+        #Filter out outliers
+        print("Number of points before filtering: ", len(self.vertex_and_projection))
+        self.vertex_and_projection = list(filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean + 0.5 * self.projection_std, self.vertex_and_projection))
+        print("Number of points after filtering: ", len(self.vertex_and_projection))
     def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]], env, pyb) -> bool:
-        #TODO: Fix this
+        if vertice[3] != "SPUR":
+            return False
         ur5_base_pos = np.array(self.base_xyz)
-
 
         #Meta condition
         dist = np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
-        projection_length = np.linalg.norm(vertice[1])
-        if dist >= 0.65 or (projection_length < self.projection_mean + 0.5 * self.projection_std):
-            # print("proj length")
+
+        if dist >= 0.8:
             return False
 
         j_angles = env.ur5.calculate_ik(vertice[0], None)
@@ -173,7 +216,7 @@ class Tree:
     def get_reachable_points(self, env, pyb) -> List[Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]]]:
         self.reachable_points = list(filter(lambda x: self.is_reachable(x, env, pyb), self.vertex_and_projection))
         #Filter points on trunk
-        self.reachable_points = list(filter(lambda x: self.filter_trunk_points(x[0]), self.reachable_points))
+        # self.reachable_points = list(filter(lambda x: self.filter_trunk_points(x[0]), self.reachable_points))
         # self.reachable_points = [np.array(i[0][0:3]) for i in self.reachable_points]
         np.random.shuffle(self.reachable_points)
         if self.num_points:
@@ -186,23 +229,25 @@ class Tree:
         return self.reachable_points
 
     @staticmethod
-    def make_trees_from_folder(env, pyb, trees_urdf_path: str, trees_obj_path: str, pos: NDArray,
+    def make_trees_from_folder(env, pyb, trees_urdf_path: str, trees_obj_path: str, trees_labelled_path: str, pos: NDArray,
                                orientation: NDArray, scale: int, num_points: int, num_trees: int,
                                curriculum_distances: Tuple, curriculum_level_steps: Tuple):
         trees: List[Tree] = []
-        for urdf, obj in zip(sorted(glob.glob(trees_urdf_path + '/*.urdf')),
-                             sorted(glob.glob(trees_obj_path + '/*.obj'))):
+        for urdf, obj, labelled_obj in zip(sorted(glob.glob(trees_urdf_path + '/*.urdf')),
+                             sorted(glob.glob(trees_obj_path + '/*.obj')),
+                            sorted(glob.glob(trees_labelled_path + '/*.obj'))):
+            print(urdf, obj, labelled_obj)
             if len(trees) >= num_trees:
                 break
             #randomize position TOOO:
             randomize = True
             if randomize:
-                pos = pos + np.random.uniform(low = -1, high=1, size = (3,)) * np.array([0.25, 0.025, 0.25])
+                pos = pos + np.random.uniform(low = -1, high=1, size = (3,)) * np.array([0.15, 0.025, 0.15])
                 # pos[2] = pos[2] - 0.3
                 orientation = np.array([0,0,0,1])#pybullet.getQuaternionFromEuler(np.random.uniform(low = -1, high=1, size = (3,)) * np.pi / 180 * 10)
             trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
                               num_points=num_points, curriculum_distances=curriculum_distances,
-                              curriculum_level_steps=curriculum_level_steps))
+                              curriculum_level_steps=curriculum_level_steps, labelled_obj_path=labelled_obj))
         return trees
 
 
@@ -248,9 +293,9 @@ class Tree:
             # else:
             for point in self.reachable_points:
                 target_dist = np.linalg.norm(np.array(self.base_xyz) - point[0], axis=-1)
-                pcs = Reward.compute_perpendicular_cos_sim(env.ur5.init_pos[1], point[1])
-                if abs(pcs) > 0.7:
-                    continue
+                # pcs = Reward.compute_perpendicular_cos_sim(env.ur5.init_pos[1], point[1])
+                # if abs(pcs) > 0.7:
+                #     continue
                 if target_dist < max_distance:
                     self.curriculum_points[level].append((max_distance, point))
 

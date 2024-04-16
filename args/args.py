@@ -32,7 +32,7 @@ args = {
         },
         'terminate_reward_scale': {
             'type': float,
-            'default': 0.1,
+            'default': 0.4,
             'help': 'scaling factor for the terminate reward'
         },
         'collision_reward_scale': {
@@ -96,6 +96,11 @@ args = {
             'default': './meshes_and_urdf/meshes/trees/envy/train',
             'help': 'path to the train OBJ file for the tree environment'
         },
+        'tree_labelled_path': {
+            'type': str,
+            'default': './meshes_and_urdf/meshes/trees/envy/train_labelled',
+            'help': 'path to the train OBJ file for the tree environment'
+        },
         'renders': {
             'action': "store_true",
             'default': False,
@@ -103,7 +108,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.5,)
+            'default': (0.8,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -128,6 +133,11 @@ args = {
             'default': './meshes_and_urdf/meshes/trees/envy/test',
             'help': 'path to the test OBJ file for the tree environment'
         },
+        'tree_labelled_path': {
+            'type': str,
+            'default': './meshes_and_urdf/meshes/trees/envy/test_labelled',
+            'help': 'path to the test OBJ file for the tree environment'
+        },
          'renders': {
             'action': "store_true",
             'default': False,
@@ -140,7 +150,7 @@ args = {
         },
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.5,)
+            'default': (0.8,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -172,7 +182,7 @@ args = {
 
         'curriculum_distances': {
             'type': tuple,
-            'default': (0.5,)
+            'default': (0.8,)
         },
         'curriculum_level_steps': {
             'type': tuple,
@@ -254,7 +264,7 @@ args = {
         },
         'log_std_init': {
             'type': float,
-            'default': 0,#-3.5,
+            'default': -0.8,#-3.5,
             'help': 'initial value for the log standard deviation'
         },
         'ae_coeff': {
