@@ -155,7 +155,7 @@ class Tree:
         #Meta condition
         dist = np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
         projection_length = np.linalg.norm(vertice[1])
-        if dist >= 0.8 or (projection_length < self.projection_mean + 0.5 * self.projection_std):
+        if dist >= 0.65 or (projection_length < self.projection_mean + 0.5 * self.projection_std):
             # print("proj length")
             return False
 
