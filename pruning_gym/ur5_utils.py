@@ -154,10 +154,12 @@ class UR5:
         velocities = []
         indexes = []
         forces = []
+        max_joint_velocity = np.pi
         singularity = False
 
         # TODO: Find a better way to handle singularity than not moving
-        if (abs(joint_velocities) > 1.7).any():
+        #Don't move if joint velocity is more than half of max joint velocity
+        if (abs(joint_velocities) > max_joint_velocity/2).any():
             singularity = True
             joint_velocities = np.zeros(6)
         for i, name in enumerate(self.control_joints):
@@ -165,9 +167,7 @@ class UR5:
             velocities.append(joint_velocities[i])
             indexes.append(joint.id)
             forces.append(joint.maxForce)
-        # print(joint_velocities)
-        # if (joint_velocities > 1).any():
-        #     input()
+
         maxForce = 500
         self.con.setJointMotorControlArray(self.ur5_robot,
                                            indexes,

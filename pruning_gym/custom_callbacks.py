@@ -279,20 +279,20 @@ class CustomEvalCallback(EventCallback):
             screen_copy = cv2.putText(screen_copy, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX, 
                 0.5, (255,0,0), 2, cv2.LINE_AA)
             screen_copy = cv2.putText(screen_copy, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX, 
-                0.35, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+                0.5, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             screen_copy = cv2.putText(screen_copy, "Current: "+str(observation_info['achieved_pos']), (0,140), cv2.FONT_HERSHEY_SIMPLEX,
                 .5, (255,0,0), 2, cv2.LINE_AA)
             screen_copy = cv2.putText(screen_copy, "Goal: "+str(observation_info['desired_pos']), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
                 0.5, (255,0,0), 2, cv2.LINE_AA)
             screen_copy = cv2.putText(screen_copy, "Orientation Perpendicular: " +str(observation_info['perpendicular_cosine_sim']), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
-                0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+                0.6, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             screen_copy = cv2.putText(screen_copy, "Orientation Pointing: " + str(
                 observation_info['pointing_cosine_sim']), (0, 230),
                                       cv2.FONT_HERSHEY_SIMPLEX,
-                                      0.35, (255, 0, 0), 2, cv2.LINE_AA)  # str(_locals['actions'])
+                                      0.6, (255, 0, 0), 2, cv2.LINE_AA)  # str(_locals['actions'])
 
             screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(observation_info["target_distance"])), (0,260), cv2.FONT_HERSHEY_SIMPLEX,
-                0.35, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+                0.6, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             self._screens_buffer.append(screen_copy.transpose(2, 0, 1))
             # print("Saving screen")
 

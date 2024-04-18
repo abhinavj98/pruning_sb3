@@ -133,3 +133,4 @@ runs/
 *.csv
 logs/
 *.dat
+.idea/

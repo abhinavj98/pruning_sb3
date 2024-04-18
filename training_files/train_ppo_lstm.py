@@ -33,7 +33,9 @@ if __name__ == "__main__":
     print(parsed_args_dict)
     manager = mp.Manager()
     shared_list = manager.list()
-    # init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
+
+    init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
+
     if parsed_args_dict['args_global']['load_path']:
         load_path_model = "./logs/{}/current_model.zip".format(
             parsed_args_dict['args_global']['load_path'])
@@ -41,7 +43,8 @@ if __name__ == "__main__":
             parsed_args_dict['args_global']['load_path'])
     else:
         load_path_model = None
-    add_arg_to_env('shared_tree_list', shared_list, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
+
+    add_arg_to_env('shared_tree_list', shared_list, ['args_train'], parsed_args_dict)
 
     args_global = parsed_args_dict['args_global']
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])

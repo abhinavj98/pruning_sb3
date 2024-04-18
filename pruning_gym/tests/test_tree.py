@@ -18,8 +18,8 @@ def pyb():
 def env():
     urdf_path = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'trees', 'envy', 'test')
     obj_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test')
-
-    env = PruningEnv(urdf_path, obj_path, renders=False)
+    label_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test_labelled')
+    env = PruningEnv(urdf_path, obj_path, label_path, renders=False, make_trees=True, tree_count=1)
     return env
 
 @pytest.fixture

@@ -52,7 +52,8 @@ class Reward:
                                               previous_or, branch_vector):
         cosine_sim_prev = self.compute_pointing_cos_sim(previous_pos, desired_pos, previous_or, branch_vector)
         cosine_sim_curr = self.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or, branch_vector)
-        pointing_orientation_reward = (abs(cosine_sim_curr) - abs(cosine_sim_prev)) * \
+        #if sign of both are different, then it means that the end effector has crossed the branch
+        pointing_orientation_reward = (cosine_sim_curr - cosine_sim_prev) * \
                                       self.pointing_orientation_reward_scale
         self.reward_info['pointing_orientation_reward'] = pointing_orientation_reward
         return pointing_orientation_reward, abs(cosine_sim_curr)
@@ -93,15 +94,16 @@ class Reward:
 
     """
     
-    ^ y
-    |
-    |____> x
-    / Out of screen
-    z
+            ^ z
+            |
+     x <----|
+            / Out of screen
+            y
+            Pybullet coords
     """
     @staticmethod
-    def compute_perpendicular_cos_sim(achieved_or: NDArray[Shape['4, 1'], Float],
-                                      branch_vector: NDArray[Shape['3, 1'], Float]):
+    def compute_perpendicular_cos_sim(achieved_or,
+                                      branch_vector):
         # Orientation reward is computed as the dot product between the current orientation and the perpendicular
         # vector to the end effector and goal pos vector This is to encourage the end effector to be perpendicular to
         # the branch
@@ -125,10 +127,10 @@ class Reward:
         return projection
 
     @staticmethod
-    def compute_pointing_cos_sim(achieved_pos: NDArray[Shape['3, 1'], Float],
-                                 desired_pos: NDArray[Shape['3, 1'], Float],
-                                 achieved_or: NDArray[Shape['4, 1'], Float],
-                                 branch_vector: NDArray[Shape['3, 1'], Float]):
+    def compute_pointing_cos_sim(achieved_pos,
+                                 desired_pos,
+                                 achieved_or,
+                                 branch_vector):
         # Orientation reward is computed as the dot product between the current orientation and the
         # perpendicular vector to the end effector and goal pos vector
         # This is to encourage the end effector to be perpendicular to the branch

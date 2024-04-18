@@ -22,7 +22,7 @@ from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optic
 from stable_baselines3.common.vec_env.base_vec_env import CloudpickleWrapper
 import multiprocessing as mp
 from pruning_sb3.pruning_gym.helpers import init_wandb
-
+import copy
 
 if __name__ == "__main__":
     # Create the ArgumentParser object
@@ -32,12 +32,13 @@ if __name__ == "__main__":
     parsed_args_dict = organize_args(parsed_args)
     manager = mp.Manager()
     shared_list = manager.list()
+
     if parsed_args_dict['args_global']['load_path']:
         load_path = "../logs/run/best_model.zip"  # "./logs/{}/best_model.zip".format(args.LOAD_PATH)#./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
     else:
         load_path = None
-    add_arg_to_env('shared_tree_list', shared_list, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
 
+    add_arg_to_env('shared_tree_list', shared_list, ['args_train'], parsed_args_dict)
     # Duplicates are resolved in favor of the value in x; dict(y, **x)
     args_global = parsed_args_dict['args_global']
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
@@ -47,9 +48,11 @@ if __name__ == "__main__":
     # Make an environment as usual
     data_env = PruningEnv(**args_train, make_trees=True)
     for i in data_env.trees:
-        shared_list.append(i)
+        shared_list.append(copy.deepcopy(i))
 
-    # del data_env
+    del data_env
+
+
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger

@@ -1,51 +1,88 @@
 import os
 import sys
 import cv2
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # from memory_profiler import profile
-from typing import Optional, Tuple, Any, List
-import os
+from typing import Optional, Tuple
 import random
 
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from nptyping import NDArray, Shape, Float
-import time
 
 from .tree import Tree
 from .ur5_utils import UR5
 from .pyb_utils import pyb_utils
-from pruning_sb3.pruning_gym import ROBOT_URDF_PATH
 from .reward_utils import Reward
 from skimage.draw import disk
-import torch.nn.functional as F
 from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH, ROBOT_URDF_PATH, SUPPORT_AND_POST_PATH
-
 import copy
-#TODO: Write test cases for this file
+
+
 class PruningEnv(gym.Env):
+    """
+        PruningEnv is a custom environment that extends the gym.Env class from OpenAI Gym.
+        This environment simulates a pruning task where a robot arm interacts with a tree.
+        The robot arm is a UR5 arm and the tree is a 3D model of a tree.
+        The environment is used to train a reinforcement learning agent to prune the tree.
+    """
+
     metadata = {'render.modes': ['rgb_array', 'human']}
 
-    # optical_flow_model = OpticalFlow()
-
-    def __init__(self, tree_urdf_path: str, tree_obj_path: str, tree_labelled_path: str,  renders: bool = False, max_steps: int = 500,
-                 learning_param: float = 0.05, tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
+    def __init__(self, tree_urdf_path: str, tree_obj_path: str, tree_labelled_path: str, renders: bool = False,
+                 max_steps: int = 500,
+                 distance_threshold: float = 0.05, angle_threshold: float = 0.52,
+                 tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
                  algo_width: int = 224, algo_height: int = 224,
                  evaluate: bool = False, num_points: Optional[int] = None, action_dim: int = 12,
-                 name: str = "PruningEnv",
-                 terminate_on_singularity: bool = True, action_scale: int = 1, movement_reward_scale: int = 1,
+                 name: str = "PruningEnv", action_scale: int = 1, movement_reward_scale: int = 1,
                  distance_reward_scale: int = 1, condition_reward_scale: int = 1, terminate_reward_scale: int = 1,
                  collision_reward_scale: int = 1, slack_reward_scale: int = 1,
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
-                 scale: bool = False,
                  curriculum_distances: Tuple = (0.8,), curriculum_level_steps: Tuple = (),
-                 use_ik: bool = True, make_trees = False, shared_tree_list = None) -> None:
+                 use_ik: bool = True, make_trees: bool = False, shared_tree_list=None) -> None:
+        """
+        Initializes the environment with the following parameters:
+        :param tree_urdf_path: Path to the folder containing URDF files of the trees
+        :param tree_obj_path: Path to the folder containing OBJ files of the trees with UV coordinates and mtl files
+        :param tree_labelled_path: Path to the folder containing labelled OBJ files of the trees - Directly from Lpy
+        :param renders: Whether to render the environment
+        :param max_steps: Maximum number of steps in an episode
+        :param distance_threshold: Distance threshold for termination
+        :param angle_threshold: Angle threshold for termination
+        :param tree_count: Number of trees to be loaded
+        :param cam_width: Width of the camera
+        :param cam_height: Height of the camera
+        :param algo_width: Required width for optical flow
+        :param algo_height: Required height for optical flow
+        :param evaluate: Is this environment for evaluation
+        :param num_points: Number of points to be sampled from the tree
+        :param action_dim: Dimension of the action space
+        :param name: Name of the environment
+        :param action_scale: Scale of the action
+        :param movement_reward_scale: Scale of the movement reward
+        :param distance_reward_scale: Scale of the distance reward
+        :param condition_reward_scale: Scale of the condition number reward
+        :param terminate_reward_scale: Scale of the termination reward
+        :param collision_reward_scale: Scale of the collision reward
+        :param slack_reward_scale: Scale of the slack reward
+        :param perpendicular_orientation_reward_scale: Scale of the perpendicular orientation reward
+        :param pointing_orientation_reward_scale: Scale of the pointing orientation reward
+        :param curriculum_distances: Distances for the curriculum
+        :param curriculum_level_steps: Steps at which to change the curriculum
+        :param use_ik: Whether to use IK for the robot arm or joint velocities
+        :param make_trees: Whether to make trees from the URDF and OBJ files or load them from shared memory
+        :param shared_tree_list: List of trees to be loaded from shared memory
+        """
+
         super(PruningEnv, self).__init__()
 
         assert tree_urdf_path is not None
         assert tree_obj_path is not None
-        print(shared_tree_list)
+        assert tree_labelled_path is not None
+
         # Pybullet GUI variables
         self.render_mode = "rgb_array"
         self.renders = renders
@@ -64,19 +101,17 @@ class PruningEnv(gym.Env):
         self.maxSteps = max_steps
         self.tree_count = tree_count
         self.action_scale = action_scale
-        self.terminated = False
+        self.is_goal_state = False
         self.algo_width = algo_width
         self.algo_height = algo_height
-        #Camera params
+        # Camera params
         self.cam_width = cam_width
         self.cam_height = cam_height
-        self.pan = 0
-        self.tilt = 0
-        self.xyz_offset = np.zeros(3)
+        self.cam_pan = 0
+        self.cam_tilt = 0
+        self.cam_xyz_offset = np.zeros(3)
 
         # Reward variables
-
-        # New class for reward
         self.reward = Reward(movement_reward_scale, distance_reward_scale, pointing_orientation_reward_scale,
                              perpendicular_orientation_reward_scale, terminate_reward_scale, collision_reward_scale,
                              slack_reward_scale, condition_reward_scale)
@@ -84,19 +119,19 @@ class PruningEnv(gym.Env):
         self.pyb = pyb_utils(self, renders=renders, cam_height=cam_height, cam_width=cam_width)
 
         self.observation_space = spaces.Dict({
-            #rgb is hwc but pytorch is chw
-            'rgb': spaces.Box(low= 0,
-                              high= 255,
-                              shape=(self.cam_height, self.cam_width, 3),
-                              dtype=np.uint8),
-            'prev_rgb': spaces.Box(low=0,
+            # rgb is hwc but pytorch is chw
+            'rgb': spaces.Box(low=0,
                               high=255,
                               shape=(self.cam_height, self.cam_width, 3),
                               dtype=np.uint8),
-            'point_mask':  spaces.Box(low=0.,
-                              high=1.,
-                              shape=(1, self.algo_height, self.algo_width),
-                              dtype=np.float32),
+            'prev_rgb': spaces.Box(low=0,
+                                   high=255,
+                                   shape=(self.cam_height, self.cam_width, 3),
+                                   dtype=np.uint8),
+            'point_mask': spaces.Box(low=0.,
+                                     high=1.,
+                                     shape=(1, self.algo_height, self.algo_width),
+                                     dtype=np.float32),
             'desired_goal': spaces.Box(low=-5.,
                                        high=5.,
                                        shape=(3,), dtype=np.float32),
@@ -110,29 +145,29 @@ class PruningEnv(gym.Env):
                                        high=1,
                                        shape=(12,), dtype=np.float32),
             'prev_action_achieved': spaces.Box(low=-1., high=1.,
-                                      shape=(self.action_dim,), dtype=np.float32),
+                                               shape=(self.action_dim,), dtype=np.float32),
             'relative_distance': spaces.Box(low=-1., high=1., shape=(3,), dtype=np.float32),
             'critic_perpendicular_cosine_sim': spaces.Box(low=-0., high=1., shape=(1,), dtype=np.float32),
             'critic_pointing_cosine_sim': spaces.Box(low=-0., high=1., shape=(1,), dtype=np.float32),
 
-
         })
+
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
 
         self.sum_reward = 0.0  # Pass this to reward class
-        self.scale = scale
 
         self.use_ik = use_ik
         self.action = np.zeros(self.action_dim)
 
-        self.reset_counter = -1 #Forces random tree selection at start
+        self.reset_counter = -1  # Forces random tree selection at start
         self.episode_counter = 0
         self.randomize_tree_count = 5
-        self.learning_param = learning_param
+        self.distance_threshold = distance_threshold
+        self.angle_threshold_cosine = np.cos(angle_threshold)
 
         # setup robot arm:
         # new class for ur5
-        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0.5,0.15,0])
+        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0.5, 0.15, 0])
         self.reset_env_variables()
         # Curriculum variables
         self.eval_counter = 0
@@ -155,20 +190,19 @@ class PruningEnv(gym.Env):
         assert scale is not None
         assert pos is not None
         self.make_trees = make_trees
+
         if self.make_trees:
-            self.trees = Tree.make_trees_from_folder(self, self.pyb, self.tree_urdf_path, self.tree_obj_path, self.tree_labelled_path, pos=pos,
-                                                     orientation=np.array([0, 0, 0, 1]), scale=scale, num_points=num_points,
-                                                     num_trees=self.tree_count, curriculum_distances=curriculum_distances,
+            self.trees = Tree.make_trees_from_folder(self, self.pyb, self.tree_urdf_path, self.tree_obj_path,
+                                                     self.tree_labelled_path, pos=pos,
+                                                     orientation=np.array([0, 0, 0, 1]), scale=scale,
+                                                     num_points=num_points,
+                                                     num_trees=self.tree_count,
+                                                     curriculum_distances=curriculum_distances,
                                                      curriculum_level_steps=curriculum_level_steps)
-            # self.trees = tuple(self.trees)
-            #put trees in shared memory
         else:
             self.trees = shared_tree_list
-            #load trees from shared memory
-        # print("Treeees",self.trees, len(self.trees))
+            # load trees from shared memory
 
-        # from pympler.asizeof import asizeof
-        # print("SIZE::::", asizeof(self.trees))
         # for tree in self.trees:
         #     self.tree = tree
         #     self.activate_tree(self.pyb)
@@ -177,6 +211,7 @@ class PruningEnv(gym.Env):
         #     input()
         #     self.inactivate_tree(self.pyb)
         #     self.pyb.remove_debug_items("step")
+
         self.sample_tree()
         self.activate_tree(self.pyb)
 
@@ -185,8 +220,6 @@ class PruningEnv(gym.Env):
         #     import time
         #     time.sleep(2)
         #     self.pyb_con.remove_debug_items("step")
-
-
 
         # Init and final logging
         self.init_distance = 0
@@ -199,26 +232,26 @@ class PruningEnv(gym.Env):
         self.observation: dict = dict()
         self.observation_info = dict()
         self.prev_observation_info: dict = dict()
+
     def sample_tree(self):
         tree_idx = random.randint(0, len(self.trees) - 1)
         # print(tree_idx)
         self.tree = self.trees[tree_idx]  # Can we make this a function which a server serves a tree
 
-
     def reset_env_variables(self) -> None:
-            # Env variables that will change
-            self.observation: dict = dict()
-            self.observation_info = dict()
-            self.prev_observation_info: dict = dict()
-            self.step_counter = 0
-            self.sum_reward = 0
-            self.terminated = False
-            self.collisions_acceptable = 0
-            self.collisions_unacceptable = 0
+        # Env variables that will change
+        self.observation: dict = dict()
+        self.observation_info = dict()
+        self.prev_observation_info: dict = dict()
+        self.step_counter = 0
+        self.sum_reward = 0
+        self.is_goal_state = False
+        self.collisions_acceptable = 0
+        self.collisions_unacceptable = 0
 
     def set_curriculum_level(self, episode_counter, curriculum_level_steps):
         """Set curriculum level"""
-        if "eval" in self.name:
+        if "eval" in self.name or self.eval:  # Replace naming with eval variable
             self.curriculum_level = len(curriculum_level_steps)
         else:
             if episode_counter in curriculum_level_steps:
@@ -226,20 +259,26 @@ class PruningEnv(gym.Env):
                 print("Curriculum level {} at {}".format(self.curriculum_level, self.global_step_counter))
 
     @staticmethod
-    def sample_point(name, episode_counter, curriculum_points) -> Tuple[
-        Tuple[float, float, float], Tuple[float, float, float]]:
+    def sample_point(name, episode_counter, curriculum_points, eval=False):
         """Sample a point from the tree"""
-        #calculate perpendicular cosine similarity
+        # calculate perpendicular cosine similarity
         if len(curriculum_points) == 0:
             print("No points in curriculum")
             return None, None
-        if "eval" in name:
+        if "eval" in name or eval:  # Replace naming with eval variable
             distance, random_point = curriculum_points[episode_counter % len(curriculum_points)]
             print("Eval counter: ", episode_counter, "Point: ", random_point, "points ", len(curriculum_points))
         else:
             # print(random.sample(curriculum_points, 1))
             distance, random_point = random.sample(curriculum_points, 1)[0]
         return distance, random_point
+
+    def set_camera_pose(self):
+        pan_bounds = (-2, 2)
+        tilt_bounds = (-2, 2)
+        self.cam_pan = np.radians(np.random.uniform(*pan_bounds))
+        self.cam_tilt = np.radians(2 + np.random.uniform(*tilt_bounds))
+        self.cam_xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.01, 0.0005, 0.01])
 
     def reset(self, seed: Optional[int] = None, options=None) -> Tuple[dict, dict]:
         """Environment reset function"""
@@ -255,9 +294,9 @@ class PruningEnv(gym.Env):
         self.pyb.remove_debug_items("reset")
         self.pyb.remove_debug_items("step")
         self.pyb.con.resetSimulation()
-        # Sample new tree if reset_counter is a multiple of randomize_tree_count
-        self.set_curriculum_level(self.episode_counter, self.curriculum_level_steps)
 
+        self.set_curriculum_level(self.episode_counter, self.curriculum_level_steps)
+        # Sample new tree if reset_counter is a multiple of randomize_tree_count
         if self.reset_counter % self.randomize_tree_count == 0:
             while True:
                 self.sample_tree()
@@ -265,47 +304,32 @@ class PruningEnv(gym.Env):
                     break
 
         # Create new ur5 arm body
-
-        #self.pyb_con.disable_gravity() # Using this instead of actual breaks in the arm
         self.pyb.create_background()
         self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
-        #self.pyb_con.enable_gravity()
-        # Make this a new function that supports curriculum
-        # Set curriculum level
-        random_point = None
-        #show all points in curriculum
 
         # Sample new point
-
         distance_from_goal, random_point = self.sample_point(self.name, self.episode_counter,
-                                                         self.tree.curriculum_points[self.curriculum_level])
+                                                             self.tree.curriculum_points[self.curriculum_level])
         if random_point is None:
             self.reset()
+
         pcs = Reward.compute_perpendicular_cos_sim(self.ur5.init_pos[1], random_point[1])
 
-        print("Distance from goal: ", distance_from_goal, "Point: ", random_point)
-        pan_bounds = (-2, 2)
-        tilt_bounds = (-2, 2)
-        self.pan = np.radians(np.random.uniform(*pan_bounds))
-        self.tilt = np.radians(2 + np.random.uniform(*tilt_bounds))
-        self.xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.01, 0.0005, 0.01])
+        #Jitter the camera pose
+        self.set_camera_pose()
 
-        # Move to pybullet class
-        """Display red line as point"""
-        self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=random_point[0],
-                                lineToXYZ=[random_point[0][0]+0.005, random_point[0][1]+0.005,\
-                                           random_point[0][2]+0.005],
-                                lineColorRGB=[1, 0, 0],
-                                lineWidth=200)
-        # here the arm is set right in front of the point -> Change this to curriculum
-        # self.set_joint_angles(
-        #    self.calculate_ik((random_point[0][0] , random_point[0][1] + distance_from_goal, random_point[0][2]), self.ur5.init_pos[1]))
+        print("Distance from goal: ", distance_from_goal, "Point: ", random_point)
+
+        # Set joint angles to initial position
+        #TODO: Remove that 0.05
         self.ur5.set_joint_angles(
             self.ur5.calculate_ik((self.ur5.init_pos[0][0], self.ur5.init_pos[0][1] + 0.05, self.ur5.init_pos[0][2]),
                                   self.ur5.init_pos[1]))
 
         for i in range(100):
             self.pyb.con.stepSimulation()
+
+        #Update tree positions
         self.tree_goal_pos = random_point[0]
         self.tree_goal_branch = random_point[1]
         self.activate_tree(self.pyb)
@@ -320,36 +344,34 @@ class PruningEnv(gym.Env):
         self.init_perp_cosine_sim = self.reward.compute_perpendicular_cos_sim(np.array(orient),
                                                                               self.tree_goal_branch) + 1e-4
 
+        #TODO: Can we remove this?
         current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
         theta, _ = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_branch,
-                                                        pos, self.tree_goal_pos)
+                                                       pos, self.tree_goal_pos)
 
         self.init_angular_error = theta
 
-        # Add debug branch
+        # Add debug branch and point
+        """Display red line as point"""
+        self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=random_point[0],
+                                lineToXYZ=[random_point[0][0] + 0.005, random_point[0][1] + 0.005,
+                                           random_point[0][2] + 0.005],
+                                lineColorRGB=[1, 0, 0],
+                                lineWidth=200)
         _ = self.pyb.add_debug_item('line', 'step', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_branch,
                                     lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_branch, lineColorRGB=[1, 0, 0],
                                     lineWidth=200)
+
         self.set_extended_observation()
         info = dict()  # type: ignore
         # Make info analogous to one in step function
         return self.observation, info
 
-
     def calculate_joint_velocities_from_ee_constrained(self, velocity):
         """Calculate joint velocities from end effector velocities adds constraints of max joint velocities"""
         if self.use_ik:
             jv, jacobian = self.ur5.calculate_joint_velocities_from_ee_velocity(velocity)
-            # check if actual ee velocity is close to desired ee velocity
-            # actual_ee_vel = np.matmul(jacobian, jv)
-            # #TODO:Log ee_vel_error
-            # self.ee_vel_error = abs(actual_ee_vel - velocity) / (velocity + 1e-5)
-            # print("EE vel error: ", self.ee_vel_error, velocity, actual_ee_vel)
-            # if (self.ee_vel_error > 0.1).any():
-            #     print("Nope")
-            #     jv = np.zeros(6)
-
-        #If not using ik, just set joint velocities to be regressed by actor
+        # If not using ik, just set joint velocities to be regressed by actor
         else:
             jv = velocity
         return jv
@@ -362,7 +384,8 @@ class PruningEnv(gym.Env):
         self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.6, 0],
                                          list(pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                          globalScaling=1)
-        self.tree_id = pyb.con.loadURDF(self.tree.urdf_path, self.tree.pos, self.tree.orientation, globalScaling=self.tree.scale)
+        self.tree_id = pyb.con.loadURDF(self.tree.urdf_path, self.tree.pos, self.tree.orientation,
+                                        globalScaling=self.tree.scale)
 
     def inactivate_tree(self, pyb):
         assert self.tree_id is not None
@@ -371,14 +394,56 @@ class PruningEnv(gym.Env):
         pyb.con.removeBody(self.supports)
         self.tree_id = None
         self.supports = None
+
+    def get_infos(self, terminated, truncated):
+        infos = {'is_success': False, "TimeLimit.truncated": False}  # type: ignore
+        if truncated:
+            infos["TimeLimit.truncated"] = True  # type: ignore
+            infos["terminal_observation"] = self.observation  # type: ignore
+        if truncated or terminated:
+            if self.is_goal_state is True:
+                infos['is_success'] = True
+
+            self.episode_counter += 1
+            # For logging
+            infos['episode'] = {"l": self.step_counter, "r": self.sum_reward}  # type: ignore
+            print("Episode Length: ", self.step_counter)
+
+            # Logging errors at the end of episode
+            infos["pointing_cosine_sim_error"] = np.abs(Reward.compute_pointing_cos_sim(
+                achieved_pos=self.observation_info['achieved_pos'],
+                desired_pos=self.observation_info['desired_pos'],
+                achieved_or=self.observation_info['achieved_or_quat'],
+                branch_vector=self.tree_goal_branch))
+
+            infos["perpendicular_cosine_sim_error"] = np.abs(Reward.compute_perpendicular_cos_sim(
+                achieved_or=self.observation_info['achieved_or_quat'], branch_vector=self.tree_goal_branch))
+
+            infos["euclidean_error"] = np.linalg.norm(
+                self.observation_info['achieved_pos'] - self.observation_info['desired_pos'])
+
+            current_or_mat = np.array(
+                self.pyb.con.getMatrixFromQuaternion(self.observation_info['achieved_or_quat'])).reshape(3, 3)
+            theta, rf = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_branch,
+                                                            self.observation_info['achieved_pos'],
+                                                            self.observation_info['desired_pos'])
+            infos["angular_error"] = theta
+            infos['velocity'] = np.linalg.norm(self.action)
+
+        return infos
+
     def step(self, action: NDArray[Shape['6, 1'], Float]) -> Tuple[dict, float, bool, bool, dict]:
 
         self.pyb.remove_debug_items("step")
+        # Scale all the actions TODO: Make scaling for rotation and translation different
         self.action[:3] = action[:3] * self.action_scale
-        self.action[3:] = action[3:] * self.action_scale/2
+        self.action[3:] = action[3:] * self.action_scale / 2
+
+        # Calculate joint velocities from end effector velocities/or if ik is false, just use the action
         self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
         singularity = self.ur5.set_joint_velocities(self.ur5.action)
 
+        # Step simulation
         for i in range(1):
             self.pyb.con.stepSimulation()
             # print(self.pyb_con.con.getJointStateMultiDof(self.ur5.ur5_robot, self.ur5.end_effector_index))
@@ -386,58 +451,31 @@ class PruningEnv(gym.Env):
 
         # Need observations before reward
         self.set_extended_observation()
+
+        # Compute reward
         current_pose = np.hstack((self.observation_info['achieved_pos'], self.observation_info['achieved_or_quat']))
-        if 'achieved_pos' not in self.prev_observation_info.keys():
-            self.prev_observation_info['achieved_pos'] = self.ur5.init_pos[0]
-            self.prev_observation_info['achieved_or_quat'] = self.ur5.init_pos[1]
-        previous_pose = np.hstack(
-            (self.prev_observation_info['achieved_pos'], self.prev_observation_info['achieved_or_quat']))
+        previous_pose = np.hstack((self.prev_observation_info['achieved_pos'],
+                                   self.prev_observation_info['achieved_or_quat']))
+
         reward, reward_infos = self.compute_reward(self.observation_info['desired_pos'], current_pose,
-                                                   previous_pose, singularity,
-                                                   None)
+                                                   previous_pose, singularity, None)
 
         self.sum_reward += reward
         # self.debug_line = self.pyb_con.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
         self.step_counter += 1
         self.global_step_counter += 1
 
+        # Check if task is done
         done, terminate_info = self.is_task_done()
+
+        # Truncated is when the episode is terminated due to time limit,
+        # truncated is used to add estimate of reward at the end of the episode to boost training
+        # check sb3 docs for more info
         truncated = terminate_info['time_limit_exceeded']
         terminated = terminate_info['goal_achieved']
-        infos = {'is_success': False, "TimeLimit.truncated": False}  # type: ignore
-        if terminate_info['time_limit_exceeded']:
-            infos["TimeLimit.truncated"] = True  # type: ignore
-            infos["terminal_observation"] = self.observation  # type: ignore
 
-        if self.terminated is True:
-            infos['is_success'] = True
+        infos = self.get_infos(terminated, truncated)
 
-        # Logging end of episode info
-        if truncated or terminated:
-            self.episode_counter += 1
-            infos['episode'] = {"l": self.step_counter, "r": self.sum_reward}  # type: ignore
-            print("Episode Length: ", self.step_counter)
-            #Add angular distance
-            infos["pointing_cosine_sim_error"] = np.abs(Reward.compute_pointing_cos_sim(
-                achieved_pos=self.observation_info['achieved_pos'],
-                desired_pos=self.observation_info['desired_pos'],
-                achieved_or=self.observation_info['achieved_or_quat'],
-                branch_vector=self.tree_goal_branch))
-            infos["perpendicular_cosine_sim_error"] = np.abs(Reward.compute_perpendicular_cos_sim(
-                achieved_or=self.observation_info['achieved_or_quat'], branch_vector=self.tree_goal_branch))
-            infos["euclidean_error"] = np.linalg.norm(
-                self.observation_info['achieved_pos'] - self.observation_info['desired_pos'])
-            #convert branch to quaternion
-            #pointing -> z
-            #perpendicular -> x
-            current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(self.observation_info['achieved_or_quat'])).reshape(3, 3)
-            theta, rf = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_branch, self.observation_info['achieved_pos'], self.observation_info['desired_pos'])
-            infos["angular_error"] = theta
-            # print(theta)
-            # self.pyb_con.visualize_rot_mat(current_or_mat.T, self.observation_info['achieved_pos'])
-            # self.pyb_con.visualize_rot_mat(rf, self.observation_info['desired_pos'])
-        # infos['episode'] = {"l": self.stepCounter,  "r": reward}
-        infos['velocity'] = np.linalg.norm(self.action)
         infos.update(reward_infos)
         # return self.observation, reward, done, infos
         # v26
@@ -446,8 +484,8 @@ class PruningEnv(gym.Env):
     def render(self, mode=None) -> NDArray:  # type: ignore
         sphere = -1
         if "record" in self.name:
-            #add sphere
-            sphere = self.pyb.add_sphere(radius=0.01, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1],)
+            # add sphere
+            sphere = self.pyb.add_sphere(radius=0.01, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1], )
         img_rgbd = self.pyb.get_image_at_curr_pose(type='viz')
         img_rgb, _ = self.pyb.seperate_rgbd_rgb_d(img_rgbd, self.cam_height, self.cam_width)
         if mode == "human":
@@ -455,7 +493,7 @@ class PruningEnv(gym.Env):
             cv2.imshow("img", (img_rgb * 255).astype(np.uint8))
             cv2.waitKey(1)
         if "record" in self.name:
-            #remove sphere
+            # remove sphere
             self.pyb.con.removeBody(sphere)
 
         return img_rgb
@@ -470,8 +508,9 @@ class PruningEnv(gym.Env):
         point_mask = np.zeros((self.pyb.cam_height, self.pyb.cam_width), dtype=np.float32)
 
         proj_matrix = np.asarray(self.pyb.proj_mat).reshape([4, 4], order="F")
-        view_matrix = np.asarray(self.ur5.get_view_mat_at_curr_pose(pan=self.pan, tilt=self.tilt, xyz_offset=self.xyz_offset
-                                                                    )).reshape([4, 4], order="F")
+        view_matrix = np.asarray(
+            self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt, xyz_offset=self.cam_xyz_offset
+                                               )).reshape([4, 4], order="F")
         projection = proj_matrix @ view_matrix @ np.array(
             [self.tree_goal_pos[0], self.tree_goal_pos[1], self.tree_goal_pos[2], 1])
         # Normalize by w
@@ -485,42 +524,24 @@ class PruningEnv(gym.Env):
             radius = 5  # TODO: Make this a variable proportional to distance
             # modern scikit uses a tuple for center
             rr, cc = disk((row, col), radius)
-            point_mask[np.clip(0, rr, self.pyb.cam_height-1), np.clip(0, cc,
-                                                       self.pyb.cam_width-1)] = 1  # TODO: This is a hack, numbers shouldnt exceed max and min anyways
+            point_mask[np.clip(0, rr, self.pyb.cam_height - 1), np.clip(0, cc,
+                                                                        self.pyb.cam_width - 1)] = 1  # TODO: This is a hack, numbers shouldnt exceed max and min anyways
 
-        #resize point mask to algo_height, algo_width
+        # resize point mask to algo_height, algo_width
         point_mask_resize = cv2.resize(point_mask, dsize=(self.algo_height, self.algo_width))
         point_mask = np.expand_dims(point_mask_resize, axis=0).astype(np.float32)
         return point_mask
-
-    # def get_depth_proxy(self, use_optical_flow, optical_flow_subproc, prev_rgb):
-    #     #TODO: Make this faster
-    #     rgb, depth = self.pyb_con.get_rgbd_at_cur_pose('robot', self.ur5.get_view_mat_at_curr_pose(pan=self.pan, tilt=self.tilt, xyz_offset=self.xyz_offset))
-    #     point_mask = self.compute_deprojected_point_mask()
-    #     if use_optical_flow:
-    #         # if subprocvenv add the rgb to the queue and wait for the optical flow to be calculated
-    #         if optical_flow_subproc:
-    #             self.shared_queue.put((rgb, prev_rgb, self.pid, self.name))
-    #             while not self.pid in self.shared_dict.keys():
-    #                 pass
-    #             optical_flow = self.shared_dict[self.pid]
-    #             depth_proxy = np.concatenate((optical_flow, point_mask))
-    #             del self.shared_dict[self.pid]
-    #         else:
-    #             optical_flow = self.optical_flow_model.calculate_optical_flow(rgb, prev_rgb)[0]
-    #             depth_proxy = np.concatenate((optical_flow, point_mask))
-    #     else:
-    #         depth_proxy = np.expand_dims(depth.astype(np.float32), axis=0)
-    #         depth_proxy = np.concatenate((depth_proxy, point_mask))
-    #     return depth_proxy, rgb
 
     def set_extended_observation(self) -> dict:
         """
         The observations are the current position, the goal position, the current orientation, the current depth
         image, the current joint angles and the current joint velocities
         """
-        #TODO: define all these dict as named tuples/dict
+        # TODO: define all these dict as named tuples/dict
         self.prev_observation_info = copy.deepcopy(self.observation_info)
+        if 'achieved_pos' not in self.prev_observation_info.keys():
+            self.prev_observation_info['achieved_pos'] = self.ur5.init_pos[0]
+            self.prev_observation_info['achieved_or_quat'] = self.ur5.init_pos[1]
 
         tool_pos, tool_orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
         achieved_vel, achieved_ang_vel = self.ur5.get_current_vel(self.ur5.end_effector_index)
@@ -536,22 +557,14 @@ class PruningEnv(gym.Env):
         achieved_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(achieved_or_quat)).reshape(3, 3)
         achieved_or_6d = achieved_or_mat[:, :2].reshape(6, ).astype(np.float32)
 
-        # if 'rgb' not in self.prev_observation_info:
-        #     self.prev_observation_info['rgb'] = np.zeros((self.pyb_con.cam_height, self.pyb_con.cam_width, 3))
-
-        #get this out of the environment and into subprocvec
-        #TODO - just keep rgb images and create depth_proxy in forward
-
-        # depth_proxy, rgb = self.get_depth_proxy(self.use_optical_flow, self.optical_flow_subproc,
-        #                                         prev_rgb=self.prev_observation_info[
-        #                                             'rgb'], )  # Get this from previous obs
         rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot',
-                                                   self.ur5.get_view_mat_at_curr_pose(pan=self.pan, tilt=self.tilt,
-                                                                                      xyz_offset=self.xyz_offset))
+                                               self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt,
+                                                                                  xyz_offset=self.cam_xyz_offset))
         if 'rgb' not in self.observation:
             prev_rgb = np.zeros((self.pyb.cam_height, self.pyb.cam_width, 3))
         else:
             prev_rgb = self.observation['rgb']
+
         point_mask = self.compute_deprojected_point_mask()
 
         encoded_joint_angles = np.hstack((np.sin(joint_angles), np.cos(joint_angles)))
@@ -575,7 +588,7 @@ class PruningEnv(gym.Env):
         self.observation['relative_distance'] = achieved_pos - desired_pos
         # Convert orientation into 6D form for continuity
         self.observation['achieved_or'] = achieved_or_6d
-        #Image stuff
+        # Image stuff
         self.observation['rgb'] = rgb
         self.observation['prev_rgb'] = prev_rgb
         self.observation['point_mask'] = point_mask
@@ -596,7 +609,9 @@ class PruningEnv(gym.Env):
         if "record" in self.name:
             # add sphere
             sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1], )
-            rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot', self.ur5.get_view_mat_at_curr_pose(pan=self.pan, tilt=self.tilt, xyz_offset=self.xyz_offset))
+            rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot',
+                                                   self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt,
+                                                                                      xyz_offset=self.cam_xyz_offset))
             # remove sphere
             self.observation_info['rgb'] = rgb
             self.pyb.con.removeBody(sphere)
@@ -607,15 +622,14 @@ class PruningEnv(gym.Env):
         # Terminate if time limit exceeded
         # NOTE: need to call compute_reward before this to check termination!
         time_limit_exceeded = self.step_counter >= self.maxSteps
-        goal_achieved = False#self.terminated
-        c = self.step_counter > self.maxSteps#(self.terminated is True or self.step_counter > self.maxSteps)
+        goal_achieved = False  # self.terminated
+        c = self.step_counter > self.maxSteps  # (self.terminated is True or self.step_counter > self.maxSteps)
         terminate_info = {"time_limit_exceeded": time_limit_exceeded,
                           "goal_achieved": goal_achieved}
         return c, terminate_info
 
-    def compute_reward(self, desired_goal: NDArray[Shape['3, 1'], Float], achieved_pose: NDArray[Shape['6, 1'], Float],
-                       previous_pose: NDArray[Shape['6, 1'], Float], singularity: bool, info: dict) -> Tuple[
-        float, dict]:
+    def compute_reward(self, desired_goal, achieved_pose,
+                       previous_pose, singularity: bool, info: Optional[dict]) -> Tuple[float, dict]:
 
         achieved_pos = achieved_pose[:3]
         achieved_or = achieved_pose[3:]
@@ -623,7 +637,6 @@ class PruningEnv(gym.Env):
         previous_pos = previous_pose[:3]
         previous_or = previous_pose[3:]
         reward = 0.0
-        # There will be two different types of achieved positions, one for the end effector and one for the camera
 
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
@@ -647,10 +660,10 @@ class PruningEnv(gym.Env):
 
         condition_number = self.ur5.get_condition_number()
         reward += self.reward.calculate_condition_number_reward(condition_number)
-        # print("pointing: ", point_cosine_sim, "perp: ", perp_cosine_sim)
+
         # If is successful
-        self.terminated = self.is_state_successful(achieved_pos, desired_pos, perp_cosine_sim, point_cosine_sim)
-        reward += self.reward.calculate_termination_reward(self.terminated)
+        self.is_goal_state = self.is_state_successful(achieved_pos, desired_pos, perp_cosine_sim, point_cosine_sim)
+        reward += self.reward.calculate_termination_reward(self.is_goal_state)
 
         is_collision, collision_info = self.ur5.check_collisions(self.tree_id, self.supports)
         reward += self.reward.calculate_acceptable_collision_reward(collision_info)
@@ -669,9 +682,9 @@ class PruningEnv(gym.Env):
         terminated = False
         is_success_collision = self.ur5.check_success_collision(self.tree_id)
         dist_from_target = np.linalg.norm(achieved_pos - desired_pos)
-        if is_success_collision and dist_from_target < self.learning_param:
-            if (orientation_perp_value > 0.7) and (
-                    orientation_point_value > 0.7):  # and approach_velocity < 0.05:
+        if is_success_collision and dist_from_target < self.distance_threshold:
+            if (orientation_perp_value > self.angle_threshold_cosine) and (
+                    orientation_point_value > self.angle_threshold_cosine):
                 terminated = True
 
         return terminated
@@ -679,7 +692,5 @@ class PruningEnv(gym.Env):
     def log_collision_info(self, collision_info):
         if collision_info['collisions_acceptable']:
             self.collisions_acceptable += 1
-            # print('Collision acceptable!')
         elif collision_info['collisions_unacceptable']:
             self.collisions_unacceptable += 1
-            # print('Collision unacceptable!')
