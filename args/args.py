@@ -243,7 +243,7 @@ args = {
         # Training parameters
         'total_timesteps': {
             'type': int,
-            'default': 5_000_000,
+            'default': 10_000_000,
             'help': 'total number of timesteps to train for'
         },
         # For logging purposes keep as multiple of episode length
@@ -264,12 +264,12 @@ args = {
         },
         'learning_rate': {
             'type': float,
-            'default': 0.00025,
+            'default': 0.0005,
             'help': 'learning rate'
         },
         'learning_rate_ae': {
             'type': float,
-            'default': 0.00025,
+            'default': 0.0005,
             'help': 'learning rate for the autoencoder'
         },
         'log_std_init': {

@@ -1,7 +1,3 @@
-# (0.13449400663375854, -0.5022612810134888, 0.5729108452796936), (0.08233322092014395, 0.08148885209843372, -0.7017698639513068, 0.7029223753490557))
-# ((0.13449425995349884, -0.5022624731063843, 0.5729091167449951), (0.08233936213522093, 0.08149007539678467, -0.7017685790089195, 0.7029227970202654))
-# ((0.13449451327323914, -0.5022636651992798, 0.5729073882102966), (0.08234550355528829, 0.08149129879013207, -0.7017672940054546, 0.7029232186590406))
-# ((0.13449475169181824, -0.5022648572921753, 0.5729056596755981)
 import os
 import sys
 
@@ -44,7 +40,7 @@ if __name__ == "__main__":
     add_arg_to_env('shared_tree_list', shared_list, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
 
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
-    env = PruningEnv(**args_test, make_trees=True)
+    env = PruningEnv(**args_test)
     env.action_scale = 1
     env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485, -0.7777109569760938, 3.210501267258541))
     for _ in range(100):
@@ -57,25 +53,25 @@ if __name__ == "__main__":
         action = get_key_pressed(env)
         # if action is wasd, then move the robot
         if ord('a') in action:
-            val = np.array([0.05, 0, 0, 0, 0, 0])
+            val = np.array([0.01, 0, 0, 0, 0, 0])
         elif ord('d') in action:
-            val = np.array([-0.05, 0, 0, 0, 0, 0])
+            val = np.array([-0.01, 0, 0, 0, 0, 0])
         elif ord('s') in action:
-            val = np.array([0, 0.05, 0, 0, 0, 0])
+            val = np.array([0, 0.01, 0, 0, 0, 0])
         elif ord('w') in action:
-            val = np.array([0, -0.05, 0, 0, 0, 0])
+            val = np.array([0, -0.01, 0, 0, 0, 0])
         elif ord('q') in action:
-            val = np.array([0, 0, 0.05, 0, 0, 0])
+            val = np.array([0, 0, 0.01, 0, 0, 0])
         elif ord('e') in action:
-            val = np.array([0, 0, -0.05, 0, 0, 0])
+            val = np.array([0, 0, -0.01, 0, 0, 0])
         elif ord('z') in action:
-            val = np.array([0, 0, 0, 0.05, 0, 0])
+            val = np.array([0, 0, 0, 0.01, 0, 0])
         elif ord('c') in action:
-            val = np.array([0, 0, 0, -0.05, 0, 0])
+            val = np.array([0, 0, 0, -0.01, 0, 0])
         elif ord('x') in action:
-            val = np.array([0, 0, 0, 0, 0.05, 0])
+            val = np.array([0, 0, 0, 0, 0.01, 0])
         elif ord('v') in action:
-            val = np.array([0, 0, 0, 0, -0.05, 0])
+            val = np.array([0, 0, 0, 0, -0.01, 0])
         elif ord('r') in action:
             val = np.array([0, 0, 0, 0, 0, 0.05])
         elif ord('f') in action:
@@ -89,7 +85,12 @@ if __name__ == "__main__":
 
         # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
         #get base position and orientation
+
         print(env.ur5.get_current_pose(env.ur5.end_effector_index)[0])
+        print(env.tree.pos)
+        #pring joint angles and condition number
+        print(env.ur5.get_joint_angles())
+        print(env.ur5.get_condition_number())
         base_pos, base_quat = env.pyb.con.getBasePositionAndOrientation(env.ur5.ur5_robot)
         # print(base_pos, base_quat)
         # print(env.ur5.get_current_pose(0))

@@ -167,7 +167,7 @@ class PruningEnv(gym.Env):
 
         # setup robot arm:
         # new class for ur5
-        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0.5, 0.15, 0])
+        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0., 0., 0])
         self.reset_env_variables()
         # Curriculum variables
         self.eval_counter = 0
@@ -181,7 +181,7 @@ class PruningEnv(gym.Env):
         pos = None
         scale = None
         if "envy" in self.tree_urdf_path:
-            pos = np.array([0., -0.6, 0])
+            pos = np.array([0.5, -0.7, 0])
             scale = 1
         elif "ufo" in self.tree_urdf_path:
             pos = np.array([-0.5, -0.8, -0.3])
@@ -216,10 +216,10 @@ class PruningEnv(gym.Env):
         self.activate_tree(self.pyb)
 
         # for i in range(len(self.tree.curriculum_distances)):
-        #     self.pyb_con.visualize_points(self.tree.curriculum_points[i])
-        #     import time
-        #     time.sleep(2)
-        #     self.pyb_con.remove_debug_items("step")
+        #     self.pyb.visualize_points(self.tree.curriculum_points[i], "curriculum")
+        #     input()
+            # self.pyb.remove_debug_items("step")
+
 
         # Init and final logging
         self.init_distance = 0
@@ -323,8 +323,8 @@ class PruningEnv(gym.Env):
         # Set joint angles to initial position
         #TODO: Remove that 0.05
         self.ur5.set_joint_angles(
-            self.ur5.calculate_ik((self.ur5.init_pos[0][0], self.ur5.init_pos[0][1] + 0.05, self.ur5.init_pos[0][2]),
-                                  self.ur5.init_pos[1]))
+            self.ur5.init_joint_angles + np.random.uniform(-0.05, 0.05, (6,))
+        )
 
         for i in range(100):
             self.pyb.con.stepSimulation()
@@ -381,7 +381,7 @@ class PruningEnv(gym.Env):
         assert self.tree_id is None
         assert self.supports is None
         print('Loading tree from ', self.tree.urdf_path)
-        self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [0, -0.6, 0],
+        self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, self.tree.pos,
                                          list(pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                          globalScaling=1)
         self.tree_id = pyb.con.loadURDF(self.tree.urdf_path, self.tree.pos, self.tree.orientation,

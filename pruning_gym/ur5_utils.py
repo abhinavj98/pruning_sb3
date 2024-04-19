@@ -13,10 +13,11 @@ from nptyping import NDArray, Shape, Float
 from collections import namedtuple
 import random
 
+
 # ENV is a collection of objects like tree supports and ur5 robot. They interact with each other
 # through the env. UR5 class only needs access to pybullet.
 class UR5:
-    def __init__(self, con, robot_urdf_path: str, pos = [0,0,0]) -> None:
+    def __init__(self, con, robot_urdf_path: str, pos=[0, 0, 0]) -> None:
         assert isinstance(robot_urdf_path, str)
 
         self.con = con
@@ -39,7 +40,8 @@ class UR5:
         self.previous_pose = None
         self.init_pos = None
         self.robot_urdf_path = robot_urdf_path
-        self.camera_base_offset = np.array([-0.063179, 0.077119, 0.0420027])#np.array([-0.063179, 0.077119, 0.0420027])#
+        self.camera_base_offset = np.array(
+            [-0.063179, 0.077119, 0.0420027])  # np.array([-0.063179, 0.077119, 0.0420027])#
         self.setup_ur5_arm()
 
     def setup_ur5_arm(self) -> None:
@@ -49,11 +51,11 @@ class UR5:
         self.success_link_index = 14
         self.base_index = 3
         flags = self.con.URDF_USE_SELF_COLLISION
-        #randomize pos TODO
+        # randomize pos TODO
         randomize = False
         if randomize:
             pos = self.pos + np.random.rand(3) * 0.05
-            orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi/180*10)
+            orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi / 180 * 10)
         else:
             pos = self.pos
             orientation = pybullet.getQuaternionFromEuler([0, 0, 0])
@@ -77,18 +79,19 @@ class UR5:
             jointUpperLimit = info[9]
             jointMaxForce = info[10]
             jointMaxVelocity = info[11]
-            #print("Joint Name: ", jointName, "Joint ID: ", jointID)
+            # print("Joint Name: ", jointName, "Joint ID: ", jointID)
             controllable = True if jointName in self.control_joints else False
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
                                    jointMaxVelocity, controllable)  # type: ignore
-            # print(jointID, jointName)
+            print(jointID, jointName)
             if info.type == "REVOLUTE":
                 self.con.setJointMotorControl2(self.ur5_robot, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0,
                                                force=0)
             self.joints[info.name] = info
 
         # self.set_collision_filter()
-        self.init_joint_angles = (-np.pi / 2, -2.3, 2.16, -3.14, -1.57, np.pi)
+        self.init_joint_angles = (-np.pi / 2, -np.pi * 2 / 3, np.pi * 2 / 3, -np.pi, -np.pi / 2,
+                                  np.pi)  # (-np.pi/2, -np.pi/6, np.pi*2/3, -np.pi*3/2, -np.pi/2, np.pi)#
         self.set_joint_angles(self.init_joint_angles)
         for _ in range(100):
             self.con.stepSimulation()
@@ -158,8 +161,8 @@ class UR5:
         singularity = False
 
         # TODO: Find a better way to handle singularity than not moving
-        #Don't move if joint velocity is more than half of max joint velocity
-        if (abs(joint_velocities) > max_joint_velocity/2).any():
+        # Don't move if joint velocity is more than half of max joint velocity
+        if (abs(joint_velocities) > max_joint_velocity / 2).any():
             singularity = True
             joint_velocities = np.zeros(6)
         for i, name in enumerate(self.control_joints):
@@ -188,6 +191,7 @@ class UR5:
                                               [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         jacobian = np.vstack(jacobian)
         return jacobian
+
     def calculate_joint_velocities_from_ee_velocity(self,
                                                     end_effector_velocity: NDArray[Shape['6, 1'], Float]) -> \
             Tuple[ndarray, ndarray]:
@@ -262,7 +266,8 @@ class UR5:
 
     def get_current_vel(self, index: int) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
         """Returns current pose of the end effector. Pos wrt end effector, orientation wrt world"""
-        link_state: Tuple = self.con.getLinkState(self.ur5_robot, index, computeLinkVelocity = True, computeForwardKinematics=True)
+        link_state: Tuple = self.con.getLinkState(self.ur5_robot, index, computeLinkVelocity=True,
+                                                  computeForwardKinematics=True)
         trans, ang = link_state[6], link_state[7]
         return trans, ang
 
@@ -283,7 +288,6 @@ class UR5:
         pan_tf = np.identity(4)
         pan_rot = np.array([[np.cos(pan), 0, np.sin(pan)], [0, 1, 0], [-np.sin(pan), 0, np.cos(pan)]])
         pan_tf[:3, :3] = pan_rot
-
 
         tf = ee_transform @ pan_tf @ tilt_tf @ base_offset_tf
         return tf

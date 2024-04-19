@@ -94,6 +94,7 @@ class Tree:
             # Get all points on the tree
             self.get_all_points(tree_obj)
             self.filter_outliers()
+            self.filter_points_below_base()
 
             # dump reachable points to file using pickle
             with open(pkl_path, 'wb') as f:
@@ -202,6 +203,10 @@ class Tree:
                    self.vertex_and_projection))
         print("Number of points after filtering: ", len(self.vertex_and_projection))
 
+    def filter_points_below_base(self):
+        # Filter out points below the base of the arm
+        self.vertex_and_projection = list(filter(lambda x: x[0][2] > self.base_xyz[2], self.vertex_and_projection))
+
     def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]], env,
                      pyb) -> bool:
         if vertice[3] != "SPUR":
@@ -211,16 +216,16 @@ class Tree:
         # Meta condition
         dist = np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
 
-        if dist >= 0.8:
+        if dist >= 0.85:
             return False
 
         j_angles = env.ur5.calculate_ik(vertice[0], None)
         env.ur5.set_joint_angles(j_angles)
-        for i in range(100):
+        for _ in range(100):
             pyb.con.stepSimulation()
         ee_pos, _ = env.ur5.get_current_pose(env.ur5.end_effector_index)
         dist = np.linalg.norm(np.array(ee_pos) - vertice[0], axis=-1)
-        if dist <= 0.05:
+        if dist <= 0.03:
             return True
 
         return False
@@ -250,7 +255,7 @@ class Tree:
             if len(trees) >= num_trees:
                 break
             # randomize position TOOO:
-            randomize = True
+            randomize = False
             if randomize:
                 pos = pos + np.random.uniform(low=-1, high=1, size=(3,)) * np.array([0.15, 0.025, 0.15])
                 # pos[2] = pos[2] - 0.3
