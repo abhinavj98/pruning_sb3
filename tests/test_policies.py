@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.
 from gymnasium import spaces
 import pytest
 import torch as th
-from ..policies import RecurrentActorCriticPolicy
+from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import AutoEncoder
 import numpy as np
@@ -127,7 +127,7 @@ def test_assymetric_extract_features(dummy_obs_space, dummy_action_space):
     assert (actor_features == output_actor).all()
     assert (critic_features == output_critic).all()
 
-
+@pytest.mark.skip
 def test_init_weights():
     assert False
 

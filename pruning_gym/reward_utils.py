@@ -52,8 +52,11 @@ class Reward:
                                               previous_or, branch_vector):
         cosine_sim_prev = self.compute_pointing_cos_sim(previous_pos, desired_pos, previous_or, branch_vector)
         cosine_sim_curr = self.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or, branch_vector)
-        #if sign of both are different, then it means that the end effector has crossed the branch
-        pointing_orientation_reward = (cosine_sim_curr - cosine_sim_prev) * \
+        #if sign of both are different  set reward to 0
+        if cosine_sim_prev * cosine_sim_curr < 0:
+            pointing_orientation_reward = -0.1
+        else:
+            pointing_orientation_reward = (cosine_sim_curr - cosine_sim_prev) * \
                                       self.pointing_orientation_reward_scale
         self.reward_info['pointing_orientation_reward'] = pointing_orientation_reward
         return pointing_orientation_reward, abs(cosine_sim_curr)

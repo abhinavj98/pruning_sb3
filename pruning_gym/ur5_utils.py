@@ -17,11 +17,12 @@ import random
 # ENV is a collection of objects like tree supports and ur5 robot. They interact with each other
 # through the env. UR5 class only needs access to pybullet.
 class UR5:
-    def __init__(self, con, robot_urdf_path: str, pos=[0, 0, 0]) -> None:
+    def __init__(self, con, robot_urdf_path: str, pos=[0, 0, 0], orientation = [0, 0, 0, 1]) -> None:
         assert isinstance(robot_urdf_path, str)
 
         self.con = con
         self.pos = pos
+        self.orientation = orientation
         self.tool0_link_index = None
         self.end_effector_index = None
         self.success_link_index = None
@@ -37,12 +38,14 @@ class UR5:
         self.action = None
         self.joint_angles = None
         self.achieved_pos = None
-        self.previous_pose = None
-        self.init_pos = None
+        self.init_pos_ee = None
+        self.init_pos_base = None
         self.robot_urdf_path = robot_urdf_path
         self.camera_base_offset = np.array(
-            [-0.063179, 0.077119, 0.0420027])  # np.array([-0.063179, 0.077119, 0.0420027])#
-        self.setup_ur5_arm()
+            [-0.063179, 0.077119, 0.0420027])
+        self.setup_ur5_arm() #Changes pos and orientation if randomize is True
+
+
 
     def setup_ur5_arm(self) -> None:
         assert self.ur5_robot is None
@@ -52,14 +55,16 @@ class UR5:
         self.base_index = 3
         flags = self.con.URDF_USE_SELF_COLLISION
         # randomize pos TODO
-        randomize = False
+        randomize = True
         if randomize:
-            pos = self.pos + np.random.rand(3) * 0.05
-            orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi / 180 * 10)
+            delta_pos = np.random.rand(3) * 0.05
+            delta_orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi / 180 * 10)
         else:
-            pos = self.pos
-            orientation = pybullet.getQuaternionFromEuler([0, 0, 0])
-        self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, pos, orientation, flags=flags)
+            delta_pos = np.array([0, 0, 0])
+            delta_orientation = pybullet.getQuaternionFromEuler([0, 0, 0])
+
+        self.pos, self.orientation = self.con.multiplyTransforms(self.pos, self.orientation, delta_pos, delta_orientation)
+        self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, self.pos, self.orientation, flags=flags)
 
         self.num_joints = self.con.getNumJoints(self.ur5_robot)
         self.control_joints = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint",
@@ -96,11 +101,13 @@ class UR5:
         for _ in range(100):
             self.con.stepSimulation()
 
-        self.init_pos = self.con.getLinkState(self.ur5_robot, self.end_effector_index)
+        self.init_pos_ee = self.get_current_pose(self.end_effector_index)
+        self.init_pos_base = self.get_current_pose(self.base_index)
         self.action = np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
         self.joint_angles = np.array(self.init_joint_angles).astype(np.float32)
         self.achieved_pos = np.array(self.get_current_pose(self.end_effector_index)[0])
-        self.previous_pose = np.array([0, 0, 0, 0, 0, 0, 0]).astype(np.float32)
+        base_pos, base_or = self.get_current_pose(self.base_index)
+
 
     def set_collision_filter(self):
         # TO SET CUTTER DISABLE COLLISIONS WITH SELF

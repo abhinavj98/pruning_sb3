@@ -42,7 +42,8 @@ class PruningEnv(gym.Env):
                  collision_reward_scale: int = 1, slack_reward_scale: int = 1,
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  curriculum_distances: Tuple = (0.8,), curriculum_level_steps: Tuple = (),
-                 use_ik: bool = True, make_trees: bool = False, shared_tree_list=None) -> None:
+                 use_ik: bool = True, make_trees: bool = False, shared_tree_list=None,
+                 ur5_pos = [0,0,0], ur5_or = [0,0,0,1]) -> None:
         """
         Initializes the environment with the following parameters:
         :param tree_urdf_path: Path to the folder containing URDF files of the trees
@@ -167,7 +168,7 @@ class PruningEnv(gym.Env):
 
         # setup robot arm:
         # new class for ur5
-        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=[0., 0., 0])
+        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=ur5_pos, orientation=ur5_or)
         self.reset_env_variables()
         # Curriculum variables
         self.eval_counter = 0
@@ -203,14 +204,14 @@ class PruningEnv(gym.Env):
             self.trees = shared_tree_list
             # load trees from shared memory
 
-        # for tree in self.trees:
-        #     self.tree = tree
-        #     self.activate_tree(self.pyb)
-        #     # tree.make_curriculum()
-        #     self.pyb.visualize_points(tree.vertex_and_projection, "reachable")
-        #     input()
-        #     self.inactivate_tree(self.pyb)
-        #     self.pyb.remove_debug_items("step")
+        for tree in self.trees:
+            self.tree = tree
+            self.activate_tree(self.pyb)
+            # tree.make_curriculum()
+            self.pyb.visualize_points(tree.vertex_and_projection, "reachable")
+            input()
+            self.inactivate_tree(self.pyb)
+            self.pyb.remove_debug_items("step")
 
         self.sample_tree()
         self.activate_tree(self.pyb)
@@ -313,18 +314,12 @@ class PruningEnv(gym.Env):
         if random_point is None:
             self.reset()
 
-        pcs = Reward.compute_perpendicular_cos_sim(self.ur5.init_pos[1], random_point[1])
+        pcs = Reward.compute_perpendicular_cos_sim(self.ur5.init_pos_ee[1], random_point[1])
 
         #Jitter the camera pose
         self.set_camera_pose()
 
         print("Distance from goal: ", distance_from_goal, "Point: ", random_point)
-
-        # Set joint angles to initial position
-        #TODO: Remove that 0.05
-        self.ur5.set_joint_angles(
-            self.ur5.init_joint_angles + np.random.uniform(-0.05, 0.05, (6,))
-        )
 
         for i in range(100):
             self.pyb.con.stepSimulation()
@@ -337,7 +332,7 @@ class PruningEnv(gym.Env):
         pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
 
         # Logging
-        self.init_distance = np.linalg.norm(self.tree_goal_pos - self.ur5.init_pos[0]) + 1e-4
+        self.init_distance = np.linalg.norm(self.tree_goal_pos - self.ur5.init_pos_ee[0]) + 1e-4
         self.init_point_cosine_sim = self.reward.compute_pointing_cos_sim(np.array(pos), self.tree_goal_pos,
                                                                           np.array(orient),
                                                                           self.tree_goal_branch) + 1e-4
@@ -381,7 +376,7 @@ class PruningEnv(gym.Env):
         assert self.tree_id is None
         assert self.supports is None
         print('Loading tree from ', self.tree.urdf_path)
-        self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, self.tree.pos,
+        self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [0.5, -0.75, 0],
                                          list(pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                          globalScaling=1)
         self.tree_id = pyb.con.loadURDF(self.tree.urdf_path, self.tree.pos, self.tree.orientation,
@@ -540,22 +535,22 @@ class PruningEnv(gym.Env):
         # TODO: define all these dict as named tuples/dict
         self.prev_observation_info = copy.deepcopy(self.observation_info)
         if 'achieved_pos' not in self.prev_observation_info.keys():
-            self.prev_observation_info['achieved_pos'] = self.ur5.init_pos[0]
-            self.prev_observation_info['achieved_or_quat'] = self.ur5.init_pos[1]
+            self.prev_observation_info['achieved_pos'] = self.ur5.init_pos_ee[0]
+            self.prev_observation_info['achieved_or_quat'] = self.ur5.init_pos_ee[1]
 
         tool_pos, tool_orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
         achieved_vel, achieved_ang_vel = self.ur5.get_current_vel(self.ur5.end_effector_index)
 
         achieved_pos = np.array(tool_pos).astype(np.float32)
         achieved_or_quat = np.array(tool_orient).astype(np.float32)
+
         desired_pos = np.array(self.tree_goal_pos).astype(np.float32)
 
         joint_angles = np.array(self.ur5.get_joint_angles()).astype(np.float32)
-        init_pos = np.array(self.ur5.init_pos[0]).astype(np.float32)
-        init_or = np.array(self.ur5.init_pos[1]).astype(np.float32)
 
-        achieved_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(achieved_or_quat)).reshape(3, 3)
-        achieved_or_6d = achieved_or_mat[:, :2].reshape(6, ).astype(np.float32)
+        init_pos_ee = np.array(self.ur5.init_pos_ee[0]).astype(np.float32)
+        init_or_ee = np.array(self.ur5.init_pos_ee[1]).astype(np.float32)
+
 
         rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot',
                                                self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt,
@@ -582,13 +577,21 @@ class PruningEnv(gym.Env):
         self.observation_info['perpendicular_cosine_sim'] = abs(perpendicular_cosine_sim)
         self.observation_info['target_distance'] = np.linalg.norm(achieved_pos - desired_pos)
 
-        # Actual observation
-        self.observation['achieved_goal'] = achieved_pos - init_pos
-        self.observation['desired_goal'] = desired_pos - init_pos
-        self.observation['relative_distance'] = achieved_pos - desired_pos
+        # Actual observation - All wrt base
+        ############TODO: Check if this is correct
+        t_bw, r_bw = self.pyb.con.invertTransform(self.ur5.init_pos_base[0], self.ur5.init_pos_base[1])
+        achieved_pos_b, achieved_or_quat_b = self.pyb.con.multiplyTransforms(t_bw, r_bw, achieved_pos, achieved_or_quat)
+        init_pos_ee_b, init_or_ee_b = self.pyb.con.multiplyTransforms(t_bw, r_bw, init_pos_ee, init_or_ee)
+        desired_pos_b, desired_or_b = self.pyb.con.multiplyTransforms(t_bw, r_bw, desired_pos, [0, 0, 0, 1])
+        achieved_or_mat_b = np.array(self.pyb.con.getMatrixFromQuaternion(achieved_or_quat_b)).reshape(3, 3)
+        achieved_or_b_6d = achieved_or_mat_b[:, :2].reshape(6, ).astype(np.float32)
+        self.observation['achieved_goal'] = np.array(achieved_pos_b) - np.array(init_pos_ee_b)
+        self.observation['desired_goal'] = np.array(desired_pos_b) - np.array(init_pos_ee_b)
+        self.observation['relative_distance'] = np.array(achieved_pos_b) - np.array(desired_pos_b)
         # Convert orientation into 6D form for continuity
-        self.observation['achieved_or'] = achieved_or_6d
+        self.observation['achieved_or'] = achieved_or_b_6d
         # Image stuff
+        #################################################
         self.observation['rgb'] = rgb
         self.observation['prev_rgb'] = prev_rgb
         self.observation['point_mask'] = point_mask

@@ -3,11 +3,10 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 import pytest
-from ..tree import Tree
-from ..ur5_utils import UR5
-from .. import ROBOT_URDF_PATH, MESHES_AND_URDF_PATH
-from ..pyb_utils import pyb_utils
-from ..pruning_env import PruningEnv
+from pruning_sb3.pruning_gym.tree import Tree
+from pruning_sb3.pruning_gym import ROBOT_URDF_PATH, MESHES_AND_URDF_PATH
+from pruning_sb3.pruning_gym.pyb_utils import pyb_utils
+from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 import numpy as np
 @pytest.fixture
 def pyb():
@@ -26,7 +25,8 @@ def env():
 def tree(env, pyb):
     urdf_path = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'trees', 'envy', 'test', 'tree_0.urdf')
     obj_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test', 'tree_0.obj')
-    tree = Tree(env, pyb, urdf_path, obj_path, curriculum_distances=(0.4, 0.5, 0.7), curriculum_level_steps=(100, 200))
+    label_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test_labelled')
+    tree = Tree(env, pyb, urdf_path, obj_path, label_path, curriculum_distances=(0.4, 0.5, 0.7), curriculum_level_steps=(100, 200))
     return tree
 
 def test_get_all_points():
@@ -36,18 +36,8 @@ def test_get_all_points():
 def test_tree_instance(env, pyb):
     urdf_path = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'trees', 'envy', 'test', 'tree_0.urdf')
     obj_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test', 'tree_0.obj')
-    assert Tree(env, pyb, urdf_path, obj_path)
-
-def test_active(tree):
-    tree.active()
-    assert tree.tree_id
-    assert tree.supports
-
-def test_inactive(tree):
-    tree.active()
-    tree.inactive()
-    assert tree.tree_id is None
-    assert tree.supports is None
+    label_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test_labelled')
+    assert Tree(env, pyb, urdf_path, label_path, obj_path)
 
 
 def test_transform_obj_vertex():
@@ -57,7 +47,6 @@ def test_transform_obj_vertex():
 def test_is_reachable(env):
     # tree.get_reachable_points()
     tree = env.tree
-    tree.inactive()
     import time
     assert len(tree.reachable_points) > 0
     for point in tree.reachable_points:

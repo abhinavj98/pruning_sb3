@@ -1,5 +1,5 @@
-from ..reward_utils import Reward
-from ..pyb_utils import pyb_utils
+from pruning_sb3.pruning_gym.reward_utils import Reward
+from pruning_sb3.pruning_gym.pyb_utils import pyb_utils
 import pytest
 import numpy as np
 
