@@ -182,7 +182,7 @@ class PruningEnv(gym.Env):
         pos = None
         scale = None
         if "envy" in self.tree_urdf_path:
-            pos = np.array([0.5, -0.7, 0])
+            pos = np.array([0., -0.7, 0])
             scale = 1
         elif "ufo" in self.tree_urdf_path:
             pos = np.array([-0.5, -0.8, -0.3])

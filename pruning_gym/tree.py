@@ -257,13 +257,17 @@ class Tree:
             #TODO: make class variable
             randomize = True
             if randomize:
-                delta_pos = np.array([0,0,0])
-                delta_pos[0] = np.random.uniform(low=-1, high=1)
+                delta_pos = np.array([0.,0.,0.])
+                delta_pos[0] = np.random.uniform(low=-1., high=1.)
                 delta_pos[1] = np.random.uniform(low=-.1, high=.1)
-                delta_pos[2] = np.random.uniform(low=-3, high=0)
-                pos = pos + delta_pos
+                delta_pos[2] = np.random.uniform(low=-3., high=0)
+                new_pos = pos + delta_pos
+                print("Randomized position: ", new_pos, "Delta pos: ", delta_pos)
+                #TODO: Multiply orientation with initial orientation
                 orientation = pybullet.getQuaternionFromEuler(np.random.uniform(low = -1, high=1, size = (3,)) * np.pi / 180 * 5)
-            trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
+            else:
+                new_pos = pos
+            trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=new_pos, orientation=orientation, scale=scale,
                               num_points=num_points, curriculum_distances=curriculum_distances,
                               curriculum_level_steps=curriculum_level_steps, labelled_obj_path=labelled_obj))
         return trees
