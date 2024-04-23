@@ -19,7 +19,7 @@ def init_wandb(args, name):
        with open("../keys.json") as f:
          os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
 
-    wandb.tensorboard.patch(root_logdir="./runs", pytorch=True)
+    wandb.tensorboard.patch(root_logdir="runs", pytorch=True)
     wandb.init(
         # set the wandb project where this run will be logged
         project="ppo_lstm",
@@ -84,7 +84,9 @@ def set_seed(seed: int = 42) -> None:
 
 
 def optical_flow_create_shared_vars(num_envs: int = 1):
+    #TODO = make this torch multiprocessing
     manager = mp.Manager()
+
     # queue = multiprocessing.Queue()
     shared_dict = manager.dict()
     shared_queue = manager.Queue()
@@ -93,6 +95,7 @@ def optical_flow_create_shared_vars(num_envs: int = 1):
         ctx = mp.get_context("forkserver")
     else:
         ctx = mp.get_context("spawn")
+    #replace shared dict and queue with pipe?
     process = ctx.Process(target=OpticalFlow, args=((224, 224), True, shared_var, num_envs),
                           daemon=True)  # type: ignore[attr-defined]
     # pytype: enable=attribute-error

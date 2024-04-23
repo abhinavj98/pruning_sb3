@@ -42,6 +42,9 @@ from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 
+#Optical flow
+from pruning_sb3.pruning_gym.optical_flow import OpticalFlow
+
 class ActorCriticPolicySquashed(BasePolicy):
     """
     Policy class for actor-critic algorithms (has both policy and value prediction).
@@ -225,7 +228,7 @@ class ActorCriticPolicySquashed(BasePolicy):
             latent_dim=latent_dim_pi, log_std_init=self.log_std_init
         )
         # multiply action net weight by 10
-        self.action_net.weight.data *= 10
+        # self.action_net.weight.data *= 10
         # if isinstance(self.action_dist, DiagGaussianDistribution):
         #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
         #         latent_dim=latent_dim_pi, log_std_init=self.log_std_init
@@ -456,6 +459,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             enable_critic_lstm: bool = True,
             lstm_kwargs: Optional[Dict[str, Any]] = None,
             features_dim_critic_add: Optional[int] = None,
+            use_optical_flow = True,
+            algo_size = (224, 224)
     ):
         self.lstm_output_dim = lstm_hidden_size
         super().__init__(
@@ -481,6 +486,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         self.lstm_kwargs = lstm_kwargs or {}
         self.shared_lstm = shared_lstm
         self.enable_critic_lstm = enable_critic_lstm
+        self.use_optical_flow = use_optical_flow
         self.lstm_actor = nn.LSTM(
             self.features_dim,
             lstm_hidden_size,
@@ -492,6 +498,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         self.lstm_hidden_state_shape = (n_lstm_layers, 1, lstm_hidden_size)
         self.critic = None
         self.lstm_critic = None
+        self.algo_size = algo_size
         assert not (
                 self.shared_lstm and self.enable_critic_lstm
         ), "You must choose between shared LSTM, seperate or no LSTM for the critic."
@@ -505,7 +512,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         # (size of the output of the actor lstm)
         if not (self.shared_lstm or self.enable_critic_lstm):
             self.critic = nn.Linear(self.features_dim, lstm_hidden_size)
-
+        if self.use_optical_flow:
+            self.optical_flow_model = OpticalFlow(size = self.algo_size)
         # Use a separate LSTM for the critic
         # TODO: TEST
         if self.enable_critic_lstm:
@@ -516,8 +524,10 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
                 num_layers=n_lstm_layers,
                 **self.lstm_kwargs,
             )
-        num_channels = self.features_extractor.in_channels
-        self.running_mean_var_oflow = RunningMeanStd(shape=(num_channels, 1, 1))
+        # num_channels = self.features_extractor.in_channels
+        self.running_mean_var_oflow_x = RunningMeanStd(shape=(1,))
+        self.running_mean_var_oflow_y = RunningMeanStd(shape=(1,))
+
         # Setup optimizer with initial learning rate
         if lr_schedule_logstd is not None:
             self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1),
@@ -529,25 +539,34 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             self.optimizer = self.optimizer_class(
                 [*self.lstm_actor.parameters(), *self.lstm_critic.parameters(), *self.value_net.parameters(),
                  *self.action_net.parameters(), self.log_std], lr=lr_schedule(1), **self.optimizer_kwargs)
+            self.optimizer_logstd = None
         if lr_schedule_ae is not None:
             self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1),
                                                      **self.optimizer_kwargs)
 
-    def _normalize_using_running_mean_std(self, x, running_mean_std):
-        mean = running_mean_std.mean.to(self.device, dtype=th.float32)
-        std = th.sqrt(running_mean_std.var).to(self.device, dtype=th.float32)
+    def _normalize_using_running_mean_std(self, x, mean_std_tuple):
+        mean_x = mean_std_tuple[0].mean.to(self.device, dtype=th.float32)
+        std_x = th.sqrt(mean_std_tuple[0].var).to(self.device, dtype=th.float32)
+        mean_y = mean_std_tuple[1].mean.to(self.device, dtype=th.float32)
+        std_y = th.sqrt(mean_std_tuple[1].var).to(self.device, dtype=th.float32)
+        normalize_array = copy.deepcopy(x)
+        normalize_array[:, 0, :, :] = (x[:, 0, :, :] - mean_x) / (std_x + 1e-8)
+        normalize_array[:, 1, :, :] = (x[:, 1, :, :] - mean_y) / (std_y + 1e-8)
+        return normalize_array
 
-        return (x - mean) / (std + 1e-8)
-
-    def _unnormalize_using_running_mean_std(self, x, running_mean_std):
-        mean = running_mean_std.mean.to(self.device, dtype=th.float32)
-        std = th.sqrt(running_mean_std.var).to(self.device, dtype=th.float32)
-        return x * std + mean
+    def _unnormalize_using_running_mean_std(self, x, mean_std_tuple):
+        mean_x = mean_std_tuple[0].mean.to(self.device, dtype=th.float32)
+        std_x = th.sqrt(mean_std_tuple[0].var).to(self.device, dtype=th.float32)
+        mean_y = mean_std_tuple[1].mean.to(self.device, dtype=th.float32)
+        std_y = th.sqrt(mean_std_tuple[1].var).to(self.device, dtype=th.float32)
+        x[:, 0, :, :] = (x[:, 0, :, :] * (std_x + 1e-8)) + mean_x
+        x[:, 1, :, :] = (x[:, 1, :, :] * (std_y + 1e-8)) + mean_y
+        return x
 
     # Load running_mean_std from pkl file
     def load_running_mean_std_from_file(self, path):
         with open(path, 'rb') as f:
-            self.running_mean_var_oflow = pickle.load(f)
+            self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = pickle.load(f)
 
     def _build_mlp_extractor(self) -> None:
         """
@@ -630,7 +649,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         :return: action, value and log probability of the action
         """
         # Preprocess the observation if needed
-        features, recon = self.extract_features(obs)
+        features, _, _ = self.extract_features(obs)
 
         if self.share_features_extractor:
             pi_features = vf_features = features  # alis
@@ -659,6 +678,11 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         log_prob = distribution.log_prob(actions)
         return actions, values, log_prob, RNNStates(lstm_states_pi, lstm_states_vf)
 
+    def get_depth_proxy(self, rgb, prev_rgb, point_mask):
+        optical_flow = self.optical_flow_model.calculate_optical_flow(rgb, prev_rgb)
+        depth_proxy = th.cat((optical_flow, point_mask), dim = 1)
+        return depth_proxy
+
     def extract_features(self, obs: th.Tensor):  # -> tuple[th.Tensor, th.Tensor]:
         """
         Preprocess the observation if needed and extract features.
@@ -669,10 +693,15 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         assert self.features_extractor is not None, "No features extractor was set"
         # preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
         # Add running mean and var
+        # TODO: compute depth proxy here
+        depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
+        self.running_mean_var_oflow_x.update(depth_proxy[:, 0, :, :].reshape(depth_proxy.shape[0], -1))
+        self.running_mean_var_oflow_y.update(depth_proxy[:, 1, :, :].reshape(depth_proxy.shape[0], -1))
         image_features = self.features_extractor(
-            self._normalize_using_running_mean_std(obs['depth_proxy'], self.running_mean_var_oflow))
-        features_actor = th.cat([obs[i] for i in obs.keys() if 'critic' not in i and 'depth_proxy' not in i], dim=1).to(
-            th.float32)
+            self._normalize_using_running_mean_std(depth_proxy, (self.running_mean_var_oflow_x,
+                                                                 self.running_mean_var_oflow_y)))
+        features_actor = th.cat([obs[i] for i in obs.keys() if 'critic' not in i and 'rgb' not in i
+                                 and 'prev_rgb' not in i and 'point_mask' not in i], dim=1).to(th.float32)
         features_actor = th.cat([features_actor, image_features[0]], dim=1).to(th.float32)
         # features_actor = th.cat(
         #     [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
@@ -681,7 +710,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         features = features_actor
 
         if self.share_features_extractor is False:
-            features_critic = th.cat([obs[i] for i in obs.keys() if 'depth_proxy' not in i],
+            features_critic = th.cat([obs[i] for i in obs.keys() if 'rgb' not in i
+                                      and 'prev_rgb' not in i and 'point_mask' not in i],
                                      dim=1).to(th.float32)
             features_critic = th.cat([features_critic, image_features[0]], dim=1).to(th.float32)
             # features_critic = th.cat(
@@ -691,9 +721,10 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             features = (features_actor, features_critic)
 
         # return actor features and critic features
-
-        return features, self._unnormalize_using_running_mean_std(image_features[1], self.running_mean_var_oflow)
-
+        #unnormalize in place
+        unnormalize_recon = self._unnormalize_using_running_mean_std(image_features[1], (self.running_mean_var_oflow_x,
+                                                                 self.running_mean_var_oflow_y))
+        return features, depth_proxy, unnormalize_recon
     # def make_state_from_obs(self, obs):
     #     depth_features = self.extract_features(obs['depth_proxy'])
     #     #TODO: Normalize inputs
@@ -716,7 +747,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         :return: the action distribution and new hidden states.
         """
         # Call the method from the parent of the parent class WHYYYY
-        features, recon = self.extract_features(obs)
+        features, _, _ = self.extract_features(obs)
         if self.features_dim_critic_add is not None:
             actor_features = features[0]
         else:
@@ -725,8 +756,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         latent_pi = self.mlp_extractor.forward_actor(latent_pi)
         return self._get_action_dist_from_latent(latent_pi), lstm_states
 
-    def predict_values(
-            self,
+    def predict_values(self,
             obs: th.Tensor,
             lstm_states: Tuple[th.Tensor, th.Tensor],
             episode_starts: th.Tensor,
@@ -741,7 +771,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         :return: the estimated values.
         """
         # Call the method from the parent of the parent class
-        features, _ = self.extract_features(obs)  # , self.vf_features_extractor)
+        features, _, _ = self.extract_features(obs)  # , self.vf_features_extractor)
 
         if self.lstm_critic is not None:
             if self.features_dim_critic_add is not None:
@@ -777,9 +807,9 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         """
         # Calculate running mean and var for observation normalization
 
-        self.running_mean_var_oflow.update(obs['depth_proxy'].reshape(-1, 1))
+
         # Preprocess the observation if needed
-        features, recon = self.extract_features(obs)
+        features, depth_proxy, depth_proxy_recon = self.extract_features(obs)
         if self.share_features_extractor:
             pi_features = vf_features = features  # alias
         else:
@@ -797,7 +827,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         distribution = self._get_action_dist_from_latent(latent_pi)
         log_prob = distribution.log_prob(actions)
         values = self.value_net(latent_vf)
-        return values, log_prob, distribution.entropy(), recon
+        return values, log_prob, distribution.entropy(), depth_proxy, depth_proxy_recon
 
     @staticmethod
     def init_weights(module: nn.Module, gain: float = 1) -> None:

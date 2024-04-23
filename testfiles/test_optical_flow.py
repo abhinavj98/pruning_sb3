@@ -20,7 +20,7 @@ from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optic
     set_args, organize_args, add_arg_to_env
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
-    events = env.pyb.con.getKeyboardEvents()
+    events = env.pyb_con.con.getKeyboardEvents()
     key_codes = events.keys()
     for key in key_codes:
         pressed_keys.append(key)

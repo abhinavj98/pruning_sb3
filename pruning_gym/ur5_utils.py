@@ -77,7 +77,7 @@ class UR5:
             jointUpperLimit = info[9]
             jointMaxForce = info[10]
             jointMaxVelocity = info[11]
-            print("Joint Name: ", jointName, "Joint ID: ", jointID)
+            #print("Joint Name: ", jointName, "Joint ID: ", jointID)
             controllable = True if jointName in self.control_joints else False
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
                                    jointMaxVelocity, controllable)  # type: ignore
@@ -88,7 +88,7 @@ class UR5:
             self.joints[info.name] = info
 
         # self.set_collision_filter()
-        self.init_joint_angles = (-np.pi / 2, -2., 2.16, -3.14, -1.57, np.pi)
+        self.init_joint_angles = (-np.pi / 2, -2.3, 2.16, -3.14, -1.57, np.pi)
         self.set_joint_angles(self.init_joint_angles)
         for _ in range(100):
             self.con.stepSimulation()
@@ -157,7 +157,7 @@ class UR5:
         singularity = False
 
         # TODO: Find a better way to handle singularity than not moving
-        if (abs(joint_velocities) > 0.25).any():
+        if (abs(joint_velocities) > 1.7).any():
             singularity = True
             joint_velocities = np.zeros(6)
         for i, name in enumerate(self.control_joints):

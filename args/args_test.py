@@ -8,20 +8,12 @@ args = {
         },
         'n_eval_episodes': {
             'type': int,
-            'default': 1,
+            'default': 4,
             'help': 'number of episodes to run during evaluation'
         },
     },
 
     'args_env': {
-        'use_optical_flow': {
-            'type': bool,
-            'default': True
-        },
-        'optical_flow_subproc': {
-            'type': bool,
-            'default': False
-        },
         # Reward parameters
         'movement_reward_scale': {
             'type': float,
@@ -76,7 +68,7 @@ args = {
         },
         'action_scale': {
             'type': float,
-            'default': 2,
+            'default': 0.1,
             'help': 'scaling factor for the action space'
         },
         'action_dim': {
@@ -211,7 +203,7 @@ args = {
         },
         'epochs': {
             'type': int,
-            'default': 4,
+            'default': 5,
             'help': 'number of epochs to train for'
         },
         'batch_size': {

@@ -1,26 +1,19 @@
+# Repace bool elements with flags (Bool doesnt work)
 args = {
     'args_callback': {
         'eval_freq': {
             'type': int,
-            'default': 10000,
+            'default': 4000,
             'help': 'frequency of evaluation'
         },
         'n_eval_episodes': {
             'type': int,
-            'default': 20,
+            'default': 40,
             'help': 'number of episodes to run during evaluation'
         },
     },
 
     'args_env': {
-        'use_optical_flow': {
-            'type': bool,
-            'default': True
-        },
-        'optical_flow_subproc': {
-            'type': bool,
-            'default': False
-        },
         # Reward parameters
         'movement_reward_scale': {
             'type': float,
@@ -39,7 +32,7 @@ args = {
         },
         'terminate_reward_scale': {
             'type': float,
-            'default': 0.01,
+            'default': 0.1,
             'help': 'scaling factor for the terminate reward'
         },
         'collision_reward_scale': {
@@ -70,12 +63,14 @@ args = {
             'help': 'maximum number of steps per episode'
         },
         'use_ik': {
-            'type': bool,
-            'default': True
+            'action': "store_true",
+            'default': True,
+            'help': 'whether to render the environment'
         },
+
         'action_scale': {
             'type': float,
-            'default': 0.4,
+            'default': 0.1,
             'help': 'scaling factor for the action space'
         },
         'action_dim': {
@@ -102,7 +97,7 @@ args = {
             'help': 'path to the train OBJ file for the tree environment'
         },
         'renders': {
-            'type': bool,
+            'action': "store_true",
             'default': False,
             'help': 'whether to render the environment'
         },
@@ -133,8 +128,8 @@ args = {
             'default': './meshes_and_urdf/meshes/trees/envy/test',
             'help': 'path to the test OBJ file for the tree environment'
         },
-        'renders': {
-            'type': bool,
+         'renders': {
+            'action': "store_true",
             'default': False,
             'help': 'whether to render the environment'
         },
@@ -169,8 +164,8 @@ args = {
             'default': './meshes_and_urdf/meshes/trees/envy/test',
             'help': 'path to the test OBJ file for the tree environment'
         },
-        'renders': {
-            'type': bool,
+         'renders': {
+            'action': "store_true",
             'default': False,
             'help': 'whether to render the environment'
         },
@@ -228,39 +223,43 @@ args = {
         # Training parameters
         'total_timesteps': {
             'type': int,
-            'default': 10_000_000,
+            'default': 5_000_000,
             'help': 'total number of timesteps to train for'
         },
         # For logging purposes keep as multiple of episode length
         'steps_per_epoch': {
             'type': int,
-            'default': 150,
+            'default': 300,
             'help': 'number of timesteps per epoch'
         },
         'epochs': {
             'type': int,
-            'default': 10,
+            'default': 5,
             'help': 'number of epochs to train for'
         },
         'batch_size': {
             'type': int,
-            'default': 256,
+            'default': 64,
             'help': 'batch size'
         },
         'learning_rate': {
             'type': float,
-            'default': 0.000025,
+            'default': 0.00025,
             'help': 'learning rate'
         },
         'learning_rate_ae': {
             'type': float,
-            'default': 0.000025,
+            'default': 0.00025,
             'help': 'learning rate for the autoencoder'
         },
         'log_std_init': {
             'type': float,
-            'default': -3.5,
+            'default': 0,#-3.5,
             'help': 'initial value for the log standard deviation'
-    	},
+        },
+        'ae_coeff': {
+            'type': int,
+            'default': 1,
+        }
     }
 }

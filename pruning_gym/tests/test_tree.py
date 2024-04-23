@@ -19,13 +19,13 @@ def env():
     urdf_path = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'trees', 'envy', 'test')
     obj_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test')
 
-    env = PruningEnv(urdf_path, obj_path, renders=True)
+    env = PruningEnv(urdf_path, obj_path, renders=False)
     return env
 
 @pytest.fixture
 def tree(env, pyb):
-    urdf_path = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'trees', 'envy', 'test', 'tree_24.urdf')
-    obj_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test', 'tree_24.obj')
+    urdf_path = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'trees', 'envy', 'test', 'tree_0.urdf')
+    obj_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test', 'tree_0.obj')
     tree = Tree(env, pyb, urdf_path, obj_path, curriculum_distances=(0.4, 0.5, 0.7), curriculum_level_steps=(100, 200))
     return tree
 
@@ -34,8 +34,8 @@ def test_get_all_points():
 
 
 def test_tree_instance(env, pyb):
-    urdf_path = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'trees', 'envy', 'test', 'tree_24.urdf')
-    obj_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test', 'tree_24.obj')
+    urdf_path = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'trees', 'envy', 'test', 'tree_0.urdf')
+    obj_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test', 'tree_0.obj')
     assert Tree(env, pyb, urdf_path, obj_path)
 
 def test_active(tree):
@@ -86,7 +86,7 @@ def test_make_curriculum(tree):
     tree.make_curriculum(None)
 
     for i in range(len(tree.curriculum_distances)):
-        # tree.pyb.visualize_points(tree.curriculum_points[i])
+        # tree.pyb_con.visualize_points(tree.curriculum_points[i])
         # import time
         # time.sleep(10)
         assert len(tree.curriculum_points[i]) != 0

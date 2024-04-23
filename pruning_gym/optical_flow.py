@@ -44,20 +44,19 @@ class OpticalFlow:
                 self.shared_dict[pid] = optical_flow[i]
 
     def _preprocess(self, img1, img2):
-
         img1 = F.resize(img1, size=self.size, antialias=False)
         img2 = F.resize(img2, size=self.size, antialias=False)
-        return self.transforms(img1, img2)
+        return self.transforms(img1, img2) #scaling and resize?
 
     def calculate_optical_flow(self, current_rgb, previous_rgb):
         #convert to np array
-        current_rgb = np.array(current_rgb)
-        previous_rgb = np.array(previous_rgb)
+        # current_rgb = np.array(current_rgb)
+        # previous_rgb = np.array(previous_rgb)
         if len(current_rgb.shape)==3:
-            current_rgb = np.expand_dims(current_rgb, 0)
-            previous_rgb = np.expand_dims(previous_rgb, 0)
-        current_rgb, previous_rgb = self._preprocess(th.tensor(current_rgb).permute(0, 3, 1, 2),
-                                                     th.tensor(previous_rgb).permute(0, 3, 1, 2))
+            current_rgb = th.unsqueeze(current_rgb, 0)
+            previous_rgb = th.unsqueeze(previous_rgb, 0)
+        current_rgb, previous_rgb = self._preprocess(current_rgb,
+                                                     previous_rgb)
         with th.no_grad():
             list_of_flows = self.model(current_rgb.to(self.device), previous_rgb.to(self.device))
         predicted_flows = list_of_flows[-1]
@@ -69,4 +68,4 @@ class OpticalFlow:
         #
         # flow_img = flow_to_image(predicted_flows)
         # print(flow_img.shapee, flow_img.max(), flow_img.min())
-        return predicted_flows.cpu().numpy()
+        return predicted_flows

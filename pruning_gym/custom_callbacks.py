@@ -44,6 +44,8 @@ class CustomTrainCallback(BaseCallback):
         self._screens_buffer = []
         self._reward_dict = {}
         self._info_dict = {}
+        self._rollouts = 0
+        self._train_record_freq = 200
 
 
     def _on_training_start(self) -> None:
@@ -74,6 +76,8 @@ class CustomTrainCallback(BaseCallback):
         self._info_dict["euclidean_error"] = []
         self._info_dict["is_success"] = []
         self._info_dict['velocity'] = []
+        self._screens_buffer = []
+
 
 
 
@@ -90,9 +94,12 @@ class CustomTrainCallback(BaseCallback):
         for i in range(len(infos)):
             for key in self._reward_dict.keys():
                 self._reward_dict[key].append(infos[i][key])
-            if infos[i]["TimeLimit.truncated"] or infos[i]["is_success"]:
+            if infos[i]["TimeLimit.truncated"]:
                 for key in self._info_dict.keys():
                     self._info_dict[key].append(infos[i][key])
+        if self._rollouts % self._train_record_freq == 0:
+            #grab screen
+            self._screens_buffer.append(self._grab_screen_callback(self.locals, self.globals))
         return True
     
     def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
@@ -117,6 +124,13 @@ class CustomTrainCallback(BaseCallback):
             self.logger.record("rollout/"+key, np.mean(self._reward_dict[key]))
         for key in self._info_dict.keys():
             self.logger.record("rollout/"+key, np.mean(self._info_dict[key]))
+        if self._rollouts % self._train_record_freq == 0:
+            self.logger.record(
+                "rollout/video",
+                Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
+                exclude=("stdout", "log", "json", "csv"),
+            )
+        self._rollouts += 1
     def _on_training_end(self) -> None:
         """
         This event is triggered before exiting the `learn()` method.
@@ -229,7 +243,7 @@ class CustomEvalCallback(EventCallback):
         """
         info = locals_["info"]
 
-        if locals_["done"]:
+        if locals_["done"]: #Log at end of episode
             maybe_is_success = info.get("is_success")
             if maybe_is_success is not None:
                 self._is_success_buffer.append(maybe_is_success)
@@ -240,7 +254,7 @@ class CustomEvalCallback(EventCallback):
 
         for key in self._reward_dict.keys():
             self._reward_dict[key].append(infos[key])
-        if infos["TimeLimit.truncated"] or infos["is_success"]:
+        if infos["TimeLimit.truncated"]:
             for key in self._info_dict.keys():
                 self._info_dict[key].append(infos[key])
         return True
@@ -268,7 +282,7 @@ class CustomEvalCallback(EventCallback):
                 0.35, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             screen_copy = cv2.putText(screen_copy, "Current: "+str(observation_info['achieved_pos']), (0,140), cv2.FONT_HERSHEY_SIMPLEX,
                 .5, (255,0,0), 2, cv2.LINE_AA)
-            screen_copy = cv2.putText(screen_copy, "Goal: "+str(observation_info['achieved_pos']), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
+            screen_copy = cv2.putText(screen_copy, "Goal: "+str(observation_info['desired_pos']), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
                 0.5, (255,0,0), 2, cv2.LINE_AA)
             screen_copy = cv2.putText(screen_copy, "Orientation Perpendicular: " +str(observation_info['perpendicular_cosine_sim']), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
                 0.7, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
@@ -416,7 +430,7 @@ class CustomEvalCallback(EventCallback):
             if self.best_model_save_path is not None:
                 self.model.save(os.path.join(self.best_model_save_path, "current_model"))
                 with open(os.path.join(self.best_model_save_path, "current_mean_std.pkl"), "wb") as f:
-                    pickle.dump(self.model.policy.running_mean_var_oflow, f)
+                    pickle.dump((self.model.policy.running_mean_var_oflow_x, self.model.policy.running_mean_var_oflow_y), f)
 
             if mean_reward > self.best_mean_reward:
                 if self.verbose >= 1:
@@ -424,7 +438,8 @@ class CustomEvalCallback(EventCallback):
                 if self.best_model_save_path is not None:
                     self.model.save(os.path.join(self.best_model_save_path, "best_model"))
                     with open(os.path.join(self.best_model_save_path, "best_mean_std.pkl"), "wb") as f:
-                        pickle.dump(self.model.policy.running_mean_var_oflow, f)
+                        pickle.dump((self.model.policy.running_mean_var_oflow_x, self.model.policy.running_mean_var_oflow_y), f)
+
 
                 self.best_mean_reward = mean_reward
                 # Trigger callback on new best model, if needed
