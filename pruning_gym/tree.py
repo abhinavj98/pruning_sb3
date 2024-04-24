@@ -129,16 +129,6 @@ class Tree:
             print("No points in curriculum level 0", self.urdf_path)
             # delete pkl file
             os.remove(pkl_path)
-            # generate new position and orientation
-
-            delta_pos = np.array([0., 0., 0.])
-            delta_pos[0] = np.random.uniform(low=-1., high=1.)
-            delta_pos[1] = np.random.uniform(low=.2, high=.0)
-            delta_pos[2] = np.random.uniform(low=-2., high=0)
-            new_pos = pos + delta_pos
-            # TODO: Multiply orientation with initial orientation
-            orientation = pybullet.getQuaternionFromEuler(
-                np.random.uniform(low=-1, high=1, size=(3,)) * np.pi / 180 * 5)
             self.__init__(env, pyb, urdf_path, obj_path, labelled_obj_path, new_pos, orientation, num_points, scale,
                           curriculum_distances, curriculum_level_steps, randomize_pose=randomize_pose)
 
