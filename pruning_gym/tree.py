@@ -129,7 +129,7 @@ class Tree:
             print("No points in curriculum level 0", self.urdf_path)
             # delete pkl file
             os.remove(pkl_path)
-            self.__init__(env, pyb, urdf_path, obj_path, labelled_obj_path, new_pos, orientation, num_points, scale,
+            self.__init__(env, pyb, urdf_path, obj_path, labelled_obj_path, self.init_pos, self.init_orientation, num_points, scale,
                           curriculum_distances, curriculum_level_steps, randomize_pose=randomize_pose)
 
     def label_vertex_by_color(self, labels, unlabelled_vertices, labelled_vertices):
