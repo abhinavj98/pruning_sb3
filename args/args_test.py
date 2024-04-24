@@ -63,8 +63,9 @@ args = {
             'help': 'maximum number of steps per episode'
         },
         'use_ik': {
-            'type': bool,
-            'default': True
+            'action': "store_true",
+            'default': True,
+            'help': 'whether to render the environment'
         },
         'action_scale': {
             'type': float,
@@ -75,6 +76,26 @@ args = {
             'type': int,
             'default': 6,
             'help': 'dimension of the action space for the actor network'
+        },
+        'randomize_ur5_pose': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to randomize the UR5 pose'
+        },
+        'randomize_tree_pose': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to randomize the tree pose'
+        },
+        'curriculum_distances': {
+            'type': tuple,
+            'default': (0.95,)
+            # 'default': (0.25, 0.35, 0.5)
+        },
+        'curriculum_level_steps': {
+            'type': tuple,
+            'default': ()
+            # 'default': (1200, 7200)
         },
 
     },
@@ -104,16 +125,7 @@ args = {
             'default': False,
             'help': 'whether to render the environment'
         },
-        'curriculum_distances': {
-            'type': tuple,
-            'default': (0.8,)
-            # 'default': (0.25, 0.35, 0.5)
-        },
-        'curriculum_level_steps': {
-            'type': tuple,
-            'default': ()
-            # 'default': (1200, 7200)
-        },
+
         'tree_count': {
             'type': int,
             'default': 3,
@@ -148,14 +160,7 @@ args = {
             'default': 20,
             'help': 'number of points to sample in a tree during evaluation'
         },
-        'curriculum_distances': {
-            'type': tuple,
-            'default': (0.8,)
-        },
-        'curriculum_level_steps': {
-            'type': tuple,
-            'default': ()
-        },
+
         'tree_count': {
             'type': int,
             'default': 1,
@@ -246,5 +251,10 @@ args = {
             'default': -2.5,
             'help': 'initial value for the log standard deviation'
         },
+        'ae_coeff': {
+            'type': int,
+            'default': 1,
+        }
+
     },
 }

@@ -43,7 +43,8 @@ class PruningEnv(gym.Env):
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  curriculum_distances: Tuple = (0.8,), curriculum_level_steps: Tuple = (),
                  use_ik: bool = True, make_trees: bool = False, shared_tree_list=None,
-                 ur5_pos = [0,0,0], ur5_or = [0,0,0,1]) -> None:
+                 ur5_pos = [0,0,0], ur5_or = [0,0,0,1], randomize_ur5_pose: bool = False, randomize_tree_pose: bool = False
+                 ) -> None:
         """
         Initializes the environment with the following parameters:
         :param tree_urdf_path: Path to the folder containing URDF files of the trees
@@ -167,8 +168,7 @@ class PruningEnv(gym.Env):
         self.angle_threshold_cosine = np.cos(angle_threshold)
 
         # setup robot arm:
-        # new class for ur5
-        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=ur5_pos, orientation=ur5_or)
+        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=ur5_pos, orientation=ur5_or, randomize_pose=randomize_ur5_pose)
         self.reset_env_variables()
         # Curriculum variables
         self.eval_counter = 0
@@ -182,7 +182,7 @@ class PruningEnv(gym.Env):
         pos = None
         scale = None
         if "envy" in self.tree_urdf_path:
-            pos = np.array([0., -0.7, 0])
+            pos = np.array([0., -0.9, 0])
             scale = 1
         elif "ufo" in self.tree_urdf_path:
             pos = np.array([-0.5, -0.8, -0.3])
@@ -199,28 +199,32 @@ class PruningEnv(gym.Env):
                                                      num_points=num_points,
                                                      num_trees=self.tree_count,
                                                      curriculum_distances=curriculum_distances,
-                                                     curriculum_level_steps=curriculum_level_steps)
+                                                     curriculum_level_steps=curriculum_level_steps,
+                                                     randomize_pose=randomize_tree_pose)
         else:
             self.trees = shared_tree_list
             # load trees from shared memory
 
-        for tree in self.trees:
-            self.tree = tree
-            self.activate_tree(self.pyb)
-            # tree.make_curriculum()
-            self.pyb.visualize_points(tree.vertex_and_projection, "reachable")
-            input()
-            self.inactivate_tree(self.pyb)
-            self.pyb.remove_debug_items("step")
+        # for tree in self.trees:
+        #     self.tree = tree
+        #     self.activate_tree(self.pyb)
+        #     # tree.make_curriculum()
+        #     self.pyb.visualize_points(tree.vertex_and_projection, "reachable")
+        #     input()
+        #     self.inactivate_tree(self.pyb)
+        #     self.pyb.remove_debug_items("step")
+
+
+        # for tree in self.trees:
+        #     self.tree = tree
+        #     self.activate_tree(self.pyb)
+        #     self.pyb.visualize_points(self.tree.curriculum_points[0], "curriculum")
+        #     input()
+        #     self.inactivate_tree(self.pyb)
+        #     self.pyb.remove_debug_items("step")
 
         self.sample_tree()
         self.activate_tree(self.pyb)
-
-        # for i in range(len(self.tree.curriculum_distances)):
-        #     self.pyb.visualize_points(self.tree.curriculum_points[i], "curriculum")
-        #     input()
-            # self.pyb.remove_debug_items("step")
-
 
         # Init and final logging
         self.init_distance = 0
@@ -376,7 +380,7 @@ class PruningEnv(gym.Env):
         assert self.tree_id is None
         assert self.supports is None
         print('Loading tree from ', self.tree.urdf_path)
-        self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [0.5, -0.75, 0],
+        self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [self.tree.pos[0], self.tree.pos[1]-0.05, 0.0],
                                          list(pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                          globalScaling=1)
         self.tree_id = pyb.con.loadURDF(self.tree.urdf_path, self.tree.pos, self.tree.orientation,

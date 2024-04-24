@@ -107,6 +107,22 @@ class Tree:
         self.get_reachable_points(env, pyb)
         print("Number of reachable points: ", len(self.reachable_points))
         self.make_curriculum(env)
+        if len(self.curriculum_points[0]) == 0:
+            print("No points in curriculum level 0", self.urdf_path)
+            #delete pkl file
+            os.remove(pkl_path)
+            #generate new position and orientation
+
+            delta_pos = np.array([0., 0., 0.])
+            delta_pos[0] = np.random.uniform(low=-1., high=1.)
+            delta_pos[1] = np.random.uniform(low=.2, high=.0)
+            delta_pos[2] = np.random.uniform(low=-2., high=0)
+            new_pos = pos + delta_pos
+            # TODO: Multiply orientation with initial orientation
+            orientation = pybullet.getQuaternionFromEuler(
+                np.random.uniform(low=-1, high=1, size=(3,)) * np.pi / 180 * 5)
+            self.__init__(env, pyb, urdf_path, obj_path, labelled_obj_path, new_pos, orientation, num_points, scale,
+                          curriculum_distances, curriculum_level_steps)
 
     def label_vertex_by_color(self, labels, unlabelled_vertices, labelled_vertices):
         # create a dictionary of vertices and assign label using close enough vertex on labelled tree obj
@@ -216,7 +232,7 @@ class Tree:
         # Meta condition
         dist = np.linalg.norm(ur5_base_pos - vertice[0], axis=-1)
 
-        if dist >= 0.85:
+        if dist >= 0.98:
             return False
 
         j_angles = env.ur5.calculate_ik(vertice[0], None)
@@ -233,8 +249,6 @@ class Tree:
     def get_reachable_points(self, env, pyb):
         self.reachable_points = list(filter(lambda x: self.is_reachable(x, env, pyb), self.vertex_and_projection))
         np.random.shuffle(self.reachable_points)
-        if self.num_points:
-            self.reachable_points = self.reachable_points[0:self.num_points]
         print("Number of reachable points: ", len(self.reachable_points))
         if len(self.reachable_points) < 1:
             print("No points in reachable points", self.urdf_path)
@@ -246,7 +260,8 @@ class Tree:
     def make_trees_from_folder(env, pyb, trees_urdf_path: str, trees_obj_path: str, trees_labelled_path: str,
                                pos: NDArray,
                                orientation: NDArray, scale: int, num_points: int, num_trees: int,
-                               curriculum_distances: Tuple, curriculum_level_steps: Tuple):
+                               curriculum_distances: Tuple, curriculum_level_steps: Tuple,
+                               randomize_pose: bool = False) -> List:
         trees: List[Tree] = []
         for urdf, obj, labelled_obj in zip(sorted(glob.glob(trees_urdf_path + '/*.urdf')),
                                            sorted(glob.glob(trees_obj_path + '/*.obj')),
@@ -254,15 +269,14 @@ class Tree:
             print(urdf, obj, labelled_obj)
             if len(trees) >= num_trees:
                 break
-            #TODO: make class variable
-            randomize = True
-            if randomize:
+
+            if randomize_pose:
                 delta_pos = np.array([0.,0.,0.])
                 delta_pos[0] = np.random.uniform(low=-1., high=1.)
-                delta_pos[1] = np.random.uniform(low=-.1, high=.1)
-                delta_pos[2] = np.random.uniform(low=-3., high=0)
+                delta_pos[1] = np.random.uniform(low=.2, high=.0)
+                delta_pos[2] = np.random.uniform(low=-2., high=0)
                 new_pos = pos + delta_pos
-                print("Randomized position: ", new_pos, "Delta pos: ", delta_pos)
+                # print("Randomized position: ", new_pos, "Delta pos: ", delta_pos)
                 #TODO: Multiply orientation with initial orientation
                 orientation = pybullet.getQuaternionFromEuler(np.random.uniform(low = -1, high=1, size = (3,)) * np.pi / 180 * 5)
             else:
@@ -307,6 +321,10 @@ class Tree:
             if len(self.curriculum_points[level]) < 1:
                 print("No points in curriculum level ", level)
                 # self.reset_tree()
+            if self.num_points:
+                np.random.shuffle(self.curriculum_points[level])
+                self.curriculum_points[level] = self.curriculum_points[level][0:self.num_points]
+
 
             print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
             # Memory management

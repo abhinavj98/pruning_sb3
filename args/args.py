@@ -79,6 +79,25 @@ args = {
             'help': 'dimension of the action space for the actor network'
         },
 
+        'randomize_ur5_pose': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to randomize the UR5 pose'
+        },
+        'randomize_tree_pose': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to randomize the tree pose'
+        },
+        'curriculum_distances': {
+            'type': tuple,
+            'default': (0.95,)
+        },
+        'curriculum_level_steps': {
+            'type': tuple,
+            'default': ()
+        },
+
     },
 
     'args_train': {
@@ -106,19 +125,13 @@ args = {
             'default': False,
             'help': 'whether to render the environment'
         },
-        'curriculum_distances': {
-            'type': tuple,
-            'default': (0.8,)
-        },
-        'curriculum_level_steps': {
-            'type': tuple,
-            'default': ()
-        },
+
         'tree_count': {
             'type': int,
             'default': 100,
             'help': 'number of trees to load'
         },
+
 
     },
 
@@ -148,14 +161,7 @@ args = {
             'default': 40,
             'help': 'number of points to sample in a tree during evaluation'
         },
-        'curriculum_distances': {
-            'type': tuple,
-            'default': (0.8,)
-        },
-        'curriculum_level_steps': {
-            'type': tuple,
-            'default': ()
-        },
+
         'name': {
             'type': str,
             'default': 'testenv'
@@ -170,7 +176,6 @@ args = {
             'default': True,
             'help': 'whether to render the environment'
         },
-
     },
 
     'args_eval': {
@@ -190,14 +195,6 @@ args = {
             'help': 'whether to render the environment'
         },
 
-        'curriculum_distances': {
-            'type': tuple,
-            'default': (0.8,)
-        },
-        'curriculum_level_steps': {
-            'type': tuple,
-            'default': ()
-        },
         'name': {
             'type': str,
             'default': 'evalenv'

@@ -17,12 +17,15 @@ import random
 # ENV is a collection of objects like tree supports and ur5 robot. They interact with each other
 # through the env. UR5 class only needs access to pybullet.
 class UR5:
-    def __init__(self, con, robot_urdf_path: str, pos=[0, 0, 0], orientation = [0, 0, 0, 1]) -> None:
+    def __init__(self, con, robot_urdf_path: str, pos=[0, 0, 0], orientation = [0, 0, 0, 1], randomize_pose = False) -> None:
         assert isinstance(robot_urdf_path, str)
 
         self.con = con
+        self.init_pos = pos
+        self.init_orientation = orientation
         self.pos = pos
         self.orientation = orientation
+        self.randomize_pose = randomize_pose
         self.tool0_link_index = None
         self.end_effector_index = None
         self.success_link_index = None
@@ -54,16 +57,15 @@ class UR5:
         self.success_link_index = 14
         self.base_index = 3
         flags = self.con.URDF_USE_SELF_COLLISION
-        # randomize pos TODO
-        randomize = True
-        if randomize:
-            delta_pos = np.random.rand(3) * 0.05
-            delta_orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi / 180 * 10)
+
+        if self.randomize_pose:
+            delta_pos = np.random.rand(3) * 0.0
+            delta_orientation = pybullet.getQuaternionFromEuler(np.random.rand(3) * np.pi / 180 * 5)
         else:
-            delta_pos = np.array([0, 0, 0])
+            delta_pos = np.array([0., 0., 0.])
             delta_orientation = pybullet.getQuaternionFromEuler([0, 0, 0])
 
-        self.pos, self.orientation = self.con.multiplyTransforms(self.pos, self.orientation, delta_pos, delta_orientation)
+        self.pos, self.orientation = self.con.multiplyTransforms(self.init_pos, self.init_orientation, delta_pos, delta_orientation)
         self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, self.pos, self.orientation, flags=flags)
 
         self.num_joints = self.con.getNumJoints(self.ur5_robot)
@@ -88,7 +90,7 @@ class UR5:
             controllable = True if jointName in self.control_joints else False
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
                                    jointMaxVelocity, controllable)  # type: ignore
-            print(jointID, jointName)
+            # print(jointID, jointName)
             if info.type == "REVOLUTE":
                 self.con.setJointMotorControl2(self.ur5_robot, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0,
                                                force=0)

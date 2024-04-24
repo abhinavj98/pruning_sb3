@@ -86,8 +86,9 @@ if __name__ == "__main__":
         # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
         #get base position and orientation
 
-        print(env.ur5.get_current_pose(env.ur5.end_effector_index)[0])
-        print(env.tree.pos)
+        print("ee position", env.ur5.get_current_pose(env.ur5.end_effector_index)[0])
+        print("tool 0 position", env.ur5.get_current_pose(env.ur5.tool0_link_index)[0])
+        print("tree position", env.tree.pos)
         #pring joint angles and condition number
         # print(env.ur5.get_joint_angles())
         # print(env.ur5.get_condition_number())
