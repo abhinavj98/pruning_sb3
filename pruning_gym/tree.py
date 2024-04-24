@@ -8,6 +8,7 @@ from nptyping import NDArray, Shape, Float
 from pruning_sb3.pruning_gym.helpers import compute_perpendicular_projection_vector
 import pybullet
 
+
 # from memory_profiler import profile
 
 class Tree:
@@ -35,7 +36,7 @@ class Tree:
                  pos=np.array([0, 0, 0]),
                  orientation=np.array([0, 0, 0, 1]),
                  num_points: Optional[int] = None, scale: int = 1, curriculum_distances: Tuple = (-0.1,),
-                 curriculum_level_steps: Tuple = ()) -> None:
+                 curriculum_level_steps: Tuple = (), randomize_pose=False) -> None:
 
         assert len(curriculum_distances) - 1 == len(curriculum_level_steps)
         self.label = {
@@ -61,8 +62,25 @@ class Tree:
 
         # Tree specific parameters
         self.scale = scale
-        self.pos = pos
-        self.orientation = orientation
+        self.init_pos = pos
+        self.init_orientation = orientation
+
+        if randomize_pose:
+            delta_pos = np.array([0., 0., 0.])
+            delta_pos[0] = np.random.uniform(low=-1., high=1.)
+            delta_pos[1] = np.random.uniform(low=.2, high=.0)
+            delta_pos[2] = np.random.uniform(low=-2., high=0)
+            new_pos = self.init_pos + delta_pos
+            # print("Randomized position: ", new_pos, "Delta pos: ", delta_pos)
+            # TODO: Multiply orientation with initial orientation
+            new_orientation = pybullet.getQuaternionFromEuler(
+                np.random.uniform(low=-1, high=1, size=(3,)) * np.pi / 180 * 5)
+        else:
+            new_pos = pos
+            new_orientation = orientation
+
+        self.pos = new_pos
+        self.orientation = new_orientation
 
         # Variables to store the vertices and statistics of the tree
         self.vertex_and_projection = []
@@ -109,9 +127,9 @@ class Tree:
         self.make_curriculum(env)
         if len(self.curriculum_points[0]) == 0:
             print("No points in curriculum level 0", self.urdf_path)
-            #delete pkl file
+            # delete pkl file
             os.remove(pkl_path)
-            #generate new position and orientation
+            # generate new position and orientation
 
             delta_pos = np.array([0., 0., 0.])
             delta_pos[0] = np.random.uniform(low=-1., high=1.)
@@ -122,7 +140,7 @@ class Tree:
             orientation = pybullet.getQuaternionFromEuler(
                 np.random.uniform(low=-1, high=1, size=(3,)) * np.pi / 180 * 5)
             self.__init__(env, pyb, urdf_path, obj_path, labelled_obj_path, new_pos, orientation, num_points, scale,
-                          curriculum_distances, curriculum_level_steps)
+                          curriculum_distances, curriculum_level_steps, randomize_pose=randomize_pose)
 
     def label_vertex_by_color(self, labels, unlabelled_vertices, labelled_vertices):
         # create a dictionary of vertices and assign label using close enough vertex on labelled tree obj
@@ -269,21 +287,10 @@ class Tree:
             print(urdf, obj, labelled_obj)
             if len(trees) >= num_trees:
                 break
-
-            if randomize_pose:
-                delta_pos = np.array([0.,0.,0.])
-                delta_pos[0] = np.random.uniform(low=-1., high=1.)
-                delta_pos[1] = np.random.uniform(low=.2, high=.0)
-                delta_pos[2] = np.random.uniform(low=-2., high=0)
-                new_pos = pos + delta_pos
-                # print("Randomized position: ", new_pos, "Delta pos: ", delta_pos)
-                #TODO: Multiply orientation with initial orientation
-                orientation = pybullet.getQuaternionFromEuler(np.random.uniform(low = -1, high=1, size = (3,)) * np.pi / 180 * 5)
-            else:
-                new_pos = pos
-            trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=new_pos, orientation=orientation, scale=scale,
+            trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
                               num_points=num_points, curriculum_distances=curriculum_distances,
-                              curriculum_level_steps=curriculum_level_steps, labelled_obj_path=labelled_obj))
+                              curriculum_level_steps=curriculum_level_steps, labelled_obj_path=labelled_obj,
+                              randomize_pose=randomize_pose))
         return trees
 
     def make_curriculum(self, env, init_or=None):
@@ -324,7 +331,6 @@ class Tree:
             if self.num_points:
                 np.random.shuffle(self.curriculum_points[level])
                 self.curriculum_points[level] = self.curriculum_points[level][0:self.num_points]
-
 
             print("Curriculum level: ", level, "Number of points: ", len(self.curriculum_points[level]))
             # Memory management
