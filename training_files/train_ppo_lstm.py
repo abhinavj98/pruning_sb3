@@ -44,7 +44,7 @@ if __name__ == "__main__":
     else:
         load_path_model = None
 
-    add_arg_to_env('shared_tree_list', shared_list, ['args_train'], parsed_args_dict)
+    # add_arg_to_env('shared_tree_list', shared_list, ['args_train'], parsed_args_dict)
 
     args_global = parsed_args_dict['args_global']
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     # It will check your custom environment and output additional warnings if needed
     # check_env(env)
 
-    train_callback = CustomTrainCallback()
+    train_callback = CustomTrainCallback(trees=shared_list)
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
@@ -113,7 +113,9 @@ if __name__ == "__main__":
         model.num_timesteps = 6_000_000
         model._num_timesteps_at_start = 6_000_000
         print("LOADED MODEL")
+
     model.set_logger(new_logger)
+    train_callback.init_callback(model)
 
     print("Policy on device: ", model.policy.device)
     print("Model on device: ", model.device)

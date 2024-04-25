@@ -21,7 +21,7 @@ class CustomTrainCallback(BaseCallback):
 
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
-    def __init__(self, verbose=0):
+    def __init__(self, trees, verbose=0):
      
         super(CustomTrainCallback, self).__init__(verbose)
         # Those variables will be accessible in the callback
@@ -47,6 +47,18 @@ class CustomTrainCallback(BaseCallback):
         self._rollouts = 0
         self._train_record_freq = 200
 
+        #Set trees
+        self.trees = trees
+        #sample tree for all envs
+
+
+    def _init_callback(self) -> None:
+        for i in range(self.training_env.num_envs):
+            print("Setting tree for env: ", i)
+            self.training_env.env_method("set_tree", indices=i, tree=self._sample_tree())
+    def _sample_tree(self):
+        tree_idx = np.random.randint(0, len(self.trees)-1)
+        return self.trees[tree_idx]
 
     def _on_training_start(self) -> None:
         """
@@ -78,9 +90,6 @@ class CustomTrainCallback(BaseCallback):
         self._info_dict['velocity'] = []
         self._screens_buffer = []
 
-
-
-
     def _on_step(self) -> bool:
         """
         This method will be called by the model after each call to `env.step()`.
@@ -97,9 +106,11 @@ class CustomTrainCallback(BaseCallback):
             if infos[i]["TimeLimit.truncated"]:
                 for key in self._info_dict.keys():
                     self._info_dict[key].append(infos[i][key])
+                self.training_env.env_method("set_tree", indices=i, tree=self._sample_tree())
         if self._rollouts % self._train_record_freq == 0:
             #grab screen
             self._screens_buffer.append(self._grab_screen_callback(self.locals, self.globals))
+
         return True
     
     def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
@@ -138,6 +149,21 @@ class CustomTrainCallback(BaseCallback):
         """
         pass
 
+
+    # @staticmethod
+    # def sample_point(name, episode_counter, curriculum_points, eval=False):
+    #     """Sample a point from the tree"""
+    #     # calculate perpendicular cosine similarity
+    #     if len(curriculum_points) == 0:
+    #         print("No points in curriculum")
+    #         return None, None
+    #     if "eval" in name or eval:  # Replace naming with eval variable
+    #         distance, random_point = curriculum_points[episode_counter % len(curriculum_points)]
+    #         print("Eval counter: ", episode_counter, "Point: ", random_point, "points ", len(curriculum_points))
+    #     else:
+    #         # print(random.sample(curriculum_points, 1))
+    #         distance, random_point = random.sample(curriculum_points, 1)[0]
+    #     return distance, random_point
 
 class CustomEvalCallback(EventCallback):
     """
@@ -305,6 +331,7 @@ class CustomEvalCallback(EventCallback):
         self._log_collisions(_locals, _globals)
         self._log_success_callback(_locals, _globals)
         self._log_rewards_callback(_locals, _globals)
+        #change tree jere
 
     def _init_dicts(self):
         self._reward_dict["movement_reward"] = []

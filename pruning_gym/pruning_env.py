@@ -42,7 +42,7 @@ class PruningEnv(gym.Env):
                  collision_reward_scale: int = 1, slack_reward_scale: int = 1,
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  curriculum_distances: Tuple = (0.8,), curriculum_level_steps: Tuple = (),
-                 use_ik: bool = True, make_trees: bool = False, shared_tree_list=None,
+                 use_ik: bool = True, make_trees: bool = False,
                  ur5_pos = [0,0,0], ur5_or = [0,0,0,1], randomize_ur5_pose: bool = False, randomize_tree_pose: bool = False
                  ) -> None:
         """
@@ -175,7 +175,7 @@ class PruningEnv(gym.Env):
         self.curriculum_level = 0
         self.curriculum_level_steps = curriculum_level_steps
         self.curriculum_distances = curriculum_distances
-
+        self.tree = None
         # Tree parameters
         self.tree_goal_pos = np.array([1, 0, 0])  # initial object pos
         self.tree_goal_branch = np.array([0, 0, 0])
@@ -201,8 +201,6 @@ class PruningEnv(gym.Env):
                                                      curriculum_distances=curriculum_distances,
                                                      curriculum_level_steps=curriculum_level_steps,
                                                      randomize_pose=randomize_tree_pose)
-        else:
-            self.trees = shared_tree_list
             # load trees from shared memory
 
         # for tree in self.trees:
@@ -222,9 +220,9 @@ class PruningEnv(gym.Env):
         #     input()
         #     self.inactivate_tree(self.pyb)
         #     self.pyb.remove_debug_items("step")
-
-        self.sample_tree()
-        self.activate_tree(self.pyb)
+        if 'train' not in self.name:
+            self.sample_tree()
+        # self.activate_tree(self.pyb)
 
         # Init and final logging
         self.init_distance = 0
@@ -238,6 +236,8 @@ class PruningEnv(gym.Env):
         self.observation_info = dict()
         self.prev_observation_info: dict = dict()
 
+    def set_tree(self, tree):
+        self.tree = tree
     def sample_tree(self):
         tree_idx = random.randint(0, len(self.trees) - 1)
         # print(tree_idx)
@@ -290,9 +290,10 @@ class PruningEnv(gym.Env):
         super().reset(seed=seed)
         random.seed(seed)
         self.reset_env_variables()
-        self.reset_counter += 1
+
         # Remove and add tree to avoid collisions with tree while resetting
-        self.inactivate_tree(self.pyb)
+        if self.tree_id is not None:
+            self.inactivate_tree(self.pyb)
 
         # Function for remove body
         self.ur5.remove_ur5_robot()
@@ -302,16 +303,16 @@ class PruningEnv(gym.Env):
 
         self.set_curriculum_level(self.episode_counter, self.curriculum_level_steps)
         # Sample new tree if reset_counter is a multiple of randomize_tree_count
-        if self.reset_counter % self.randomize_tree_count == 0:
-            while True:
-                self.sample_tree()
-                if len(self.tree.curriculum_points[self.curriculum_level]) > 0:
-                    break
+        if 'train' not in self.name:
+            if self.reset_counter % self.randomize_tree_count == 0:
+                while True:
+                    self.sample_tree()
+                    if len(self.tree.curriculum_points[self.curriculum_level]) > 0:
+                        break
 
         # Create new ur5 arm body
         self.pyb.create_background()
         self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
-
         # Sample new point
         distance_from_goal, random_point = self.sample_point(self.name, self.episode_counter,
                                                              self.tree.curriculum_points[self.curriculum_level])
@@ -363,6 +364,7 @@ class PruningEnv(gym.Env):
 
         self.set_extended_observation()
         info = dict()  # type: ignore
+        self.reset_counter += 1
         # Make info analogous to one in step function
         return self.observation, info
 

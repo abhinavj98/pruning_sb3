@@ -38,7 +38,7 @@ if __name__ == "__main__":
     else:
         load_path = None
 
-    add_arg_to_env('shared_tree_list', shared_list, ['args_train'], parsed_args_dict)
+    # add_arg_to_env('shared_tree_list', shared_list, ['args_train'], parsed_args_dict)
     # Duplicates are resolved in favor of the value in x; dict(y, **x)
     args_global = parsed_args_dict['args_global']
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
-    eval_env = make_vec_env(PruningEnv, env_kwargs=args_test, vec_env_cls=SubprocVecEnv, n_envs=4)
+    eval_env = make_vec_env(PruningEnv, env_kwargs=args_test, vec_env_cls=SubprocVecEnv, n_envs=1)
     record_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=1)
     eval_env.logger = new_logger
     # Use deterministic actions for evaluation
@@ -67,7 +67,8 @@ if __name__ == "__main__":
     # check_env(env)
 
     # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
-    train_callback = CustomTrainCallback()
+    train_callback = CustomTrainCallback(trees=shared_list)
+
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
@@ -101,6 +102,7 @@ if __name__ == "__main__":
                                n_epochs=parsed_args_dict['args_policy']['epochs'])
 
     model.set_logger(new_logger)
+    train_callback.init_callback(model)
     print("Policy on device: ", model.policy.device)
     print("Model on device: ", model.device)
     print("Optical flow on device: ", model.policy.optical_flow_model.device)
