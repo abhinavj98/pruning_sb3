@@ -14,7 +14,7 @@ import os
 import cv2
 import torch as th
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
-
+import random
 class CustomTrainCallback(BaseCallback):
     """
     A custom callback that derives from ``BaseCallback``.
@@ -54,11 +54,25 @@ class CustomTrainCallback(BaseCallback):
 
     def _init_callback(self) -> None:
         for i in range(self.training_env.num_envs):
-            print("Setting tree for env: ", i)
-            self.training_env.env_method("set_tree", indices=i, tree=self._sample_tree())
-    def _sample_tree(self):
-        tree_idx = np.random.randint(0, len(self.trees)-1)
-        return self.trees[tree_idx]
+            tree, random_point = self._sample_tree_and_point()
+            self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree.urdf_path,
+                                         point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
+                                         tree_scale=tree.scale)
+    def _sample_tree_and_point(self):
+        tree_idx = np.random.randint(0, len(self.trees))
+        tree = self.trees[tree_idx]
+        distance, random_point = random.sample(tree.curriculum_points[0], 1)[0]
+        return tree, random_point
+
+    def _update_tree_properties(self, infos):
+        for i in range(len(infos)):
+            if infos[i]["TimeLimit.truncated"]:
+                tree, random_point = self._sample_tree_and_point()
+                self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree.urdf_path,
+                                             point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
+                                             tree_scale=tree.scale)
+
+
 
     def _on_training_start(self) -> None:
         """
@@ -106,7 +120,8 @@ class CustomTrainCallback(BaseCallback):
             if infos[i]["TimeLimit.truncated"]:
                 for key in self._info_dict.keys():
                     self._info_dict[key].append(infos[i][key])
-                self.training_env.env_method("set_tree", indices=i, tree=self._sample_tree())
+
+        self._update_tree_properties(infos)
         if self._rollouts % self._train_record_freq == 0:
             #grab screen
             self._screens_buffer.append(self._grab_screen_callback(self.locals, self.globals))
@@ -149,22 +164,6 @@ class CustomTrainCallback(BaseCallback):
         """
         pass
 
-
-    # @staticmethod
-    # def sample_point(name, episode_counter, curriculum_points, eval=False):
-    #     """Sample a point from the tree"""
-    #     # calculate perpendicular cosine similarity
-    #     if len(curriculum_points) == 0:
-    #         print("No points in curriculum")
-    #         return None, None
-    #     if "eval" in name or eval:  # Replace naming with eval variable
-    #         distance, random_point = curriculum_points[episode_counter % len(curriculum_points)]
-    #         print("Eval counter: ", episode_counter, "Point: ", random_point, "points ", len(curriculum_points))
-    #     else:
-    #         # print(random.sample(curriculum_points, 1))
-    #         distance, random_point = random.sample(curriculum_points, 1)[0]
-    #     return distance, random_point
-
 class CustomEvalCallback(EventCallback):
     """
     Callback for evaluating an agent.
@@ -204,6 +203,7 @@ class CustomEvalCallback(EventCallback):
         render: bool = False,
         verbose: int = 1,
         warn: bool = True,
+        trees: List = None
     ):
         super().__init__(callback_after_eval, verbose=verbose)
 
@@ -245,6 +245,9 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict = {}
         self._info_dict = {}
 
+        self.trees = trees
+        self.episode_counter = 0
+
     def _init_callback(self) -> None:
         # Does not work in some corner cases, where the wrapper is not the same
         # if not isinstance(self.training_env, type(self.eval_env)):
@@ -259,6 +262,37 @@ class CustomEvalCallback(EventCallback):
         if self.callback_on_new_best is not None:
             self.callback_on_new_best.init_callback(self.model)
 
+        for i in range(self.eval_env.num_envs):
+            tree, random_point = self._sample_tree_and_point()
+            self.eval_env.env_method("set_tree_properties", indices=i, tree_urdf=tree.urdf_path,
+                                         point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
+                                         tree_scale=tree.scale)
+        for i in range(self.record_env.num_envs):
+            tree, random_point = self._sample_tree_and_point()
+            self.record_env.env_method("set_tree_properties", indices=i, tree_urdf=tree.urdf_path,
+                                         point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
+                                         tree_scale=tree.scale)
+
+    def _sample_tree_and_point(self):
+        tree_idx = np.random.randint(0, len(self.trees))
+        tree = self.trees[tree_idx]
+        distance, random_point = tree.curriculum_points[0][self.episode_counter % len(tree.curriculum_points[0])]
+        return tree, random_point
+
+    def update_tree_properties(self, info, idx, name):
+        if info["TimeLimit.truncated"]:
+            tree, random_point = self._sample_tree_and_point()
+            if name == "eval":
+                self.eval_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree.urdf_path,
+                                                point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
+                                                tree_scale=tree.scale)
+                self.episode_counter += 1
+            elif name == "record":
+                self.record_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree.urdf_path,
+                                                point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
+                                                tree_scale=tree.scale)
+
+
     def _log_success_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
         """
         Callback passed to the  ``evaluate_policy`` function
@@ -267,8 +301,8 @@ class CustomEvalCallback(EventCallback):
         :param locals_:
         :param globals_:
         """
-        info = locals_["info"]
 
+        info = locals_["info"]
         if locals_["done"]: #Log at end of episode
             maybe_is_success = info.get("is_success")
             if maybe_is_success is not None:
@@ -294,6 +328,10 @@ class CustomEvalCallback(EventCallback):
         """
         episode_counts = _locals["episode_counts"][0]
         observation_info = self.record_env.get_attr("observation_info", 0)[0]
+
+
+
+
         if episode_counts == 0:
             render = np.array(self.record_env.render())*255
             render = cv2.resize(render, (512, 512), interpolation=cv2.INTER_NEAREST)
@@ -320,7 +358,11 @@ class CustomEvalCallback(EventCallback):
             screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(observation_info["target_distance"])), (0,260), cv2.FONT_HERSHEY_SIMPLEX,
                 0.6, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
             self._screens_buffer.append(screen_copy.transpose(2, 0, 1))
-            # print("Saving screen")
+
+        info = _locals["info"]
+        i = _locals['i']
+        self.update_tree_properties(info, i, "record")
+        # print("Saving screen")
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         self._collisions_acceptable_buffer.append(self.eval_env.get_attr("collisions_acceptable", 0)[0])
@@ -331,6 +373,12 @@ class CustomEvalCallback(EventCallback):
         self._log_collisions(_locals, _globals)
         self._log_success_callback(_locals, _globals)
         self._log_rewards_callback(_locals, _globals)
+
+        info = _locals["info"]
+        i = _locals['i']
+        self.update_tree_properties(info, i, "eval")
+
+
         #change tree jere
 
     def _init_dicts(self):
@@ -477,5 +525,6 @@ class CustomEvalCallback(EventCallback):
             if self.callback is not None:
                 continue_training = continue_training and self._on_event()
             print("Done evaluating")
+            self.episode_counter = 0
         return continue_training
 

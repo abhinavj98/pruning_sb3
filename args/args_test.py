@@ -166,11 +166,7 @@ args = {
             'default': 1,
             'help': 'number of trees to load'
         },
-        'make_trees': {
-            'action': "store_true",
-            'default': True,
-            'help': 'whether to render the environment'
-        },
+
         'name': {
             'type': str,
             'default': 'testenv'

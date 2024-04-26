@@ -31,8 +31,8 @@ if __name__ == "__main__":
     parsed_args = vars(parser.parse_args())
     parsed_args_dict = organize_args(parsed_args)
     print(parsed_args_dict)
-    manager = mp.Manager()
-    shared_list = manager.list()
+    shared_tree_list_train = []
+    shared_tree_list_test = []
 
     init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
 
@@ -52,12 +52,16 @@ if __name__ == "__main__":
     args_record = dict(args_test, **parsed_args_dict['args_record'])
     args_policy = parsed_args_dict['args_policy']
 
-    data_env = PruningEnv(**args_train, make_trees=True)
-    for i in data_env.trees:
-        shared_list.append(copy.deepcopy(i))
-        del i
-    del data_env
-    #instead of passing shared_list of all trees, use pipe communication to sample and pass 1 tree
+    data_env_train = PruningEnv(**args_train, make_trees=True)
+    for i in data_env_train.trees:
+        shared_tree_list_train.append(copy.deepcopy(i))
+    del data_env_train
+
+    data_env_test = PruningEnv(**args_test, make_trees=True)
+    for i in data_env_test.trees:
+        shared_tree_list_test.append(copy.deepcopy(i))
+    del data_env_test
+
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
@@ -67,11 +71,11 @@ if __name__ == "__main__":
     # Use deterministic actions for evaluation
     eval_callback = CustomEvalCallback(eval_env, record_env, best_model_save_path="./logs/{}".format(args_global['run_name']),
                                        log_path="./logs/{}".format(args_global['run_name']),
-                                       deterministic=True, render=False, **parsed_args_dict['args_callback'])
+                                       deterministic=True, render=False, trees = shared_tree_list_test, **parsed_args_dict['args_callback'])
     # It will check your custom environment and output additional warnings if needed
     # check_env(env)
 
-    train_callback = CustomTrainCallback(trees=shared_list)
+    train_callback = CustomTrainCallback(trees=shared_tree_list_train)
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,

@@ -30,8 +30,8 @@ if __name__ == "__main__":
     set_args(args, parser)
     parsed_args = vars(parser.parse_args())
     parsed_args_dict = organize_args(parsed_args)
-    manager = mp.Manager()
-    shared_list = manager.list()
+    shared_tree_list_train = []
+    shared_tree_list_test = []
 
     if parsed_args_dict['args_global']['load_path']:
         load_path = "../logs/run/best_model.zip"  # "./logs/{}/best_model.zip".format(args.LOAD_PATH)#./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
@@ -46,28 +46,32 @@ if __name__ == "__main__":
     args_record = dict(args_test, **parsed_args_dict['args_record'])
     print(args_train)
     # Make an environment as usual
-    data_env = PruningEnv(**args_train, make_trees=True)
-    for i in data_env.trees:
-        shared_list.append(copy.deepcopy(i))
+    data_env_train = PruningEnv(**args_train, make_trees=True)
+    for i in data_env_train.trees:
+        shared_tree_list_train.append(copy.deepcopy(i))
+    del data_env_train
 
-    del data_env
+    data_env_test = PruningEnv(**args_test, make_trees=True)
+    for i in data_env_test.trees:
+        shared_tree_list_test.append(copy.deepcopy(i))
+    del data_env_test
 
 
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
-    eval_env = make_vec_env(PruningEnv, env_kwargs=args_test, vec_env_cls=SubprocVecEnv, n_envs=1)
+    eval_env = make_vec_env(PruningEnv, env_kwargs=args_test, vec_env_cls=SubprocVecEnv, n_envs=3)
     record_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=1)
     eval_env.logger = new_logger
     # Use deterministic actions for evaluation
     eval_callback = CustomEvalCallback(eval_env, record_env, best_model_save_path="../logs/test",
                                        log_path="../logs/test",
-                                       deterministic=True, render=False, **parsed_args_dict['args_callback'])
+                                       deterministic=True, render=False, trees = shared_tree_list_test, **parsed_args_dict['args_callback'])
     # It will check your custom environment and output additional warnings if needed
     # check_env(env)
 
     # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
-    train_callback = CustomTrainCallback(trees=shared_list)
+    train_callback = CustomTrainCallback(trees=shared_tree_list_train)
 
 
     policy_kwargs = {
