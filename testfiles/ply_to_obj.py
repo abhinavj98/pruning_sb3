@@ -2,7 +2,7 @@ import pymeshlab
 from glob import glob
 import os
 remove = False
-folder = "envy_ply"
+folder = "envy/envy_ply"
 PLY_FOLDER = "./meshes_and_urdf/meshes/trees/"+folder
 for file_path in glob(PLY_FOLDER+"/*.ply"):
     print("Processing {}".format(file_path))
