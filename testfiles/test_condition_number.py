@@ -12,6 +12,11 @@ from pruning_sb3.args.args_test import args
 from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
     set_args, organize_args, add_arg_to_env
 import multiprocessing as mp
+import copy
+from pruning_sb3.pruning_gym.custom_callbacks import CustomTrainCallback
+from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
+from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
+from stable_baselines3.common import utils
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
     events = env.pyb.con.getKeyboardEvents()
@@ -37,12 +42,49 @@ if __name__ == "__main__":
             parsed_args_dict['args_global']['load_path'])
     else:
         load_path_model = None
-    add_arg_to_env('shared_tree_list', shared_list, ['args_train', 'args_test', 'args_record'], parsed_args_dict)
-
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
+    args_test['renders'] = False
+    shared_tree_list_test = []
+    data_env_test = PruningEnv(**args_test, make_trees=True)
+
+    for i in data_env_test.trees:
+        shared_tree_list_test.append(copy.deepcopy(i))
+    del data_env_test
+    args_test['renders'] = True
     env = PruningEnv(**args_test)
+
+    policy_kwargs = {
+        "features_extractor_class": AutoEncoder,
+        "features_extractor_kwargs": {"features_dim": parsed_args_dict['args_policy']['state_dim'],
+                                      "in_channels": 3, },
+        "optimizer_class": th.optim.Adam,
+        "log_std_init": parsed_args_dict['args_policy']['log_std_init'],
+        "net_arch": dict(
+            qf=[parsed_args_dict['args_policy']['emb_size'] * 2, parsed_args_dict['args_policy']['emb_size'],
+                parsed_args_dict['args_policy']['emb_size'] // 2],
+            pi=[parsed_args_dict['args_policy']['emb_size'] * 2, parsed_args_dict['args_policy']['emb_size'],
+                parsed_args_dict['args_policy']['emb_size'] // 2]),
+        "share_features_extractor": True,
+        "n_lstm_layers": 2,
+    }
+    policy = RecurrentActorCriticPolicy
+
+    model = RecurrentPPOAE(policy, env, policy_kwargs=policy_kwargs,
+                           learning_rate=linear_schedule(parsed_args_dict['args_policy']['learning_rate']),
+                           learning_rate_ae=exp_schedule(parsed_args_dict['args_policy']['learning_rate_ae']),
+                           learning_rate_logstd=None,
+                           n_steps=parsed_args_dict['args_policy']['steps_per_epoch'],
+                           batch_size=parsed_args_dict['args_policy']['batch_size'],
+                           n_epochs=parsed_args_dict['args_policy']['epochs'])
+    new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
+    env.logger = new_logger
+    model.set_logger(new_logger)
+    train_callback = CustomTrainCallback(trees=shared_tree_list_test)
+    train_callback.init_callback(model)
+
     env.action_scale = 1
-    env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485, -0.7777109569760938, 3.210501267258541))
+    # env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485, -0.7777109569760938, 3.210501267258541))
+    env.reset()
     for _ in range(100):
         env.pyb.con.stepSimulation()
     # env.reset()
@@ -86,9 +128,9 @@ if __name__ == "__main__":
         # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
         #get base position and orientation
 
-        print("ee position", env.ur5.get_current_pose(env.ur5.end_effector_index)[0])
-        print("tool 0 position", env.ur5.get_current_pose(env.ur5.tool0_link_index)[0])
-        print("tree position", env.tree.pos)
+        # print("ee position", env.ur5.get_current_pose(env.ur5.end_effector_index)[0])
+        # print("tool 0 position", env.ur5.get_current_pose(env.ur5.tool0_link_index)[0])
+        # print("tree position", env.tree.pos)
         #pring joint angles and condition number
         # print(env.ur5.get_joint_angles())
         # print(env.ur5.get_condition_number())

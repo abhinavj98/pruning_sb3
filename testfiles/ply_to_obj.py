@@ -2,9 +2,9 @@ import pymeshlab
 from glob import glob
 import os
 remove = False
-folder = "envy_ply"
+folder = "envy/ply"
 PLY_FOLDER = "./meshes_and_urdf/meshes/trees/"+folder
-for file_path in glob(PLY_FOLDER+"/*.ply"):
+for file_path in glob(PLY_FOLDER+"/*.ply")[0:1]:
     print("Processing {}".format(file_path))
     ms = pymeshlab.MeshSet()
     ms.load_new_mesh(file_path)
