@@ -19,9 +19,9 @@ from pruning_sb3.args.args import \
     args
 from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
     set_args, organize_args, add_arg_to_env, init_wandb
-from stable_baselines3.common.vec_env.base_vec_env import CloudpickleWrapper
-import multiprocessing as mp
+from pruning_sb3.pruning_gym.tree import Tree
 import copy
+import random
 # Add arguments to the parser based on the dictionary
 
 
@@ -53,14 +53,24 @@ if __name__ == "__main__":
     args_policy = parsed_args_dict['args_policy']
 
     data_env_train = PruningEnv(**args_train, make_trees=True)
-    for i in data_env_train.trees:
-        shared_tree_list_train.append(copy.deepcopy(i))
+    or_bins_train = Tree.create_bins(18, 36)
+    for key in or_bins_train.keys():
+        for i in data_env_train.trees:
+            or_bins_train[key].extend(i.or_bins[key])
+
     del data_env_train
+    for key in or_bins_train.keys():
+        random.shuffle(or_bins_train[key])
 
     data_env_test = PruningEnv(**args_test, make_trees=True)
-    for i in data_env_test.trees:
-        shared_tree_list_test.append(copy.deepcopy(i))
+    or_bins_test = Tree.create_bins(18, 36)
+    for key in or_bins_test.keys():
+        for i in data_env_test.trees:
+            or_bins_test[key].extend(i.or_bins[key])
     del data_env_test
+    # Shuffle the data inside the bisn
+    for key in or_bins_test.keys():
+        random.shuffle(or_bins_test[key])
 
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
@@ -71,11 +81,11 @@ if __name__ == "__main__":
     # Use deterministic actions for evaluation
     eval_callback = CustomEvalCallback(eval_env, record_env, best_model_save_path="./logs/{}".format(args_global['run_name']),
                                        log_path="./logs/{}".format(args_global['run_name']),
-                                       deterministic=True, render=False, trees = shared_tree_list_test, **parsed_args_dict['args_callback'])
+                                       deterministic=True, render=False, or_bins=or_bins_test, **parsed_args_dict['args_callback'])
     # It will check your custom environment and output additional warnings if needed
     # check_env(env)
 
-    train_callback = CustomTrainCallback(trees=shared_tree_list_train)
+    train_callback = CustomTrainCallback(or_bins=or_bins_train)
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,

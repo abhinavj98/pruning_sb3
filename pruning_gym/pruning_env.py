@@ -239,10 +239,10 @@ class PruningEnv(gym.Env):
         self.observation_info = dict()
         self.prev_observation_info: dict = dict()
 
-    def set_tree_properties(self, tree_urdf, point, tree_pos, tree_orientation, tree_scale):
+    def set_tree_properties(self, tree_urdf, point_pos, point_branch_or, tree_orientation, tree_scale, tree_pos,):
         self.tree_urdf = tree_urdf
-        self.tree_goal_pos = point[0]
-        self.tree_goal_or = point[1]
+        self.tree_goal_pos = point_pos
+        self.tree_goal_or = point_branch_or
         self.tree_pos = tree_pos
         self.tree_orientation = tree_orientation
         self.tree_scale = tree_scale
@@ -365,6 +365,10 @@ class PruningEnv(gym.Env):
         pyb.con.removeBody(self.supports)
         self.tree_id = None
         self.supports = None
+
+    def force_time_limit(self):
+        """Force time limit"""
+        self.step_counter = self.maxSteps+1
 
     def get_infos(self, terminated, truncated):
         infos = {'is_success': False, "TimeLimit.truncated": False}  # type: ignore

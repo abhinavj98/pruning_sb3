@@ -17,6 +17,7 @@ from pruning_sb3.pruning_gym.custom_callbacks import CustomTrainCallback
 from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from stable_baselines3.common import utils
+from pruning_sb3.pruning_gym.tree import Tree
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
     events = env.pyb.con.getKeyboardEvents()
@@ -33,8 +34,6 @@ parsed_args = vars(parser.parse_args())
 
 parsed_args_dict = organize_args(parsed_args)
 if __name__ == "__main__":
-    manager = mp.Manager()
-    shared_list = manager.list()
     if parsed_args_dict['args_global']['load_path']:
         load_path_model = "./logs/{}/current_model.zip".format(
             parsed_args_dict['args_global']['load_path'])
@@ -44,13 +43,17 @@ if __name__ == "__main__":
         load_path_model = None
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_test['renders'] = False
-    shared_tree_list_test = []
+    or_bins_test = Tree.create_bins(18, 36)
     data_env_test = PruningEnv(**args_test, make_trees=True)
-
-    for i in data_env_test.trees:
-        shared_tree_list_test.append(copy.deepcopy(i))
+    for key in or_bins_test.keys():
+        for i in data_env_test.trees:
+            or_bins_test[key].extend(i.or_bins[key])
     del data_env_test
+    # Shuffle the data inside the bisn
+    for key in or_bins_test.keys():
+        random.shuffle(or_bins_test[key])
     args_test['renders'] = True
+    args_test['max_steps'] = 100000
     env = PruningEnv(**args_test)
 
     policy_kwargs = {
@@ -79,8 +82,9 @@ if __name__ == "__main__":
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
     model.set_logger(new_logger)
-    train_callback = CustomTrainCallback(trees=shared_tree_list_test)
+    train_callback = CustomTrainCallback(or_bins = or_bins_test)
     train_callback.init_callback(model)
+    train_callback.on_training_start(locals(), globals())
 
     env.action_scale = 1
     # env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485, -0.7777109569760938, 3.210501267258541))
@@ -120,6 +124,7 @@ if __name__ == "__main__":
             val = np.array([0, 0, 0, 0, 0, -0.05])
         elif ord('t') in action:
             env.reset()
+            env.force_time_limit()
         else:
             val = np.array([0.,0.,0., 0., 0., 0.])
         # print(val)
@@ -131,10 +136,15 @@ if __name__ == "__main__":
         # print("ee position", env.ur5.get_current_pose(env.ur5.end_effector_index)[0])
         # print("tool 0 position", env.ur5.get_current_pose(env.ur5.tool0_link_index)[0])
         # print("tree position", env.tree.pos)
+        # print("Base position", env.ur5.get_current_pose(env.ur5.base_index)[0])
         #pring joint angles and condition number
         # print(env.ur5.get_joint_angles())
         # print(env.ur5.get_condition_number())
         base_pos, base_quat = env.pyb.con.getBasePositionAndOrientation(env.ur5.ur5_robot)
+        print(infos['TimeLimit.truncated'])
+        infos = [infos]
+
+        train_callback.on_step()
         # print(base_pos, base_quat)
         # print(env.ur5.get_current_pose(0))
         # print(env.ur5.get_joint_angles())

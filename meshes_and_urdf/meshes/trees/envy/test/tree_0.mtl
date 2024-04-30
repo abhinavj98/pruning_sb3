@@ -1,7 +1,7 @@
-# Blender MTL File: 'add_texture_to_tree.blend'
+# Blender MTL File: 'add_texture_to_tree.blend1'
 # Material Count: 1
 
-newmtl mat_texture
+newmtl new_mat
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.800000 0.800000 0.800000

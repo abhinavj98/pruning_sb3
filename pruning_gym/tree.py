@@ -7,6 +7,7 @@ import pywavefront
 from nptyping import NDArray, Shape, Float
 from pruning_sb3.pruning_gym.helpers import compute_perpendicular_projection_vector
 import pybullet
+import math
 
 
 # from memory_profiler import profile
@@ -42,7 +43,8 @@ class Tree:
         self.label = {
             (0.117647, 0.235294, 0.039216): "SPUR",
             (0.313725, 0.313725, 0.313725): "TRUNK",
-            (0.254902, 0.176471, 0.058824): "BRANCH"
+            (0.254902, 0.176471, 0.058824): "BRANCH",
+            (0.235294, 0.000000, 0.000000): "WATER_BRANCH",
         }
         # Required paths to make tree
         self.urdf_path = urdf_path
@@ -66,12 +68,8 @@ class Tree:
         self.init_orientation = orientation
 
         if randomize_pose:
-            delta_pos = np.array([0., 0., 0.])
-            delta_pos[0] = np.random.uniform(low=-1., high=1.)
-            delta_pos[1] = np.random.uniform(low=.2, high=.0)
-            delta_pos[2] = np.random.uniform(low=-2., high=0)
-            new_pos = self.init_pos + delta_pos
-            # print("Randomized position: ", new_pos, "Delta pos: ", delta_pos)
+            #set pos to 0,0,0
+            new_pos = np.array([0, 0, 0])
             # TODO: Multiply orientation with initial orientation
             new_orientation = pybullet.getQuaternionFromEuler(
                 np.random.uniform(low=-1, high=1, size=(3,)) * np.pi / 180 * 5)
@@ -112,7 +110,7 @@ class Tree:
             # Get all points on the tree
             self.get_all_points(tree_obj)
             self.filter_outliers()
-            self.filter_points_below_base()
+            # self.filter_points_below_base()
 
             # dump reachable points to file using pickle
             with open(pkl_path, 'wb') as f:
@@ -121,16 +119,82 @@ class Tree:
             print('Saved points to pickle file ', self.urdf_path[:-5] + '_points.pkl')
             print("Number of points: ", len(self.vertex_and_projection))
 
-        print("Position: ", self.pos, "Orientation: ", self.orientation)
-        self.get_reachable_points(env, pyb)
-        print("Number of reachable points: ", len(self.reachable_points))
-        self.make_curriculum(env)
-        if len(self.curriculum_points[0]) == 0:
-            print("No points in curriculum level 0", self.urdf_path)
-            # delete pkl file
-            os.remove(pkl_path)
-            self.__init__(env, pyb, urdf_path, obj_path, labelled_obj_path, self.init_pos, self.init_orientation, num_points, scale,
-                          curriculum_distances, curriculum_level_steps, randomize_pose=randomize_pose)
+        #make bins
+        self.or_bins = self.create_bins(18, 36)
+        #Go through vertex_and_projection and assign to bins
+        self.populate_bins(self.vertex_and_projection)
+        del self.vertex_and_projection
+
+        # print("Position: ", self.pos, "Orientation: ", self.orientation)
+        # self.get_reachable_points(env, pyb)
+        # print("Number of reachable points: ", len(self.reachable_points))
+        # self.make_curriculum(env)
+        # if len(self.curriculum_points[0]) == 0:
+        #     print("No points in curriculum level 0", self.urdf_path)
+        #     # delete pkl file
+        #     os.remove(pkl_path)
+        #     self.__init__(env, pyb, urdf_path, obj_path, labelled_obj_path, self.init_pos, self.init_orientation, num_points, scale,
+        #                   curriculum_distances, curriculum_level_steps, randomize_pose=randomize_pose)
+
+
+    @staticmethod
+    def roundup(x):
+        return math.ceil(x / 10.0) * 10
+    @staticmethod
+    def rounddown(x):
+        return math.floor(x / 10.0) * 10
+
+    @staticmethod
+    def create_bins(num_latitude_bins, num_longitude_bins):
+        """
+        Create bins separated by 10 degrees on a unit sphere.
+
+        Parameters:
+            num_latitude_bins (int): Number of bins along the latitude direction.
+            num_longitude_bins (int): Number of bins along the longitude direction.
+
+        Returns:
+            list of tuples: List of tuples where each tuple represents a bin defined by
+                            (latitude_min, latitude_max, longitude_min, longitude_max).
+        """
+        bin_size = np.deg2rad(10)  # Convert degrees to radians
+        offset = np.deg2rad(1)
+        bins = {}
+        for i in range(num_latitude_bins):
+            lat_min = np.rad2deg(-np.pi / 2 + i * bin_size)
+            lat_max = np.rad2deg(-np.pi / 2 + (i + 1) * bin_size)
+            for j in range(num_longitude_bins):
+                lon_min = np.rad2deg(-np.pi + j * bin_size)
+                lon_max = np.rad2deg(-np.pi + (j + 1) * bin_size)
+                bins[(round((lat_min + lat_max) / 2), round((lon_min + lon_max) / 2))] = []
+
+        return bins
+
+    def populate_bins(self, points):
+        """
+        Populate the bins based on a list of direction vectors.
+
+        Parameters:
+            direction_vectors (list of numpy.ndarray): List of direction vectors.
+            bins (list of tuples): List of bins where each tuple represents a bin defined by
+                                   (latitude_min, latitude_max, longitude_min, longitude_max).
+
+        Returns:
+            list of lists: List of lists where each sublist represents the indices of direction vectors
+                           assigned to the corresponding bin.
+        """
+        for i, point in enumerate(points):
+            direction_vector = point[1]
+            direction_vector = direction_vector / np.linalg.norm(direction_vector)
+            lat_angle = np.rad2deg(np.arcsin(direction_vector[2]))
+            lon_angle = np.rad2deg(np.arctan2(direction_vector[1], direction_vector[0]))
+            lat_angle_min = self.rounddown(lat_angle)
+            lat_angle_max = self.roundup(lat_angle)
+            lon_angle_min = self.rounddown(lon_angle)
+            lon_angle_max = Tree.roundup(lon_angle)
+            bin_key = ((lat_angle_min + lat_angle_max) / 2, (lon_angle_min + lon_angle_max) / 2)
+            self.or_bins[bin_key].append((self.urdf_path, point, self.orientation, self.scale))
+
 
     def label_vertex_by_color(self, labels, unlabelled_vertices, labelled_vertices):
         # create a dictionary of vertices and assign label using close enough vertex on labelled tree obj
@@ -208,7 +272,7 @@ class Tree:
                       self.transformed_vertices[bc[0]][1], self.transformed_vertices[bc[1]][1]]
             label = max(set(labels), key=labels.count)
 
-            if label != "SPUR":
+            if label != "SPUR" and label != "WATER_BRANCH":
                 continue
             self.vertex_and_projection.append((tree_point, perpendicular_projection,
                                                normal_vec, label))

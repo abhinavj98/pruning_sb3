@@ -15,13 +15,38 @@ import cv2
 import torch as th
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
 import random
+
+
+def get_reachable_euclidean_grid(radius, resolution):
+    num_bins = int(radius / resolution) * 2
+    base_center = np.array([0, 0, 0.91])
+
+    # Calculate the centers of the bins
+    centers = np.zeros((num_bins, num_bins, num_bins, 3))
+    for i in range(-num_bins // 2, num_bins // 2):
+        for j in range(-num_bins // 2, num_bins // 2):
+            for k in range(-num_bins // 2, num_bins // 2):
+                # Calculate the center of the bin
+                centers[i, j, k] = [(i + 0.5) * resolution, (j + 0.5) * resolution, (k + 0.5) * resolution]
+
+    # Filter out the bins that are outside the semi-sphere or below the 45-degree line in the z direction
+    valid_centers = []
+    for i in range(-num_bins // 2, num_bins // 2):
+        for j in range(-num_bins // 2, num_bins // 2):
+            for k in range(-num_bins // 2, num_bins // 2):
+                x, y, z = centers[i, j, k]
+                if x ** 2 + y ** 2 + z ** 2 <= radius ** 2 and y < -0.7 and z > -0.05:  # and z <= np.tan(np.radians(45)) * np.sqrt(x**2 + y**2):
+                    valid_centers.append((x + base_center[0], y + base_center[1], z + base_center[2]))
+
+    # valid_centers = np.array(valid_centers)
+    return valid_centers
 class CustomTrainCallback(BaseCallback):
     """
     A custom callback that derives from ``BaseCallback``.
 
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
-    def __init__(self, trees, verbose=0):
+    def __init__(self, or_bins, verbose=0):
      
         super(CustomTrainCallback, self).__init__(verbose)
         # Those variables will be accessible in the callback
@@ -47,30 +72,54 @@ class CustomTrainCallback(BaseCallback):
         self._rollouts = 0
         self._train_record_freq = 200
 
-        #Set trees
-        self.trees = trees
-        #sample tree for all envs
+        self.or_bins = or_bins
+        self.delta_pos_max = np.array([1, -0.675, 0])
+        self.delta_pos_min = np.array([-1, -0.9525, -2])
+        self.reachable_euclidean_grid = get_reachable_euclidean_grid(0.95, 0.05)
+
+
+
 
 
     def _init_callback(self) -> None:
         for i in range(self.training_env.num_envs):
-            tree, random_point = self._sample_tree_and_point()
-            self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree.urdf_path,
-                                         point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
-                                         tree_scale=tree.scale)
+            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
+                = self._sample_tree_and_point()
+            self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
+                                         point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                         tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos)
+
+
     def _sample_tree_and_point(self):
-        tree_idx = np.random.randint(0, len(self.trees))
-        tree = self.trees[tree_idx]
-        distance, random_point = random.sample(tree.curriculum_points[0], 1)[0]
-        return tree, random_point
+            #Sample orientation from key in or_bins
+            while True:
+                orientation = random.choice(list(self.or_bins.keys()))
+                if len(self.or_bins[orientation]) == 0:
+                    continue
+                tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
+                required_point_pos = random.choice(self.reachable_euclidean_grid)
+
+                current_point_pos = random_point[0]
+                current_branch_or = random_point[1]
+                offset = np.random.uniform(-0.025, 0.025, 3)
+                delta_tree_pos = np.array(required_point_pos) - np.array(current_point_pos) + offset
+                final_point_pos = np.array(current_point_pos) + delta_tree_pos
+
+                if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
+                     continue
+
+                break
+
+            return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos
 
     def _update_tree_properties(self, infos):
         for i in range(len(infos)):
             if infos[i]["TimeLimit.truncated"]:
-                tree, random_point = self._sample_tree_and_point()
-                self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree.urdf_path,
-                                             point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
-                                             tree_scale=tree.scale)
+                tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos\
+                    = self._sample_tree_and_point()
+                self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
+                                            point_pos = final_point_pos, point_branch_or=current_branch_or,
+                                            tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos)
 
 
 
@@ -203,7 +252,7 @@ class CustomEvalCallback(EventCallback):
         render: bool = False,
         verbose: int = 1,
         warn: bool = True,
-        trees: List = None
+        or_bins: Dict = None,
     ):
         super().__init__(callback_after_eval, verbose=verbose)
 
@@ -245,7 +294,11 @@ class CustomEvalCallback(EventCallback):
         self._reward_dict = {}
         self._info_dict = {}
 
-        self.trees = trees
+        self.or_bins = or_bins
+        self.delta_pos_max = np.array([1, -0.675, 0])
+        self.delta_pos_min = np.array([-1, -0.9525, -2])
+        self.reachable_euclidean_grid = get_reachable_euclidean_grid(0.95, 0.05)
+
         self.episode_counter = 0
 
     def _init_callback(self) -> None:
@@ -263,35 +316,65 @@ class CustomEvalCallback(EventCallback):
             self.callback_on_new_best.init_callback(self.model)
 
         for i in range(self.eval_env.num_envs):
-            tree, random_point = self._sample_tree_and_point()
-            self.eval_env.env_method("set_tree_properties", indices=i, tree_urdf=tree.urdf_path,
-                                         point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
-                                         tree_scale=tree.scale)
+
+            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
+                = self._sample_tree_and_point()
+            self.eval_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
+                                     point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                     tree_orientation=tree_orientation, tree_scale=scale,
+                                     tree_pos=tree_pos)
         for i in range(self.record_env.num_envs):
-            tree, random_point = self._sample_tree_and_point()
-            self.record_env.env_method("set_tree_properties", indices=i, tree_urdf=tree.urdf_path,
-                                         point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
-                                         tree_scale=tree.scale)
+            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
+                = self._sample_tree_and_point()
+            self.record_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
+                                     point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                     tree_orientation=tree_orientation, tree_scale=scale,
+                                     tree_pos=tree_pos)
 
     def _sample_tree_and_point(self):
-        tree_idx = np.random.randint(0, len(self.trees))
-        tree = self.trees[tree_idx]
-        distance, random_point = tree.curriculum_points[0][self.episode_counter % len(tree.curriculum_points[0])]
-        return tree, random_point
+        # Sample orientation uniformly from key in or_bins
+        num_or = 40
+        or_list = []
+        #choose every total//num_or orientations
+        total_orientations = len(self.or_bins.keys())
+        for i, orientation in enumerate(self.or_bins.keys()):
+            if i % (total_orientations // num_or) == 0:
+                or_list.append(orientation)
+        while True:
+            orientation = or_list[self.episode_counter % num_or]
+            if len(self.or_bins[orientation]) == 0:
+                print("No trees in orientation", orientation)
+                self.episode_counter += 1
+            tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
+            required_point_pos = random.choice(self.reachable_euclidean_grid)
+
+            current_point_pos = random_point[0]
+            current_branch_or = random_point[1]
+            offset = np.random.uniform(-0.025, 0.025, 3)
+            delta_tree_pos = np.array(required_point_pos) - np.array(current_point_pos) + offset
+            final_point_pos = np.array(current_point_pos) + delta_tree_pos
+            if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
+                continue
+            break
+
+        return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos
 
     def update_tree_properties(self, info, idx, name):
         if info["TimeLimit.truncated"]:
-            tree, random_point = self._sample_tree_and_point()
+            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
+                = self._sample_tree_and_point()
             if name == "eval":
-                self.eval_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree.urdf_path,
-                                                point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
-                                                tree_scale=tree.scale)
+                self.eval_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
+                                             point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                             tree_orientation=tree_orientation, tree_scale=scale,
+                                             tree_pos=tree_pos)
+
                 self.episode_counter += 1
             elif name == "record":
-                self.record_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree.urdf_path,
-                                                point=random_point, tree_pos=tree.pos, tree_orientation=tree.orientation,
-                                                tree_scale=tree.scale)
-
+                self.record_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
+                                             point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                             tree_orientation=tree_orientation, tree_scale=scale,
+                                             tree_pos=tree_pos)
 
     def _log_success_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
         """
