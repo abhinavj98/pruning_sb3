@@ -53,8 +53,8 @@ class UR5:
     def setup_ur5_arm(self) -> None:
         assert self.ur5_robot is None
         self.tool0_link_index = 8
-        self.end_effector_index = 12
-        self.success_link_index = 14
+        self.end_effector_index = 13
+        self.success_link_index = 13
         self.base_index = 3
         flags = self.con.URDF_USE_SELF_COLLISION
 
@@ -86,7 +86,7 @@ class UR5:
             jointUpperLimit = info[9]
             jointMaxForce = info[10]
             jointMaxVelocity = info[11]
-            # print("Joint Name: ", jointName, "Joint ID: ", jointID)
+            print("Joint Name: ", jointName, "Joint ID: ", jointID)
             controllable = True if jointName in self.control_joints else False
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
                                    jointMaxVelocity, controllable)  # type: ignore
