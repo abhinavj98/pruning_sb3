@@ -260,7 +260,7 @@ class PruningEnv(gym.Env):
 
     def set_curriculum_level(self, episode_counter, curriculum_level_steps):
         """Set curriculum level"""
-        if "eval" in self.name or self.eval:  # Replace naming with eval variable
+        if "test" in self.name or self.eval:  # Replace naming with eval variable
             self.curriculum_level = len(curriculum_level_steps)
         else:
             if episode_counter in curriculum_level_steps:
@@ -441,13 +441,13 @@ class PruningEnv(gym.Env):
         self.global_step_counter += 1
 
         # Check if task is done
-        done, terminate_info = self.is_task_done()
+        done, terminate_info = self.is_task_done() #done is for gym loggin -> custom_callback
 
         # Truncated is when the episode is terminated due to time limit,
         # truncated is used to add estimate of reward at the end of the episode to boost training
         # check sb3 docs for more info
         truncated = terminate_info['time_limit_exceeded']
-        terminated = terminate_info['goal_achieved']
+        terminated = terminate_info['goal_achieved_terminate']
 
         infos = self.get_infos(terminated, truncated)
 
@@ -605,11 +605,16 @@ class PruningEnv(gym.Env):
         # Terminate if time limit exceeded
         # NOTE: need to call compute_reward before this to check termination!
         time_limit_exceeded = self.step_counter >= self.maxSteps
-        goal_achieved = False  # self.terminated
-        c = self.step_counter > self.maxSteps  # (self.terminated is True or self.step_counter > self.maxSteps)
+        if "test" in self.name or self.eval:
+            goal_achieved_terminate = self.is_goal_state
+            print("Goal achieved: ", goal_achieved_terminate)
+            done = time_limit_exceeded or goal_achieved_terminate
+        else:
+            goal_achieved_terminate = False  # Don't terminate in training
+            done = time_limit_exceeded  # (self.terminated is True or self.step_counter > self.maxSteps)
         terminate_info = {"time_limit_exceeded": time_limit_exceeded,
-                          "goal_achieved": goal_achieved}
-        return c, terminate_info
+                          "goal_achieved_terminate": goal_achieved_terminate}
+        return done, terminate_info
 
     def compute_reward(self, desired_goal, achieved_pose,
                        previous_pose, singularity: bool, info: Optional[dict]) -> Tuple[float, dict]:
