@@ -52,7 +52,7 @@ args = {
         },
         'perpendicular_orientation_reward_scale': {
             'type': float,
-            'default': 3,
+            'default': 6,
             'help': 'scaling factor for the orientation reward'
         },
         # Gym envirionment parameters

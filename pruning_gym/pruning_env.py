@@ -412,7 +412,7 @@ class PruningEnv(gym.Env):
         self.pyb.remove_debug_items("step")
         # Scale all the actions TODO: Make scaling for rotation and translation different
         self.action[:3] = action[:3] * self.action_scale
-        self.action[3:] = action[3:] * self.action_scale / 2
+        self.action[3:] = action[3:] * self.action_scale
 
         # Calculate joint velocities from end effector velocities/or if ik is false, just use the action
         self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
