@@ -607,7 +607,6 @@ class PruningEnv(gym.Env):
         time_limit_exceeded = self.step_counter >= self.maxSteps
         if "test" in self.name or self.eval:
             goal_achieved_terminate = self.is_goal_state
-            print("Goal achieved: ", goal_achieved_terminate)
             done = time_limit_exceeded or goal_achieved_terminate
         else:
             goal_achieved_terminate = False  # Don't terminate in training

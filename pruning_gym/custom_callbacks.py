@@ -95,7 +95,7 @@ class CustomTrainCallback(BaseCallback):
             while True:
                 orientation = random.choice(list(self.or_bins.keys()))
                 if len(self.or_bins[orientation]) == 0:
-                    print("No trees in orientation", orientation)
+                    #print("No trees in orientation", orientation)
                     continue
                 tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
                 required_point_pos = random.choice(self.reachable_euclidean_grid)
@@ -107,7 +107,7 @@ class CustomTrainCallback(BaseCallback):
                 final_point_pos = np.array(current_point_pos) + delta_tree_pos
 
                 if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
-                     print("Invalid delta pos", delta_tree_pos, "required pos", required_point_pos, "current pos", current_point_pos, "offset", offset)
+                     # print("Invalid delta pos", delta_tree_pos, "required pos", required_point_pos, "current pos", current_point_pos, "offset", offset)
                      continue
 
                 break
