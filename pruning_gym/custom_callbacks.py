@@ -95,6 +95,7 @@ class CustomTrainCallback(BaseCallback):
             while True:
                 orientation = random.choice(list(self.or_bins.keys()))
                 if len(self.or_bins[orientation]) == 0:
+                    print("No trees in orientation", orientation)
                     continue
                 tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
                 required_point_pos = random.choice(self.reachable_euclidean_grid)
@@ -106,6 +107,7 @@ class CustomTrainCallback(BaseCallback):
                 final_point_pos = np.array(current_point_pos) + delta_tree_pos
 
                 if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
+                     print("Invalid delta pos", delta_tree_pos, "required pos", required_point_pos, "current pos", current_point_pos, "offset", offset)
                      continue
 
                 break
@@ -360,21 +362,22 @@ class CustomEvalCallback(EventCallback):
         return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos
 
     def update_tree_properties(self, info, idx, name):
-        if info["TimeLimit.truncated"]:
+        if name == "eval" and (info["TimeLimit.truncated"] or info['is_success']):
             tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
                 = self._sample_tree_and_point()
-            if name == "eval":
-                self.eval_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
-                                             point_pos=final_point_pos, point_branch_or=current_branch_or,
-                                             tree_orientation=tree_orientation, tree_scale=scale,
-                                             tree_pos=tree_pos)
+            self.eval_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
+                                         point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                         tree_orientation=tree_orientation, tree_scale=scale,
+                                         tree_pos=tree_pos)
 
-                self.episode_counter += 1
-            elif name == "record":
-                self.record_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
-                                             point_pos=final_point_pos, point_branch_or=current_branch_or,
-                                             tree_orientation=tree_orientation, tree_scale=scale,
-                                             tree_pos=tree_pos)
+            self.episode_counter += 1
+        elif name == "record" and info["TimeLimit.truncated"]:
+            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
+                = self._sample_tree_and_point()
+            self.record_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
+                                         point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                         tree_orientation=tree_orientation, tree_scale=scale,
+                                         tree_pos=tree_pos)
 
     def _log_success_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
         """
@@ -397,7 +400,7 @@ class CustomEvalCallback(EventCallback):
 
         for key in self._reward_dict.keys():
             self._reward_dict[key].append(infos[key])
-        if infos["TimeLimit.truncated"]:
+        if infos["TimeLimit.truncated"] or infos['is_success']:
             for key in self._info_dict.keys():
                 self._info_dict[key].append(infos[key])
         return True

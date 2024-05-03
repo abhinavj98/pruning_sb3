@@ -158,7 +158,6 @@ class Tree:
                             (latitude_min, latitude_max, longitude_min, longitude_max).
         """
         bin_size = np.deg2rad(10)  # Convert degrees to radians
-        offset = np.deg2rad(1)
         bins = {}
         for i in range(num_latitude_bins):
             lat_min = np.rad2deg(-np.pi / 2 + i * bin_size)
@@ -167,7 +166,6 @@ class Tree:
                 lon_min = np.rad2deg(-np.pi + j * bin_size)
                 lon_max = np.rad2deg(-np.pi + (j + 1) * bin_size)
                 bins[(round((lat_min + lat_max) / 2), round((lon_min + lon_max) / 2))] = []
-
         return bins
 
     def populate_bins(self, points):
@@ -183,16 +181,29 @@ class Tree:
             list of lists: List of lists where each sublist represents the indices of direction vectors
                            assigned to the corresponding bin.
         """
+        offset = 1e-3
         for i, point in enumerate(points):
+
             direction_vector = point[1]
             direction_vector = direction_vector / np.linalg.norm(direction_vector)
-            lat_angle = np.rad2deg(np.arcsin(direction_vector[2]))
-            lon_angle = np.rad2deg(np.arctan2(direction_vector[1], direction_vector[0]))
+            lat_angle = np.rad2deg(np.arcsin(direction_vector[2])) + offset
+            lon_angle = np.rad2deg(np.arctan2(direction_vector[1], direction_vector[0])) + offset
             lat_angle_min = self.rounddown(lat_angle)
             lat_angle_max = self.roundup(lat_angle)
             lon_angle_min = self.rounddown(lon_angle)
-            lon_angle_max = Tree.roundup(lon_angle)
-            bin_key = ((lat_angle_min + lat_angle_max) / 2, (lon_angle_min + lon_angle_max) / 2)
+            lon_angle_max = self.roundup(lon_angle)
+            bin_key = (round((lat_angle_min + lat_angle_max) / 2), round((lon_angle_min + lon_angle_max) / 2))
+            #if bin_key[0] not in between -85 and 85 set as 85 or -85
+            #if bin_keyp[1] not in between -175 and 175 set as 175 or -175
+
+            if bin_key[0] > 85:
+                bin_key = (85, bin_key[1])
+            elif bin_key[0] < -85:
+                bin_key = (-85, bin_key[1])
+            if bin_key[1] > 175:
+                bin_key = (bin_key[0], 175)
+            elif bin_key[1] < -175:
+                bin_key = (bin_key[0], -175)
             self.or_bins[bin_key].append((self.urdf_path, point, self.orientation, self.scale))
 
 
