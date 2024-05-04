@@ -54,7 +54,7 @@ class UR5:
         assert self.ur5_robot is None
         self.tool0_link_index = 8
         self.end_effector_index = 13
-        self.success_link_index = 13
+        self.success_link_index = 14
         self.base_index = 3
         flags = self.con.URDF_USE_SELF_COLLISION
 

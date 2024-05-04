@@ -54,10 +54,10 @@ class Reward:
         cosine_sim_curr = self.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or, branch_vector)
         #if sign of both are different  set reward to 0
 
-        pointing_orientation_reward = (cosine_sim_curr - cosine_sim_prev) * \
+        pointing_orientation_reward = (abs(cosine_sim_curr) - abs(cosine_sim_prev)) * \
                                       self.pointing_orientation_reward_scale
         self.reward_info['pointing_orientation_reward'] = pointing_orientation_reward
-        return pointing_orientation_reward, abs(cosine_sim_curr)
+        return pointing_orientation_reward, cosine_sim_curr
 
 
 
@@ -145,7 +145,7 @@ class Reward:
         camera_vector = rot_mat.dot(init_vector)
         pointing_cos_sim = np.dot(camera_vector, perpendicular_vector) / (
                 np.linalg.norm(camera_vector) * np.linalg.norm(perpendicular_vector))
-        return abs(pointing_cos_sim)
+        return pointing_cos_sim
 
     @staticmethod
     def compute_distance_quaternions(q1, q2):
