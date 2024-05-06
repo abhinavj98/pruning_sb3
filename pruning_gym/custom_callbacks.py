@@ -116,7 +116,7 @@ class CustomTrainCallback(BaseCallback):
 
     def _update_tree_properties(self, infos):
         for i in range(len(infos)):
-            if infos[i]["TimeLimit.truncated"]:
+            if infos[i]["TimeLimit.truncated"] or infos[i]['is_success']:
                 tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos\
                     = self._sample_tree_and_point()
                 self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
@@ -371,7 +371,7 @@ class CustomEvalCallback(EventCallback):
                                          tree_pos=tree_pos)
 
             self.episode_counter += 1
-        elif name == "record" and info["TimeLimit.truncated"]:
+        elif name == "record" and info["TimeLimit.truncated"] or info['is_success']:
             tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
                 = self._sample_tree_and_point()
             self.record_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,

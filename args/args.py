@@ -32,7 +32,7 @@ args = {
         },
         'terminate_reward_scale': {
             'type': float,
-            'default': 0.4,
+            'default': 1.,
             'help': 'scaling factor for the terminate reward'
         },
         'collision_reward_scale': {

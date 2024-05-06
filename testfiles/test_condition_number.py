@@ -123,14 +123,16 @@ if __name__ == "__main__":
         elif ord('f') in action:
             val = np.array([0, 0, 0, 0, 0, -0.05])
         elif ord('t') in action:
-            env.reset()
             env.force_time_limit()
+            # env.reset()
+            # env.is_goal_state = True
         else:
             val = np.array([0.,0.,0., 0., 0., 0.])
         # print(val)
-        success_link_pos = env.ur5.get_current_pose(env.ur5.success_link_index)[0]
-        env.pyb.add_sphere(0.005, success_link_pos, [1, 0, 0, 1])
+        success_link_pos = env.ur5.get_current_pose(env.ur5.end_effector_index)[0]
+        # env.pyb.add_sphere(0.005, success_link_pos, [1, 0, 0, 1])
         observation, reward, terminated, truncated, infos = env.step(val)
+        print(observation['achieved_goal'], observation['desired_goal'])
 
         # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
         #get base position and orientation

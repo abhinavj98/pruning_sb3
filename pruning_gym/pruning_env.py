@@ -33,7 +33,7 @@ class PruningEnv(gym.Env):
 
     def __init__(self, tree_urdf_path: str, tree_obj_path: str, tree_labelled_path: str, renders: bool = False,
                  max_steps: int = 500,
-                 distance_threshold: float = 0.05, angle_threshold: float = 0.52,
+                 distance_threshold: float = 0.05, angle_threshold_perp: float = 0.52, angle_threshold_point: float = 0.78,
                  tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
                  algo_width: int = 224, algo_height: int = 224,
                  evaluate: bool = False, num_points: Optional[int] = None, action_dim: int = 12,
@@ -53,7 +53,8 @@ class PruningEnv(gym.Env):
         :param renders: Whether to render the environment
         :param max_steps: Maximum number of steps in an episode
         :param distance_threshold: Distance threshold for termination
-        :param angle_threshold: Angle threshold for termination
+        :param angle_threshold_perp: Angle threshold perpendicular for termination
+        :param angle_threshold_point: Angle threshold pointing for termination
         :param tree_count: Number of trees to be loaded
         :param cam_width: Width of the camera
         :param cam_height: Height of the camera
@@ -165,7 +166,8 @@ class PruningEnv(gym.Env):
         self.episode_counter = 0
         self.randomize_tree_count = 5
         self.distance_threshold = distance_threshold
-        self.angle_threshold_cosine = np.cos(angle_threshold)
+        self.angle_threshold_perp_cosine = np.cos(angle_threshold_perp)
+        self.angle_threshold_point_cosine = np.cos(angle_threshold_point)
 
         # setup robot arm:
         self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=ur5_pos, orientation=ur5_or, randomize_pose=randomize_ur5_pose)
@@ -609,8 +611,8 @@ class PruningEnv(gym.Env):
             goal_achieved_terminate = self.is_goal_state
             done = time_limit_exceeded or goal_achieved_terminate
         else:
-            goal_achieved_terminate = False  # Don't terminate in training
-            done = time_limit_exceeded  # (self.terminated is True or self.step_counter > self.maxSteps)
+            goal_achieved_terminate = self.is_goal_state # Do not terminate during training
+            done = time_limit_exceeded or goal_achieved_terminate # (self.terminated is True or self.step_counter > self.maxSteps)
         terminate_info = {"time_limit_exceeded": time_limit_exceeded,
                           "goal_achieved_terminate": goal_achieved_terminate}
         return done, terminate_info
@@ -670,8 +672,8 @@ class PruningEnv(gym.Env):
         is_success_collision = self.ur5.check_success_collision(self.tree_id)
         dist_from_target = np.linalg.norm(achieved_pos - desired_pos)
         if is_success_collision and dist_from_target < self.distance_threshold:
-            if (orientation_perp_value > self.angle_threshold_cosine) and (
-                    orientation_point_value > self.angle_threshold_cosine):
+            if (orientation_perp_value > self.angle_threshold_perp_cosine) and (
+                    orientation_point_value > self.angle_threshold_point_cosine):
                 terminated = True
 
         return terminated
