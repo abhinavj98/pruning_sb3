@@ -388,13 +388,13 @@ class PruningEnv(gym.Env):
 
             # Logging errors at the end of episode
             infos["pointing_cosine_sim_error"] = np.abs(Reward.compute_pointing_cos_sim(
-                achieved_pos=self.observation_info['achieved_pos'],
+                achieved_pos=self.observation_info['achieved_eebase_pos'],
                 desired_pos=self.observation_info['desired_pos'],
-                achieved_or=self.observation_info['achieved_or_quat'],
+                achieved_or=self.observation_info['achieved_eebase_or_quat'],
                 branch_vector=self.tree_goal_or))
 
             infos["perpendicular_cosine_sim_error"] = np.abs(Reward.compute_perpendicular_cos_sim(
-                achieved_or=self.observation_info['achieved_or_quat'], branch_vector=self.tree_goal_or))
+                achieved_or=self.observation_info['achieved_eebase_or_quat'], branch_vector=self.tree_goal_or))
 
             infos["euclidean_error"] = np.linalg.norm(
                 self.observation_info['achieved_pos'] - self.observation_info['desired_pos'])
@@ -434,8 +434,12 @@ class PruningEnv(gym.Env):
         previous_pose = np.hstack((self.prev_observation_info['achieved_pos'],
                                    self.prev_observation_info['achieved_or_quat']))
 
+        current_pose_eebase = np.hstack((self.observation_info['achieved_eebase_pos'],
+                                         self.observation_info['achieved_eebase_or_quat']))
+        previous_pose_eebase = np.hstack((self.prev_observation_info['achieved_eebase_pos'],
+                                          self.prev_observation_info['achieved_eebase_or_quat']))
         reward, reward_infos = self.compute_reward(self.observation_info['desired_pos'], current_pose,
-                                                   previous_pose, singularity, None)
+                                                   previous_pose, current_pose_eebase, previous_pose_eebase,  singularity, None)
 
         self.sum_reward += reward
         # self.debug_line = self.pyb_con.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
@@ -519,12 +523,20 @@ class PruningEnv(gym.Env):
         if 'achieved_pos' not in self.prev_observation_info.keys():
             self.prev_observation_info['achieved_pos'] = self.ur5.init_pos_ee[0]
             self.prev_observation_info['achieved_or_quat'] = self.ur5.init_pos_ee[1]
+            self.prev_observation_info['achieved_eebase_pos'] = self.ur5.init_pos_eebase[0]
+            self.prev_observation_info['achieved_eebase_or_quat'] = self.ur5.init_pos_eebase[1]
+
 
         tool_pos, tool_orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        tool_base_pos, tool_base_orient = self.ur5.get_current_pose(self.ur5.success_link_index)
+
         achieved_vel, achieved_ang_vel = self.ur5.get_current_vel(self.ur5.end_effector_index)
 
         achieved_pos = np.array(tool_pos).astype(np.float32)
         achieved_or_quat = np.array(tool_orient).astype(np.float32)
+
+        achieved_tool_base_pos = np.array(tool_base_pos).astype(np.float32)
+        achieved_tool_base_orient = np.array(tool_base_orient).astype(np.float32)
 
         desired_pos = np.array(self.tree_goal_pos).astype(np.float32)
 
@@ -558,6 +570,8 @@ class PruningEnv(gym.Env):
         self.observation_info['pointing_cosine_sim'] = abs(pointing_cosine_sim)
         self.observation_info['perpendicular_cosine_sim'] = abs(perpendicular_cosine_sim)
         self.observation_info['target_distance'] = np.linalg.norm(achieved_pos - desired_pos)
+        self.observation_info['achieved_eebase_pos'] = achieved_tool_base_pos
+        self.observation_info['achieved_eebase_or_quat'] = achieved_tool_base_orient
 
         # Actual observation - All wrt base
         ############TODO: Check if this is correct
@@ -618,13 +632,17 @@ class PruningEnv(gym.Env):
         return done, terminate_info
 
     def compute_reward(self, desired_goal, achieved_pose,
-                       previous_pose, singularity: bool, info: Optional[dict]) -> Tuple[float, dict]:
+                       previous_pose, achieved_pose_eebase, previous_pose_eebase, singularity: bool, info: Optional[dict]) -> Tuple[float, dict]:
 
         achieved_pos = achieved_pose[:3]
         achieved_or = achieved_pose[3:]
         desired_pos = desired_goal
         previous_pos = previous_pose[:3]
         previous_or = previous_pose[3:]
+        achieved_pos_eebase = achieved_pose_eebase[:3]
+        previous_pos_eebase = previous_pose_eebase[:3]
+        achieved_or_eebase = achieved_pose_eebase[3:]
+        previous_or_eebase = previous_pose_eebase[3:]
         reward = 0.0
 
         self.collisions_acceptable = 0
@@ -637,16 +655,15 @@ class PruningEnv(gym.Env):
         # Calculate rewards
         reward += self.reward.calculate_distance_reward(achieved_pos, desired_pos)
         reward += self.reward.calculate_movement_reward(achieved_pos, previous_pos, desired_pos)
-        point_reward, point_cosine_sim = self.reward.calculate_pointing_orientation_reward(achieved_pos, desired_pos,
-                                                                                           achieved_or, previous_pos,
-                                                                                           previous_or,
+        point_reward, point_cosine_sim = self.reward.calculate_pointing_orientation_reward(achieved_pos_eebase, desired_pos,
+                                                                                           achieved_or_eebase, previous_pos_eebase,
+                                                                                           previous_or_eebase,
                                                                                            self.tree_goal_or)
         reward += point_reward
 
-        perp_reward, perp_cosine_sim = self.reward.calculate_perpendicular_orientation_reward(achieved_or, previous_or,
+        perp_reward, perp_cosine_sim = self.reward.calculate_perpendicular_orientation_reward(achieved_or_eebase, previous_or_eebase,
                                                                                               self.tree_goal_or)
         reward += perp_reward
-
         condition_number = self.ur5.get_condition_number()
         reward += self.reward.calculate_condition_number_reward(condition_number)
 

@@ -43,6 +43,7 @@ class UR5:
         self.achieved_pos = None
         self.init_pos_ee = None
         self.init_pos_base = None
+        self.init_pos_eebase = None
         self.robot_urdf_path = robot_urdf_path
         self.camera_base_offset = np.array(
             [-0.063179, 0.077119, 0.0420027])
@@ -105,6 +106,7 @@ class UR5:
 
         self.init_pos_ee = self.get_current_pose(self.end_effector_index)
         self.init_pos_base = self.get_current_pose(self.base_index)
+        self.init_pos_eebase = self.get_current_pose(self.success_link_index)
         self.action = np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
         self.joint_angles = np.array(self.init_joint_angles).astype(np.float32)
         self.achieved_pos = np.array(self.get_current_pose(self.end_effector_index)[0])

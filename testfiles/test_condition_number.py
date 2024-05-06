@@ -123,8 +123,8 @@ if __name__ == "__main__":
         elif ord('f') in action:
             val = np.array([0, 0, 0, 0, 0, -0.05])
         elif ord('t') in action:
-            env.force_time_limit()
-            # env.reset()
+            # env.force_time_limit()
+            env.reset()
             # env.is_goal_state = True
         else:
             val = np.array([0.,0.,0., 0., 0., 0.])
