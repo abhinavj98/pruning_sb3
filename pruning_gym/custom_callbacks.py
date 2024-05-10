@@ -636,6 +636,8 @@ class CustomEvalCallback(EventCallback):
                 continue_training = continue_training and self._on_event()
             print("Done evaluating")
             self.episode_counter = 0
+            #reset current index
+            self.current_index = [self.n_eval_episodes // self.eval_env.num_envs * i for i in range(self.eval_env.num_envs)]
         return continue_training
 
 class CustomResultCallback(EventCallback):
