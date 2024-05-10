@@ -125,15 +125,13 @@ if __name__ == "__main__":
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
         
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
-        model.policy.log_std = th.nn.Parameter(th.tensor([-1., -1., -1., -1., -1., -1.]), requires_grad=True).to(
-            model.device)
+        model.policy.log_std = th.nn.Parameter(th.ones(6) * -1, requires_grad=True).to(model.device)
         model.num_timesteps = 4000000
         model._num_timesteps_at_start = 4000000
         print("LOADED MODEL")
 
     model.set_logger(new_logger)
     train_callback.init_callback(model)
-
     print("Policy on device: ", model.policy.device)
     print("Model on device: ", model.device)
     print("Optical flow on device: ", model.policy.optical_flow_model.device)

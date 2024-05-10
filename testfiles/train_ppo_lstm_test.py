@@ -119,7 +119,8 @@ if __name__ == "__main__":
                      "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
                      "learning_rate_logstd": None,}
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
-        model.policy.log_std = th.nn.Parameter(th.tensor([-0.1, -0.1, -0.1, -0.1, -0.1, -0.1]), requires_grad=True).to(model.device)
+        model.policy.log_std = th.nn.Parameter(th.ones(6) * -1, requires_grad=True).to(
+            model.device)
         print(model.policy.log_std)
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
         model.num_timesteps = 2756000
