@@ -125,7 +125,8 @@ if __name__ == "__main__":
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
         
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
-        model.policy.log_std = th.nn.Parameter(th.ones(6) * -1, requires_grad=True).to(model.device)
+        model.policy.log_std = th.nn.Parameter(th.ones(6, dtype=th.float32, device=model.device) \
+                                               * -1., requires_grad=True)
         model.num_timesteps = 4000000
         model._num_timesteps_at_start = 4000000
         print("LOADED MODEL")

@@ -55,7 +55,7 @@ if __name__ == "__main__":
             or_bins_train[key].extend(i.or_bins[key])
 
     del data_env_train
-    #Shuffle the data inside the bisn
+    # Shuffle the data inside the bisn
     for key in or_bins_train.keys():
         random.shuffle(or_bins_train[key])
 
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         for i in data_env_test.trees:
             or_bins_test[key].extend(i.or_bins[key])
     del data_env_test
-    #Shuffle the data inside the bisn
+    # Shuffle the data inside the bisn
     for key in or_bins_test.keys():
         random.shuffle(or_bins_test[key])
 
@@ -85,8 +85,7 @@ if __name__ == "__main__":
     # check_env(env)
 
     # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
-    train_callback = CustomTrainCallback(or_bins = or_bins_train)
-
+    train_callback = CustomTrainCallback(or_bins=or_bins_train)
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
@@ -117,10 +116,10 @@ if __name__ == "__main__":
     else:
         load_dict = {"learning_rate": linear_schedule(args_policy['learning_rate']),
                      "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
-                     "learning_rate_logstd": None,}
+                     "learning_rate_logstd": None, }
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
-        model.policy.log_std = th.nn.Parameter(th.ones(6) * -1, requires_grad=True).to(
-            model.device)
+        model.policy.log_std = th.nn.Parameter(th.ones(6, dtype=th.float32, device=model.device) \
+                                               * -1., requires_grad=True)
         print(model.policy.log_std)
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
         model.num_timesteps = 2756000
