@@ -135,3 +135,4 @@ logs/
 *.dat
 .idea/
 profile.html
+results/

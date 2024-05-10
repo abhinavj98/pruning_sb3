@@ -13,7 +13,7 @@ from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optic
     set_args, organize_args, add_arg_to_env
 import multiprocessing as mp
 import copy
-from pruning_sb3.pruning_gym.custom_callbacks import CustomTrainCallback
+from pruning_sb3.pruning_gym.custom_callbacks import CustomTrainCallback, CustomEvalCallback
 from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from stable_baselines3.common import utils
@@ -55,6 +55,7 @@ if __name__ == "__main__":
     args_test['renders'] = True
     args_test['max_steps'] = 100000
     env = PruningEnv(**args_test)
+    print("Env created")
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
@@ -82,7 +83,7 @@ if __name__ == "__main__":
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
     model.set_logger(new_logger)
-    train_callback = CustomTrainCallback(or_bins = or_bins_test)
+    train_callback = CustomEvalCallback(eval_env = env, record_env = env, or_bins = or_bins_test)
     train_callback.init_callback(model)
     train_callback.on_training_start(locals(), globals())
 
@@ -124,7 +125,10 @@ if __name__ == "__main__":
             val = np.array([0, 0, 0, 0, 0, -0.05])
         elif ord('t') in action:
             # env.force_time_limit()
+            infos = {}
+            infos['TimeLimit.truncated'] = True
             env.reset()
+            train_callback.update_tree_properties(infos, 0, "eval")
             # env.is_goal_state = True
         else:
             val = np.array([0.,0.,0., 0., 0., 0.])
@@ -132,7 +136,7 @@ if __name__ == "__main__":
         success_link_pos = env.ur5.get_current_pose(env.ur5.end_effector_index)[0]
         # env.pyb.add_sphere(0.005, success_link_pos, [1, 0, 0, 1])
         observation, reward, terminated, truncated, infos = env.step(val)
-        print(observation['achieved_goal'], observation['desired_goal'])
+        # print(observation['achieved_goal'], observation['desired_goal'])
 
         # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
         #get base position and orientation
@@ -145,7 +149,7 @@ if __name__ == "__main__":
         # print(env.ur5.get_joint_angles())
         # print(env.ur5.get_condition_number())
         base_pos, base_quat = env.pyb.con.getBasePositionAndOrientation(env.ur5.ur5_robot)
-        print(infos['TimeLimit.truncated'])
+        # print(infos['TimeLimit.truncated'])
         infos = [infos]
 
         train_callback.on_step()

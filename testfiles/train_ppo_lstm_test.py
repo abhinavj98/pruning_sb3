@@ -32,9 +32,12 @@ if __name__ == "__main__":
     shared_tree_list_test = []
 
     if parsed_args_dict['args_global']['load_path']:
-        load_path = "../logs/run/best_model.zip"  # "./logs/{}/best_model.zip".format(args.LOAD_PATH)#./nfs/stak/users/jainab/hpc-share/codes/pruning_sb3/logs/lowlr/best_model.zip"#Nonei
+        load_path_model = "./logs/{}/current_model.zip".format(
+            parsed_args_dict['args_global']['load_path'])
+        load_path_mean_std = "./logs/{}/current_mean_std.pkl".format(
+            parsed_args_dict['args_global']['load_path'])
     else:
-        load_path = None
+        load_path_model = None
 
     # add_arg_to_env('shared_tree_list', shared_list, ['args_train'], parsed_args_dict)
     # Duplicates are resolved in favor of the value in x; dict(y, **x)
@@ -42,6 +45,7 @@ if __name__ == "__main__":
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_record = dict(args_test, **parsed_args_dict['args_record'])
+    args_policy = parsed_args_dict['args_policy']
     print(args_train)
     # Make an environment as usual
     data_env_train = PruningEnv(**args_train, make_trees=True)
@@ -72,9 +76,11 @@ if __name__ == "__main__":
     record_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=1)
     eval_env.logger = new_logger
     # Use deterministic actions for evaluation
-    eval_callback = CustomEvalCallback(eval_env, record_env, best_model_save_path="../logs/test",
-                                       log_path="../logs/test",
-                                       deterministic=True, render=False, or_bins = or_bins_test, **parsed_args_dict['args_callback'])
+    eval_callback = CustomEvalCallback(eval_env, record_env,
+                                       best_model_save_path="./logs/{}".format(args_global['run_name']),
+                                       log_path="./logs/{}".format(args_global['run_name']),
+                                       deterministic=True, render=False, or_bins=or_bins_test,
+                                       **parsed_args_dict['args_callback'])
     # It will check your custom environment and output additional warnings if needed
     # check_env(env)
 
@@ -99,19 +105,26 @@ if __name__ == "__main__":
     policy = RecurrentActorCriticPolicy
 
     # model = RecurrentPPOAE(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
-    if load_path:
-        model = RecurrentPPOAE.load(load_path, env)
-        model.num_timesteps = 100000
-        model._num_timesteps_at_start = 100000
-        print(model.num_timesteps)
-    else:
+    if not load_path_model:
         model = RecurrentPPOAE(policy, env, policy_kwargs=policy_kwargs,
-                               learning_rate=linear_schedule(parsed_args_dict['args_policy']['learning_rate']),
-                               learning_rate_ae=exp_schedule(parsed_args_dict['args_policy']['learning_rate_ae']),
+                               learning_rate=linear_schedule(args_policy['learning_rate']),
+                               learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),
                                learning_rate_logstd=None,
-                               n_steps=parsed_args_dict['args_policy']['steps_per_epoch'],
-                               batch_size=parsed_args_dict['args_policy']['batch_size'],
-                               n_epochs=parsed_args_dict['args_policy']['epochs'])
+                               n_steps=args_policy['steps_per_epoch'],
+                               batch_size=args_policy['batch_size'],
+                               n_epochs=args_policy['epochs'],
+                               ae_coeff=args_policy['ae_coeff'])
+    else:
+        load_dict = {"learning_rate": linear_schedule(args_policy['learning_rate']),
+                     "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
+                     "learning_rate_logstd": None,}
+        model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
+        model.policy.log_std = th.nn.Parameter(th.tensor([-0.1, -0.1, -0.1, -0.1, -0.1, -0.1]), requires_grad=True).to(model.device)
+        print(model.policy.log_std)
+        model.policy.load_running_mean_std_from_file(load_path_mean_std)
+        model.num_timesteps = 2756000
+        model._num_timesteps_at_start = 2756000
+        print("LOADED MODEL")
 
     model.set_logger(new_logger)
     train_callback.init_callback(model)

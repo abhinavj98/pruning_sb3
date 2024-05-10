@@ -110,6 +110,7 @@ class Tree:
             # Get all points on the tree
             self.get_all_points(tree_obj)
             self.filter_outliers()
+            self.filter_trunk_points()
             # self.filter_points_below_base()
 
             # dump reachable points to file using pickle
@@ -306,6 +307,9 @@ class Tree:
         # Filter out points below the base of the arm
         self.vertex_and_projection = list(filter(lambda x: x[0][2] > self.base_xyz[2], self.vertex_and_projection))
 
+    def filter_trunk_points(self):
+        self.vertex_and_projection = list(filter(lambda x: abs(x[0][0]-self.pos[0]) > 0.8, self.vertex_and_projection))
+        print("Number of points after filtering trunk points: ", len(self.vertex_and_projection))
     def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]], env,
                      pyb) -> bool:
         if vertice[3] != "SPUR":

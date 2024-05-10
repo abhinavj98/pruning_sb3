@@ -33,7 +33,7 @@ class PruningEnv(gym.Env):
 
     def __init__(self, tree_urdf_path: str, tree_obj_path: str, tree_labelled_path: str, renders: bool = False,
                  max_steps: int = 500,
-                 distance_threshold: float = 0.05, angle_threshold_perp: float = 0.52, angle_threshold_point: float = 0.78,
+                 distance_threshold: float = 0.05, angle_threshold_perp: float = 0.6, angle_threshold_point: float = 0.6,
                  tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
                  algo_width: int = 224, algo_height: int = 224,
                  evaluate: bool = False, num_points: Optional[int] = None, action_dim: int = 12,
@@ -248,6 +248,9 @@ class PruningEnv(gym.Env):
         self.tree_pos = tree_pos
         self.tree_orientation = tree_orientation
         self.tree_scale = tree_scale
+        if self.tree_id is not None:
+            self.inactivate_tree(self.pyb)
+        self.activate_tree(self.pyb)
 
     def reset_env_variables(self) -> None:
         # Env variables that will change
@@ -329,10 +332,10 @@ class PruningEnv(gym.Env):
                                 lineToXYZ=[self.tree_goal_pos[0] + 0.005, self.tree_goal_pos[1] + 0.005,
                                            self.tree_goal_pos[2] + 0.005],
                                 lineColorRGB=[1, 0, 0],
-                                lineWidth=200)
-        _ = self.pyb.add_debug_item('line', 'step', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
+                                lineWidth=400)
+        _ = self.pyb.add_debug_item('line', 'reset', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
                                     lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
-                                    lineWidth=200)
+                                    lineWidth=400)
 
         self.set_extended_observation()
         info = dict()  # type: ignore

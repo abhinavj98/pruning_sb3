@@ -120,7 +120,8 @@ if __name__ == "__main__":
     else:
         load_dict = {"learning_rate": linear_schedule(args_policy['learning_rate']),
                      "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
-                     "learning_rate_logstd": None}
+                     "learning_rate_logstd": None,
+                     "log_std": -0.5}
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
         
         model.policy.load_running_mean_std_from_file(load_path_mean_std)

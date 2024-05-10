@@ -2,6 +2,7 @@
 
 import pickle
 
+import pandas as pd
 from stable_baselines3.common.callbacks import BaseCallback, EventCallback, CallbackList
 import gymnasium as gym
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -15,7 +16,9 @@ import cv2
 import torch as th
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
 import random
-
+import pandas as pd
+import imageio
+import copy
 
 def get_reachable_euclidean_grid(radius, resolution):
     num_bins = int(radius / resolution) * 2
@@ -274,6 +277,8 @@ class CustomEvalCallback(EventCallback):
         # Convert to VecEnv for consistency
         if not isinstance(eval_env, VecEnv):
             eval_env = DummyVecEnv([lambda: eval_env])
+        if not isinstance(record_env, VecEnv):
+            record_env = DummyVecEnv([lambda: record_env])
 
         self.eval_env = eval_env
         #Monitor, single env, do not vectorize
@@ -300,7 +305,10 @@ class CustomEvalCallback(EventCallback):
         self.delta_pos_max = np.array([1, -0.675, 0])
         self.delta_pos_min = np.array([-1, -0.9525, -2])
         self.reachable_euclidean_grid = get_reachable_euclidean_grid(0.95, 0.05)
+        self.dataset = None
 
+        # divide n_eval_episodes by n_envs
+        self.current_index = [self.n_eval_episodes // self.eval_env.num_envs * i for i in range(self.eval_env.num_envs)]
         self.episode_counter = 0
 
     def _init_callback(self) -> None:
@@ -320,60 +328,75 @@ class CustomEvalCallback(EventCallback):
         for i in range(self.eval_env.num_envs):
 
             tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
-                = self._sample_tree_and_point()
+                = self._sample_tree_and_point(i)
             self.eval_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
                                      point_pos=final_point_pos, point_branch_or=current_branch_or,
                                      tree_orientation=tree_orientation, tree_scale=scale,
                                      tree_pos=tree_pos)
         for i in range(self.record_env.num_envs):
             tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
-                = self._sample_tree_and_point()
+                = random.choice(self.dataset)
             self.record_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
                                      point_pos=final_point_pos, point_branch_or=current_branch_or,
                                      tree_orientation=tree_orientation, tree_scale=scale,
                                      tree_pos=tree_pos)
 
-    def _sample_tree_and_point(self):
+    def _sample_tree_and_point(self, idx):
+        if self.dataset is None:
+            self.dataset = self._make_dataset()
+            print("Dataset made", len(self.dataset))
+        print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
+        tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos = self.dataset[
+            self.current_index[idx]]
+        self.current_index[idx] = min(self.current_index[idx] + 1,
+                                      self.n_eval_episodes // self.eval_env.num_envs * (idx + 1) - 1)
+        return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos
+
+    def _make_dataset(self):
         # Sample orientation uniformly from key in or_bins
         num_or = 40
         or_list = []
-        #choose every total//num_or orientations
+        # choose every total//num_or orientations
         total_orientations = len(self.or_bins.keys())
         for i, orientation in enumerate(self.or_bins.keys()):
             if i % (total_orientations // num_or) == 0:
                 or_list.append(orientation)
-        while True:
-            orientation = or_list[self.episode_counter % num_or]
-            if len(self.or_bins[orientation]) == 0:
-                print("No trees in orientation", orientation)
-                self.episode_counter += 1
-            tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
-            required_point_pos = random.choice(self.reachable_euclidean_grid)
+        dataset = []
+        for i in range(self.n_eval_episodes):
+            while True:
+                orientation = or_list[i % num_or]
+                if len(self.or_bins[orientation]) == 0:
+                    print("No trees in orientation", orientation)
+                    continue
+                tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
+                required_point_pos = random.choice(self.reachable_euclidean_grid)
 
-            current_point_pos = random_point[0]
-            current_branch_or = random_point[1]
-            offset = np.random.uniform(-0.025, 0.025, 3)
-            delta_tree_pos = np.array(required_point_pos) - np.array(current_point_pos) + offset
-            final_point_pos = np.array(current_point_pos) + delta_tree_pos
-            if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
-                continue
-            break
-
-        return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos
+                current_point_pos = random_point[0]
+                current_branch_or = random_point[1]
+                offset = np.random.uniform(-0.025, 0.025, 3)
+                delta_tree_pos = np.array(required_point_pos) - np.array(current_point_pos) + offset
+                final_point_pos = np.array(current_point_pos) + delta_tree_pos
+                # print(orientation, final_point_pos)
+                if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
+                    continue
+                dataset.append((tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos))
+                break
+        return dataset
 
     def update_tree_properties(self, info, idx, name):
         if name == "eval" and (info["TimeLimit.truncated"] or info['is_success']):
             tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
-                = self._sample_tree_and_point()
+                = self._sample_tree_and_point(idx)
             self.eval_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
                                          point_pos=final_point_pos, point_branch_or=current_branch_or,
                                          tree_orientation=tree_orientation, tree_scale=scale,
                                          tree_pos=tree_pos)
 
+
             self.episode_counter += 1
         elif name == "record" and info["TimeLimit.truncated"] or info['is_success']:
             tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
-                = self._sample_tree_and_point()
+                = random.choice(self.dataset)
             self.record_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
                                          point_pos=final_point_pos, point_branch_or=current_branch_or,
                                          tree_orientation=tree_orientation, tree_scale=scale,
@@ -451,8 +474,9 @@ class CustomEvalCallback(EventCallback):
         # print("Saving screen")
 
     def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-        self._collisions_acceptable_buffer.append(self.eval_env.get_attr("collisions_acceptable", 0)[0])
-        self._collisions_unacceptable_buffer.append(self.eval_env.get_attr("collisions_unacceptable", 0)[0])
+        i = _locals['i']
+        self._collisions_acceptable_buffer.append(self.eval_env.get_attr("collisions_acceptable", i)[0])
+        self._collisions_unacceptable_buffer.append(self.eval_env.get_attr("collisions_unacceptable", i)[0])
 
     def _master_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         # self._grab_screen_callback(_locals, _globals)
@@ -613,4 +637,386 @@ class CustomEvalCallback(EventCallback):
             print("Done evaluating")
             self.episode_counter = 0
         return continue_training
+
+class CustomResultCallback(EventCallback):
+    """
+    Callback for evaluating an agent.
+    .. warning::
+      When using multiple environments, each call to  ``env.step()``
+      will effectively correspond to ``n_envs`` steps.
+      To account for that, you can use ``eval_freq = max(eval_freq // n_envs, 1)``
+    :param eval_env: The environment used for initialization
+    :param callback_on_new_best: Callback to trigger
+        when there is a new best model according to the ``mean_reward``
+    :param callback_after_eval: Callback to trigger after every evaluation
+    :param n_eval_episodes: The number of episodes to test the agent
+    :param eval_freq: Evaluate the agent every ``eval_freq`` call of the callback.
+    :param log_path: Path to a folder where the evaluations (``evaluations.npz``)
+        will be saved. It will be updated at each evaluation.
+    :param best_model_save_path: Path to a folder where the best model
+        according to performance on the eval env will be saved.
+    :param deterministic: Whether the evaluation should
+        use a stochastic or deterministic actions.
+    :param render: Whether to render or not the environment during evaluation
+    :param verbose: Verbosity level: 0 for no output, 1 for indicating information about evaluation results
+    :param warn: Passed to ``evaluate_policy`` (warns if ``eval_env`` has not been
+        wrapped with a Monitor wrapper)
+    """
+
+    def __init__(
+        self,
+        eval_env: Union[gym.Env, VecEnv],
+        callback_on_new_best: Optional[BaseCallback] = None,
+        callback_after_eval: Optional[BaseCallback] = None,
+        n_eval_episodes: int = 5,
+        eval_freq: int = 10000,
+        log_path: Optional[str] = None,
+        best_model_save_path: Optional[str] = None,
+        deterministic: bool = True,
+        render: bool = False,
+        verbose: int = 1,
+        warn: bool = True,
+        or_bins: Dict = None,
+    ):
+        super().__init__(callback_after_eval, verbose=verbose)
+
+        self.callback_on_new_best = callback_on_new_best
+        if self.callback_on_new_best is not None:
+            # Give access to the parent
+            self.callback_on_new_best.parent = self
+
+        self.n_eval_episodes = n_eval_episodes
+        self.eval_freq = eval_freq
+        self.best_mean_reward = -np.inf
+        self.last_mean_reward = -np.inf
+        self.deterministic = deterministic
+        self.render = render
+        self.warn = warn
+
+        # Convert to VecEnv for consistency
+        if not isinstance(eval_env, VecEnv):
+            eval_env = DummyVecEnv([lambda: eval_env])
+
+        self.eval_env = eval_env
+        #Monitor, single env, do not vectorize
+        self.best_model_save_path = best_model_save_path
+        # Logs will be written in ``evaluations.npz``
+        if log_path is not None:
+            log_path = os.path.join(log_path, "evaluations")
+        self.log_path = log_path
+        self.evaluations_results = []
+        self.evaluations_timesteps = []
+        self.evaluations_length = []
+        # For computing success rate
+        self._is_success_buffer = []
+        self.evaluations_successes = []
+
+
+        self._reward_dict = {}
+        self._info_dict = {}
+        self._terminal_dict = {}
+
+
+        self.or_bins = or_bins
+        self.delta_pos_max = np.array([1, -0.675, 0])
+        self.delta_pos_min = np.array([-1, -0.9525, -2])
+        self.reachable_euclidean_grid = get_reachable_euclidean_grid(0.95, 0.05)
+
+        self.episode_counter = 0
+        self.dataset = None
+
+        #divide n_eval_episodes by n_envs
+        self.current_index = [self.n_eval_episodes//self.eval_env.num_envs*i for i in range(self.eval_env.num_envs)]
+
+    def _init_callback(self) -> None:
+        # Does not work in some corner cases, where the wrapper is not the same
+        # if not isinstance(self.training_env, type(self.eval_env)):
+        #     Warning.warn("Training and eval env are not of the same type" f"{self.training_env} != {self.eval_env}")
+        # Create folders if needed
+
+        for i in range(self.eval_env.num_envs):
+
+            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
+                = self._sample_tree_and_point(i)
+            self.eval_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
+                                     point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                     tree_orientation=tree_orientation, tree_scale=scale,
+                                     tree_pos=tree_pos)
+
+    def _sample_tree_and_point(self, idx):
+        if self.dataset is None:
+            self.dataset = self._make_dataset()
+            print("Dataset made", len(self.dataset))
+        print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
+        tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos = self.dataset[self.current_index[idx]]
+        self.current_index[idx] = min(self.current_index[idx]+1, self.n_eval_episodes//self.eval_env.num_envs*(idx+1)-1)
+        return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos
+
+    def _make_dataset(self):
+        # Sample orientation uniformly from key in or_bins
+        num_or = 40
+        or_list = []
+        #choose every total//num_or orientations
+        total_orientations = len(self.or_bins.keys())
+        for i, orientation in enumerate(self.or_bins.keys()):
+            if i % (total_orientations // num_or) == 0:
+                or_list.append(orientation)
+        dataset = []
+        for i in range(self.n_eval_episodes):
+            while True:
+                orientation = or_list[i % num_or]
+                if len(self.or_bins[orientation]) == 0:
+                    print("No trees in orientation", orientation)
+                    continue
+                tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
+                required_point_pos = random.choice(self.reachable_euclidean_grid)
+
+                current_point_pos = random_point[0]
+                current_branch_or = random_point[1]
+                offset = np.random.uniform(-0.025, 0.025, 3)
+                delta_tree_pos = np.array(required_point_pos) - np.array(current_point_pos) + offset
+                final_point_pos = np.array(current_point_pos) + delta_tree_pos
+                # print(orientation, final_point_pos)
+                if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
+                    continue
+                dataset.append((tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos))
+                break
+        return dataset
+
+    def update_tree_properties(self, info, idx, name):
+        if name == "eval" and (info["TimeLimit.truncated"] or info['is_success']):
+            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos \
+                = self._sample_tree_and_point(idx)
+            self.eval_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
+                                         point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                         tree_orientation=tree_orientation, tree_scale=scale,
+                                         tree_pos=tree_pos)
+
+
+            self.episode_counter += 1
+
+    def _log_success_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
+        """
+        Callback passed to the  ``evaluate_policy`` function
+        in order to log the success rate (when applicable),
+        for instance when using HER.
+        :param locals_:
+        :param globals_:
+        """
+
+        info = locals_["info"]
+        if locals_["done"]: #Log at end of episode
+            maybe_is_success = info.get("is_success")
+            if maybe_is_success is not None:
+                self._is_success_buffer.append(maybe_is_success)
+
+    def _log_rewards_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]):
+        infos = locals_["info"]
+        i = locals_['i']
+        #add to buffers
+
+        for key in self._reward_dict[i].keys():
+            self._reward_dict[i][key].append(infos[key])
+
+        return True
+
+    def _log_final_metrics(self, locals_: Dict[str, Any], globals_: Dict[str, Any]):
+        infos = locals_["info"]
+        i = locals_['i']
+        if infos["TimeLimit.truncated"] or infos['is_success']:
+            print("Logging final metrics")
+            for key in self._info_dict[i].keys():
+                self._info_dict[i][key].append(infos[key])
+            self._terminal_dict["init_distance"].append(self.eval_env.get_attr("init_distance", i)[0])
+            self._terminal_dict["init_perp_cosine_sim"].append(self.eval_env.get_attr("init_perp_cosine_sim", i)[0])
+            self._terminal_dict["init_point_cosine_sim"].append(self.eval_env.get_attr("init_point_cosine_sim", i)[0])
+            self._terminal_dict["init_angular_error"].append(self.eval_env.get_attr("init_angular_error", i)[0])
+            branch_loc = self.eval_env.get_attr("tree_goal_pos", i)[0]
+            branch_or = self.eval_env.get_attr("tree_goal_or", i)[0]
+            self._terminal_dict["pointx"].append(branch_loc[0])
+            self._terminal_dict["pointy"].append(branch_loc[1])
+            self._terminal_dict["pointz"].append(branch_loc[2])
+            self._terminal_dict["or_x"].append(branch_or[0])
+            self._terminal_dict["or_y"].append(branch_or[1])
+            self._terminal_dict["or_z"].append(branch_or[2])
+
+
+            for key, value in self._reward_dict[i].items():
+                self._episode_info[key].append(np.mean(value))
+            for key, value in self._info_dict[i].items():
+                self._episode_info[key].append(value[0])
+            self._episode_info["acceptable_collision"].append(np.mean(self._collisions_acceptable_buffer[i]))
+            self._episode_info["unacceptable_collision"].append(np.mean(self._collisions_unacceptable_buffer[i]))
+            self._episode_info['is_success'].append(infos['is_success'])
+            #Save video
+            observation_info = self.eval_env.get_attr("observation_info", i)[0]
+            imageio.mimsave("results/{}.gif".format(observation_info["desired_pos"]), self._screens_buffer[i])
+            self._screens_buffer[i] = []
+            self._collisions_acceptable_buffer[i] = []
+            self._collisions_unacceptable_buffer[i] = []
+            self._reward_dict[i] = {}
+            self._info_dict[i] = {}
+
+    def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
+        """
+        Renders the environment in its current state, recording the screen in the captured `screens` list
+
+        :param _locals: A dictionary containing all local variables of the callback's scope
+        :param _globals: A dictionary containing all global variables of the callback's scope
+        """
+        i = _locals['i']
+        observation_info = self.eval_env.get_attr("observation_info", i)[0]
+        render = np.array(self.eval_env.env_method("render", indices=i))[0]*255
+        render = cv2.resize(render, (512, 512), interpolation=cv2.INTER_NEAREST)
+        rgb = observation_info["rgb"]*255
+        rgb = cv2.resize(rgb, (512, 512), interpolation=cv2.INTER_NEAREST)
+        screen = np.concatenate((render, rgb), axis=1)
+        screen_copy = screen.reshape((screen.shape[0], screen.shape[1], 3)).astype(np.uint8)
+        # screen_copy = cv2.resize(screen_copy, (1124, 768), interpolation=cv2.INTER_NEAREST)
+        screen_copy = cv2.putText(screen_copy, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX,
+            0.5, (255,0,0), 2, cv2.LINE_AA)
+        screen_copy = cv2.putText(screen_copy, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX,
+            0.5, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+        screen_copy = cv2.putText(screen_copy, "Current: "+str(observation_info['achieved_pos']), (0,140), cv2.FONT_HERSHEY_SIMPLEX,
+            .5, (255,0,0), 2, cv2.LINE_AA)
+        screen_copy = cv2.putText(screen_copy, "Goal: "+str(observation_info['desired_pos']), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
+            0.5, (255,0,0), 2, cv2.LINE_AA)
+        screen_copy = cv2.putText(screen_copy, "Orientation Perpendicular: " +str(observation_info['perpendicular_cosine_sim']), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
+            0.6, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+        screen_copy = cv2.putText(screen_copy, "Orientation Pointing: " + str(
+            observation_info['pointing_cosine_sim']), (0, 230),
+                                  cv2.FONT_HERSHEY_SIMPLEX,
+                                  0.6, (255, 0, 0), 2, cv2.LINE_AA)  # str(_locals['actions'])
+
+        screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(observation_info["target_distance"])), (0,260), cv2.FONT_HERSHEY_SIMPLEX,
+            0.6, (255,0,0), 2, cv2.LINE_AA)
+        #Add success label
+        # screen_copy = cv2.cvtColor(screen_copy, cv2.COLOR_BGR2RGB)
+        self._screens_buffer[i].append((screen_copy).astype(np.uint8))
+    def _log_collisions(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
+        i = _locals['i']
+        self._collisions_acceptable_buffer[i].append(self.eval_env.get_attr("collisions_acceptable", i)[0])
+        self._collisions_unacceptable_buffer[i].append(self.eval_env.get_attr("collisions_unacceptable", i)[0])
+
+    def _master_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
+        # self._grab_screen_callback(_locals, _globals)
+        self._log_collisions(_locals, _globals)
+        self._log_success_callback(_locals, _globals)
+        self._log_rewards_callback(_locals, _globals)
+        self._grab_screen_callback(_locals, _globals)
+        self._log_final_metrics(_locals, _globals)
+
+        info = _locals["info"]
+        i = _locals['i']
+        self.update_tree_properties(info, i, "eval")
+
+
+        #change tree jere
+
+    def _init_dicts(self):
+        self._reward_dict["movement_reward"] = []
+        self._reward_dict["distance_reward"] = []
+        self._reward_dict["terminate_reward"] = []
+        self._reward_dict["collision_acceptable_reward"] = []
+        self._reward_dict["collision_unacceptable_reward"] = []
+        self._reward_dict["slack_reward"] = []
+        self._reward_dict["condition_number_reward"] = []
+        self._reward_dict["velocity_reward"] = []
+        self._reward_dict["perpendicular_orientation_reward"] = []
+        self._reward_dict["pointing_orientation_reward"] = []
+
+        self._reward_dict = [copy.deepcopy(self._reward_dict) for i in range(self.eval_env.num_envs)]
+
+        self._info_dict["pointing_cosine_sim_error"] = []
+        self._info_dict["perpendicular_cosine_sim_error"] = []
+        self._info_dict["euclidean_error"] = []
+        self._info_dict['velocity'] = []
+
+        self._info_dict = [copy.deepcopy(self._info_dict) for i in range(self.eval_env.num_envs)]
+
+        self._terminal_dict["init_distance"] = []
+        self._terminal_dict["init_perp_cosine_sim"] = []
+        self._terminal_dict["init_point_cosine_sim"] = []
+        self._terminal_dict["init_angular_error"] = []
+        self._terminal_dict["pointx"] = []
+        self._terminal_dict["pointy"] = []
+        self._terminal_dict["pointz"] = []
+        self._terminal_dict["or_x"] = []
+        self._terminal_dict["or_y"] = []
+        self._terminal_dict["or_z"] = []
+
+        self._episode_info = {}
+        self._episode_info["is_success"] = []
+        self._episode_info["acceptable_collision"] = []
+        self._episode_info["unacceptable_collision"] = []
+
+        for i in self._reward_dict[0].keys():
+            self._episode_info[i] = []
+        for i in self._info_dict[0].keys():
+            self._episode_info[i] = []
+
+        self._collisions_acceptable_buffer = [[] for i in range(self.eval_env.num_envs)]
+        self._collisions_unacceptable_buffer = [[] for i in range(self.eval_env.num_envs)]
+        # For video
+        self._screens_buffer = [[] for i in range(self.eval_env.num_envs)]
+    def get_results(self):
+        # Reset success rate buffer
+        self._is_success_buffer = []
+        self._screens_buffer = [[] for i in range(self.eval_env.num_envs)]
+        self._collisions_buffer = []
+        self._init_dicts()
+
+        # Evaluate policy
+        print("Evaluating")
+        import time
+        start = time.time()
+        episode_rewards, episode_lengths = evaluate_policy(
+            self.model,
+            self.eval_env,
+            n_eval_episodes=self.n_eval_episodes,
+            render=self.render,
+            deterministic=self.deterministic,
+            return_episode_rewards=True,
+            warn=self.warn,
+            callback=self._master_callback,
+        )
+
+        end = time.time()
+        print("Evaluation took: ", end-start)
+
+        if self.log_path is not None:
+            self.evaluations_timesteps.append(self.num_timesteps)
+            self.evaluations_results.append(episode_rewards)
+            self.evaluations_length.append(episode_lengths)
+
+            kwargs = {}
+            # Save success log if present
+            if len(self._is_success_buffer) > 0:
+                self.evaluations_successes.append(self._is_success_buffer)
+                kwargs = dict(successes=self.evaluations_successes)
+
+            np.savez(
+                self.log_path,
+                timesteps=self.evaluations_timesteps,
+                results=self.evaluations_results,
+                ep_lengths=self.evaluations_length,
+                **kwargs,
+            )
+        print(self._episode_info)
+        print(self._terminal_dict)
+        episode_info_df = pd.DataFrame(self._episode_info)
+        terminal_info_df = pd.DataFrame(self._terminal_dict)
+        save_df = pd.concat([episode_info_df, terminal_info_df], axis=1)
+        save_df.to_csv("episode_info.csv")
+
+        mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
+        mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
+        self.last_mean_reward = mean_reward
+
+        if self.verbose >= 1:
+            print(f"Eval num_timesteps={self.num_timesteps}, " f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
+            print(f"Episode length: {mean_ep_length:.2f} +/- {std_ep_length:.2f}")
+
+        self.episode_counter = 0
+
 

@@ -227,6 +227,8 @@ class ActorCriticPolicySquashed(BasePolicy):
         self.action_net, self.log_std = self.action_dist.proba_distribution_net(
             latent_dim=latent_dim_pi, log_std_init=self.log_std_init
         )
+        print("LOG STD INIT: ", self.log_std_init)
+        print("LOG STD: ", self.log_std)
         # multiply action net weight by 10
         # self.action_net.weight.data *= 10
         # if isinstance(self.action_dist, DiagGaussianDistribution):
@@ -564,10 +566,18 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         return x
 
     # Load running_mean_std from pkl file
+    # class CPU_Unpickler(pickle.Unpickler):
+    #
+    #     def find_class(self, module, name):
+    #         import io
+    #         if module == 'torch.storage' and name == '_load_from_bytes':
+    #             return lambda b: th.load(io.BytesIO(b), map_location='cpu')
+    #         else:
+    #             return super().find_class(module, name)
     def load_running_mean_std_from_file(self, path):
         with open(path, 'rb') as f:
             self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = pickle.load(f)
-
+            # self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = RecurrentActorCriticPolicy.CPU_Unpickler(f).load()
     def _build_mlp_extractor(self) -> None:
         """
         Create the policy and value networks.
@@ -695,8 +705,9 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         # Add running mean and var
         # TODO: compute depth proxy here
         depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
-        self.running_mean_var_oflow_x.update(depth_proxy[:, 0, :, :].reshape(depth_proxy.shape[0], -1))
-        self.running_mean_var_oflow_y.update(depth_proxy[:, 1, :, :].reshape(depth_proxy.shape[0], -1))
+        if self.training:
+            self.running_mean_var_oflow_x.update(depth_proxy[:, 0, :, :].reshape(depth_proxy.shape[0], -1))
+            self.running_mean_var_oflow_y.update(depth_proxy[:, 1, :, :].reshape(depth_proxy.shape[0], -1))
         image_features = self.features_extractor(
             self._normalize_using_running_mean_std(depth_proxy, (self.running_mean_var_oflow_x,
                                                                  self.running_mean_var_oflow_y)))
