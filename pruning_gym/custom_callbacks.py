@@ -1,4 +1,4 @@
-#Fix this file by subclassing
+#TODO: Fix this file by subclassing
 
 import pickle
 
@@ -755,7 +755,7 @@ class CustomResultCallback(EventCallback):
         return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos
 
     def _make_dataset(self):
-        # Sample orientation uniformly from key in or_bins
+        # Make this dataset to sample all orientations, and 10 random required_point_pos for each orientation
         num_or = 40
         or_list = []
         #choose every total//num_or orientations
