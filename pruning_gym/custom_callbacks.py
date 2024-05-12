@@ -354,17 +354,25 @@ class CustomEvalCallback(EventCallback):
 
     def _make_dataset(self):
         # Sample orientation uniformly from key in or_bins
-        num_or = 40
-        or_list = []
-        # choose every total//num_or orientations
-        total_orientations = len(self.or_bins.keys())
-        for i, orientation in enumerate(self.or_bins.keys()):
-            if i % (total_orientations // num_or) == 0:
-                or_list.append(orientation)
+        lat_range = (-85, 95)
+        lon_range = (-175, 185)
+
+        # Number of bins
+        num_bins = 36
+        num_bins_per_axis = int(np.sqrt(num_bins))
+        lat_step = int(lat_range[1] - lat_range[0]) / num_bins_per_axis
+        lon_step = int(lon_range[1] - lon_range[0]) / num_bins_per_axis
+
+        # Create the bins
+        lat_bins = np.arange(lat_range[0], lat_range[1], lat_step, dtype=int)
+        lon_bins = np.arange(lon_range[0], lon_range[1], lon_step, dtype=int)
+        # Make a grid
+        lat_grid, lon_grid = np.meshgrid(lat_bins, lon_bins)
+        or_list = list(zip(lat_grid.flatten(), lon_grid.flatten()))
         dataset = []
         for i in range(self.n_eval_episodes):
             while True:
-                orientation = or_list[i % num_or]
+                orientation = or_list[i % num_bins]
                 if len(self.or_bins[orientation]) == 0:
                     print("No trees in orientation", orientation)
                     continue
@@ -714,8 +722,11 @@ class CustomResultCallback(EventCallback):
         self.evaluations_successes = []
 
 
-        self._reward_dict = {}
-        self._info_dict = {}
+        self._reward_dict_temp = {}
+        self._info_dict_temp = {}
+        self._reward_dict_list = []
+        self._info_dict_list = []
+
         self._terminal_dict = {}
 
 
@@ -756,33 +767,45 @@ class CustomResultCallback(EventCallback):
 
     def _make_dataset(self):
         # Make this dataset to sample all orientations, and 10 random required_point_pos for each orientation
-        num_or = 40
-        or_list = []
-        #choose every total//num_or orientations
-        total_orientations = len(self.or_bins.keys())
-        for i, orientation in enumerate(self.or_bins.keys()):
-            if i % (total_orientations // num_or) == 0:
-                or_list.append(orientation)
+        lat_range = (-85, 95)
+        lon_range = (-175, 185)
+
+        # Number of bins
+        num_bins = 36
+        num_bins_per_axis = int(np.sqrt(num_bins))
+        lat_step = int(lat_range[1] - lat_range[0]) / num_bins_per_axis
+        lon_step = int(lon_range[1] - lon_range[0]) / num_bins_per_axis
+
+        # Create the bins
+        lat_bins = np.arange(lat_range[0], lat_range[1], lat_step, dtype=int)
+        lon_bins = np.arange(lon_range[0], lon_range[1], lon_step, dtype=int)
+        #Make a grid
+        lat_grid, lon_grid = np.meshgrid(lat_bins, lon_bins)
+        or_list = list(zip(lat_grid.flatten(), lon_grid.flatten()))
+        print("Orientation list", or_list)
+        print(self.or_bins.keys())
+        num_points_per_or = 2
         dataset = []
         for i in range(self.n_eval_episodes):
-            while True:
-                orientation = or_list[i % num_or]
-                if len(self.or_bins[orientation]) == 0:
-                    print("No trees in orientation", orientation)
-                    continue
-                tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
-                required_point_pos = random.choice(self.reachable_euclidean_grid)
+            for j in range(num_points_per_or):
+                while True:
+                    orientation = or_list[i % num_bins]
+                    if len(self.or_bins[orientation]) == 0:
+                        print("No trees in orientation", orientation)
+                        continue
+                    tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
+                    required_point_pos = random.choice(self.reachable_euclidean_grid)
 
-                current_point_pos = random_point[0]
-                current_branch_or = random_point[1]
-                offset = np.random.uniform(-0.025, 0.025, 3)
-                delta_tree_pos = np.array(required_point_pos) - np.array(current_point_pos) + offset
-                final_point_pos = np.array(current_point_pos) + delta_tree_pos
-                # print(orientation, final_point_pos)
-                if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
-                    continue
-                dataset.append((tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos))
-                break
+                    current_point_pos = random_point[0]
+                    current_branch_or = random_point[1]
+                    offset = np.random.uniform(-0.025, 0.025, 3)
+                    delta_tree_pos = np.array(required_point_pos) - np.array(current_point_pos) + offset
+                    final_point_pos = np.array(current_point_pos) + delta_tree_pos
+                    # print(orientation, final_point_pos)
+                    if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
+                        continue
+                    dataset.append((tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos))
+                    break
         return dataset
 
     def update_tree_properties(self, info, idx, name):
@@ -817,8 +840,8 @@ class CustomResultCallback(EventCallback):
         i = locals_['i']
         #add to buffers
 
-        for key in self._reward_dict[i].keys():
-            self._reward_dict[i][key].append(infos[key])
+        for key in self._reward_dict_list[i].keys():
+            self._reward_dict_list[i][key].append(infos[key])
 
         return True
 
@@ -827,8 +850,8 @@ class CustomResultCallback(EventCallback):
         i = locals_['i']
         if infos["TimeLimit.truncated"] or infos['is_success']:
             print("Logging final metrics")
-            for key in self._info_dict[i].keys():
-                self._info_dict[i][key].append(infos[key])
+            for key in self._info_dict_list[i].keys():
+                self._info_dict_list[i][key].append(infos[key])
             self._terminal_dict["init_distance"].append(self.eval_env.get_attr("init_distance", i)[0])
             self._terminal_dict["init_perp_cosine_sim"].append(self.eval_env.get_attr("init_perp_cosine_sim", i)[0])
             self._terminal_dict["init_point_cosine_sim"].append(self.eval_env.get_attr("init_point_cosine_sim", i)[0])
@@ -843,21 +866,26 @@ class CustomResultCallback(EventCallback):
             self._terminal_dict["or_z"].append(branch_or[2])
 
 
-            for key, value in self._reward_dict[i].items():
+            for key, value in self._reward_dict_list[i].items():
                 self._episode_info[key].append(np.mean(value))
-            for key, value in self._info_dict[i].items():
+            for key, value in self._info_dict_list[i].items():
                 self._episode_info[key].append(value[0])
+
             self._episode_info["acceptable_collision"].append(np.mean(self._collisions_acceptable_buffer[i]))
             self._episode_info["unacceptable_collision"].append(np.mean(self._collisions_unacceptable_buffer[i]))
             self._episode_info['is_success'].append(infos['is_success'])
             #Save video
+
             observation_info = self.eval_env.get_attr("observation_info", i)[0]
-            imageio.mimsave("results/{}.gif".format(observation_info["desired_pos"]), self._screens_buffer[i])
+            tree_goal_pos = self.eval_env.get_attr("tree_goal_pos", i)[0]
+            imageio.mimsave("results/{}_{}.gif".format(observation_info["desired_pos"], tree_goal_pos), self._screens_buffer[i])
             self._screens_buffer[i] = []
             self._collisions_acceptable_buffer[i] = []
             self._collisions_unacceptable_buffer[i] = []
-            self._reward_dict[i] = {}
-            self._info_dict[i] = {}
+            for key in self._reward_dict_list[i].keys():
+                self._reward_dict_list[i][key] = []
+            for key in self._info_dict_list[i].keys():
+                self._info_dict_list[i][key] = []
 
     def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         """
@@ -916,25 +944,27 @@ class CustomResultCallback(EventCallback):
         #change tree jere
 
     def _init_dicts(self):
-        self._reward_dict["movement_reward"] = []
-        self._reward_dict["distance_reward"] = []
-        self._reward_dict["terminate_reward"] = []
-        self._reward_dict["collision_acceptable_reward"] = []
-        self._reward_dict["collision_unacceptable_reward"] = []
-        self._reward_dict["slack_reward"] = []
-        self._reward_dict["condition_number_reward"] = []
-        self._reward_dict["velocity_reward"] = []
-        self._reward_dict["perpendicular_orientation_reward"] = []
-        self._reward_dict["pointing_orientation_reward"] = []
+        _reward_dict = {}
+        _reward_dict["movement_reward"] = []
+        _reward_dict["distance_reward"] = []
+        _reward_dict["terminate_reward"] = []
+        _reward_dict["collision_acceptable_reward"] = []
+        _reward_dict["collision_unacceptable_reward"] = []
+        _reward_dict["slack_reward"] = []
+        _reward_dict["condition_number_reward"] = []
+        _reward_dict["velocity_reward"] = []
+        _reward_dict["perpendicular_orientation_reward"] = []
+        _reward_dict["pointing_orientation_reward"] = []
 
-        self._reward_dict = [copy.deepcopy(self._reward_dict) for i in range(self.eval_env.num_envs)]
+        self._reward_dict_list = [copy.deepcopy(_reward_dict) for i in range(self.eval_env.num_envs)]
 
-        self._info_dict["pointing_cosine_sim_error"] = []
-        self._info_dict["perpendicular_cosine_sim_error"] = []
-        self._info_dict["euclidean_error"] = []
-        self._info_dict['velocity'] = []
+        _info_dict = {}
+        _info_dict["pointing_cosine_sim_error"] = []
+        _info_dict["perpendicular_cosine_sim_error"] = []
+        _info_dict["euclidean_error"] = []
+        _info_dict['velocity'] = []
 
-        self._info_dict = [copy.deepcopy(self._info_dict) for i in range(self.eval_env.num_envs)]
+        self._info_dict_list = [copy.deepcopy(_info_dict) for i in range(self.eval_env.num_envs)]
 
         self._terminal_dict["init_distance"] = []
         self._terminal_dict["init_perp_cosine_sim"] = []
@@ -952,9 +982,9 @@ class CustomResultCallback(EventCallback):
         self._episode_info["acceptable_collision"] = []
         self._episode_info["unacceptable_collision"] = []
 
-        for i in self._reward_dict[0].keys():
+        for i in _reward_dict.keys():
             self._episode_info[i] = []
-        for i in self._info_dict[0].keys():
+        for i in _info_dict.keys():
             self._episode_info[i] = []
 
         self._collisions_acceptable_buffer = [[] for i in range(self.eval_env.num_envs)]
@@ -1006,6 +1036,10 @@ class CustomResultCallback(EventCallback):
             )
         print(self._episode_info)
         print(self._terminal_dict)
+        for i in self._episode_info.keys():
+            print(i, len(self._episode_info[i]))
+        for i in self._terminal_dict.keys():
+            print(i, len(self._terminal_dict[i]))
         episode_info_df = pd.DataFrame(self._episode_info)
         terminal_info_df = pd.DataFrame(self._terminal_dict)
         save_df = pd.concat([episode_info_df, terminal_info_df], axis=1)

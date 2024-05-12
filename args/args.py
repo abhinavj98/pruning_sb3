@@ -8,7 +8,7 @@ args = {
         },
         'n_eval_episodes': {
             'type': int,
-            'default': 40,
+            'default': 72,
             'help': 'number of episodes to run during evaluation'
         },
     },

@@ -566,18 +566,21 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         return x
 
     # Load running_mean_std from pkl file
-    # class CPU_Unpickler(pickle.Unpickler):
-    #
-    #     def find_class(self, module, name):
-    #         import io
-    #         if module == 'torch.storage' and name == '_load_from_bytes':
-    #             return lambda b: th.load(io.BytesIO(b), map_location='cpu')
-    #         else:
-    #             return super().find_class(module, name)
+    class CPU_Unpickler(pickle.Unpickler):
+
+        def find_class(self, module, name):
+            import io
+            if module == 'torch.storage' and name == '_load_from_bytes':
+                return lambda b: th.load(io.BytesIO(b), map_location='cpu')
+            else:
+                return super().find_class(module, name)
     def load_running_mean_std_from_file(self, path):
         with open(path, 'rb') as f:
-            self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = pickle.load(f)
-            # self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = RecurrentActorCriticPolicy.CPU_Unpickler(f).load()
+            if sys.platform == 'darwin':
+                self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = RecurrentActorCriticPolicy.CPU_Unpickler(f).load()
+            else:
+                self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = pickle.load(f)
+
     def _build_mlp_extractor(self) -> None:
         """
         Create the policy and value networks.
