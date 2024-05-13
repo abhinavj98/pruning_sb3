@@ -46,6 +46,7 @@ if __name__ == "__main__":
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_record = dict(args_test, **parsed_args_dict['args_record'])
 
+
     data_env_test = PruningEnv(**args_test, make_trees=True)
     or_bins_test = Tree.create_bins(18, 36)
     for key in or_bins_test.keys():
@@ -55,7 +56,7 @@ if __name__ == "__main__":
     #Shuffle the data inside the bisn
     for key in or_bins_test.keys():
         random.shuffle(or_bins_test[key])
-
+    args_train["n_eval_episodes"] = len(or_bins_test.keys())
     eval_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=8)
     # Use deterministic actions for evaluation
     eval_callback = CustomResultCallback(eval_env,  best_model_save_path="../logs/test",

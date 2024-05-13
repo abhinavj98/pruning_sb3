@@ -771,7 +771,7 @@ class CustomResultCallback(EventCallback):
         lon_range = (-175, 185)
 
         # Number of bins
-        num_bins = 36
+        num_bins = 648
         num_bins_per_axis = int(np.sqrt(num_bins))
         lat_step = int(lat_range[1] - lat_range[0]) / num_bins_per_axis
         lon_step = int(lon_range[1] - lon_range[0]) / num_bins_per_axis
@@ -784,7 +784,7 @@ class CustomResultCallback(EventCallback):
         or_list = list(zip(lat_grid.flatten(), lon_grid.flatten()))
         print("Orientation list", or_list)
         print(self.or_bins.keys())
-        num_points_per_or = 2
+        num_points_per_or = 10
         dataset = []
         for i in range(self.n_eval_episodes):
             for j in range(num_points_per_or):
