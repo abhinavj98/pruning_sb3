@@ -282,7 +282,13 @@ class Tree:
             labels = [self.transformed_vertices[ab[0]][1], self.transformed_vertices[ab[1]][1],
                       self.transformed_vertices[ac[0]][1], self.transformed_vertices[ac[1]][1],
                       self.transformed_vertices[bc[0]][1], self.transformed_vertices[bc[1]][1]]
-            label = max(set(labels), key=labels.count)
+
+            # If all three vertices are the same label, assign that label
+            # else assign label "JOINT"
+            if len(set(labels)) == 1:
+                label = labels[0]
+            else:
+                label = "JOINT"
 
             if label != "SPUR" and label != "WATER_BRANCH":
                 continue

@@ -65,7 +65,7 @@ def plot_violin(df, x, label, title, val):
 #     plt.show()
 
 if __name__ == '__main__':
-    file_path = '../reward.csv'
+    file_path = 'episode_info.csv'
     df = read_csv_file(file_path)
     df['init_point_cosine_sim_abs'] = df['init_point_cosine_sim'].abs()
     df['init_perp_cosine_sim_abs'] = df['init_perp_cosine_sim'].abs()
