@@ -51,6 +51,7 @@ if __name__ == "__main__":
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_record = dict(args_test, **parsed_args_dict['args_record'])
     args_policy = parsed_args_dict['args_policy']
+    args_callback = parsed_args_dict['args_callback']
 
     data_env_train = PruningEnv(**args_train, make_trees=True)
     or_bins_train = Tree.create_bins(18, 36)
@@ -75,17 +76,17 @@ if __name__ == "__main__":
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
-    eval_env = make_vec_env(PruningEnv, env_kwargs=args_test, vec_env_cls=SubprocVecEnv, n_envs=4)
-    record_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=1)
-    eval_env.logger = new_logger
+    # eval_env = make_vec_env(PruningEnv, env_kwargs=args_test, vec_env_cls=SubprocVecEnv, n_envs=4)
+    # record_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=1)
+    # eval_env.logger = new_logger
     # Use deterministic actions for evaluation
-    eval_callback = CustomEvalCallback(eval_env, record_env, best_model_save_path="./logs/{}".format(args_global['run_name']),
-                                       log_path="./logs/{}".format(args_global['run_name']),
-                                       deterministic=True, render=False, or_bins=or_bins_test, **parsed_args_dict['args_callback'])
+    # eval_callback = CustomEvalCallback(eval_env, record_env, best_model_save_path="./logs/{}".format(args_global['run_name']),
+    #                                    log_path="./logs/{}".format(args_global['run_name']),
+    #                                    deterministic=True, render=False, or_bins=or_bins_test, **parsed_args_dict['args_callback'])
     # It will check your custom environment and output additional warnings if needed
     # check_env(env)
 
-    train_callback = CustomTrainCallback(or_bins=or_bins_train)
+    train_callback = CustomTrainCallback(or_bins=or_bins_train, eval_freq=args_callback['eval_freq'], best_model_save_path="./logs/{}".format(args_global['run_name']))
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
@@ -141,4 +142,4 @@ if __name__ == "__main__":
 
     # env.reset()
     print(model.policy.log_std)
-    model.learn(args_policy['total_timesteps'], callback=[train_callback, eval_callback], progress_bar=False, reset_num_timesteps=False)
+    model.learn(args_policy['total_timesteps'], callback=[train_callback], progress_bar=False, reset_num_timesteps=False)
