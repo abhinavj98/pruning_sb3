@@ -46,6 +46,7 @@ if __name__ == "__main__":
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_record = dict(args_test, **parsed_args_dict['args_record'])
     args_policy = parsed_args_dict['args_policy']
+    args_callback = parsed_args_dict['args_callback']
     print(args_train)
     # Make an environment as usual
     data_env_train = PruningEnv(**args_train, make_trees=True)
@@ -76,16 +77,16 @@ if __name__ == "__main__":
     record_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=1)
     eval_env.logger = new_logger
     # Use deterministic actions for evaluation
-    eval_callback = CustomEvalCallback(eval_env, record_env,
-                                       best_model_save_path="./logs/{}".format(args_global['run_name']),
-                                       log_path="./logs/{}".format(args_global['run_name']),
-                                       deterministic=True, render=False, or_bins=or_bins_test,
-                                       **parsed_args_dict['args_callback'])
+    # eval_callback = CustomEvalCallback(eval_env, record_env,
+    #                                    best_model_save_path="./logs/{}".format(args_global['run_name']),
+    #                                    log_path="./logs/{}".format(args_global['run_name']),
+    #                                    deterministic=True, render=False, or_bins=or_bins_test,
+    #                                    **parsed_args_dict['args_callback'])
     # It will check your custom environment and output additional warnings if needed
     # check_env(env)
 
     # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
-    train_callback = CustomTrainCallback(or_bins=or_bins_train)
+    train_callback = CustomTrainCallback(or_bins=or_bins_train, eval_freq=args_callback['eval_freq'], best_model_save_path="./logs/{}".format(args_global['run_name']))
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
@@ -134,4 +135,4 @@ if __name__ == "__main__":
     print("Optical flow on device: ", model.policy.optical_flow_model.device)
     print("Using device: ", utils.get_device())
 
-    model.learn(10000000, callback=[train_callback, eval_callback], progress_bar=False, reset_num_timesteps=False)
+    model.learn(10000000, callback=[train_callback], progress_bar=False, reset_num_timesteps=False)

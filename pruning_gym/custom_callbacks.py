@@ -19,7 +19,7 @@ import random
 import pandas as pd
 import imageio
 import copy
-
+import math
 def get_reachable_euclidean_grid(radius, resolution):
     num_bins = int(radius / resolution) * 2
     base_center = np.array([0, 0, 0.91])
@@ -43,13 +43,104 @@ def get_reachable_euclidean_grid(radius, resolution):
 
     # valid_centers = np.array(valid_centers)
     return valid_centers
+
+def rand_direction_vector(deflection=1.0, randnums=None):
+    """
+    Creates a random rotation matrix.
+
+    deflection: the magnitude of the rotation. For 0, no rotation; for 1, competely random
+    rotation. Small deflection => small perturbation.
+    randnums: 3 random numbers in the range [0, 1]. If `None`, they will be auto-generated.
+    """
+    # from http://www.realtimerendering.com/resources/GraphicsGems/gemsiii/rand_rotation.c
+
+    if randnums is None:
+        randnums = np.random.uniform(size=(3,))
+
+    theta, phi, z = randnums
+
+    theta = theta * 2.0 * deflection * np.pi  # Rotation about the pole (Z).
+    phi = phi * 2.0 * np.pi  # For direction of pole deflection.
+    z = z * 2.0 * deflection  # For magnitude of pole deflection.
+
+    # Compute a vector V used for distributing points over the sphere
+    # via the reflection I - V Transpose(V).  This formulation of V
+    # will guarantee that if x[1] and x[2] are uniformly distributed,
+    # the reflected points will be uniform on the sphere.  Note that V
+    # has length sqrt(2) to eliminate the 2 in the Householder matrix.
+
+    r = np.sqrt(z)
+    Vx, Vy, Vz = V = (
+        np.sin(phi) * r,
+        np.cos(phi) * r,
+        np.sqrt(2.0 - z)
+    )
+
+    st = np.sin(theta)
+    ct = np.cos(theta)
+
+    R = np.array(((ct, st, 0), (-st, ct, 0), (0, 0, 1)))
+
+    # Construct the rotation matrix  ( V Transpose(V) - I ) R.
+
+    M = (np.outer(V, V) - np.eye(3)).dot(R)
+    # convert M to euler angles
+    return M@[0,0,1]
+
+    return M
+
+def fibonacci_sphere(samples=1000):
+
+    points = []
+    phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
+
+    for i in range(samples):
+        y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
+        radius = math.sqrt(1 - y * y)  # radius at y
+
+        theta = phi * i  # golden angle increment
+
+        x = math.cos(theta) * radius
+        z = math.sin(theta) * radius
+
+        points.append((x, y, z))
+
+    return points
+def roundup(x):
+    return math.ceil(x / 10.0) * 10
+
+def rounddown(x):
+    return math.floor(x / 10.0) * 10
+
+def get_bin_from_orientation(orientation):
+    offset = 1e-4
+    orientation = orientation / np.linalg.norm(orientation)
+    lat_angle = np.rad2deg(np.arcsin(orientation[2])) + offset
+    lon_angle = np.rad2deg(np.arctan2(orientation[1], orientation[0])) + offset
+    lat_angle_min = rounddown(lat_angle)
+    lat_angle_max = roundup(lat_angle)
+    lon_angle_min = rounddown(lon_angle)
+    lon_angle_max = roundup(lon_angle)
+    bin_key = (round((lat_angle_min + lat_angle_max) / 2), round((lon_angle_min + lon_angle_max) / 2))
+    # if bin_key[0] not in between -85 and 85 set as 85 or -85
+    # if bin_keyp[1] not in between -175 and 175 set as 175 or -175
+
+    if bin_key[0] > 85:
+        bin_key = (85, bin_key[1])
+    elif bin_key[0] < -85:
+        bin_key = (-85, bin_key[1])
+    if bin_key[1] > 175:
+        bin_key = (bin_key[0], 175)
+    elif bin_key[1] < -175:
+        bin_key = (bin_key[0], -175)
+    return bin_key
 class CustomTrainCallback(BaseCallback):
     """
     A custom callback that derives from ``BaseCallback``.
 
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
-    def __init__(self, or_bins, verbose=0):
+    def __init__(self, or_bins, eval_freq, best_model_save_path, verbose=0):
      
         super(CustomTrainCallback, self).__init__(verbose)
         # Those variables will be accessible in the callback
@@ -80,6 +171,9 @@ class CustomTrainCallback(BaseCallback):
         self.delta_pos_min = np.array([-1, -0.9525, -2])
         self.reachable_euclidean_grid = get_reachable_euclidean_grid(0.95, 0.05)
 
+        self.eval_freq = eval_freq
+        self.best_model_save_path = best_model_save_path
+
 
 
 
@@ -96,9 +190,10 @@ class CustomTrainCallback(BaseCallback):
     def _sample_tree_and_point(self):
             #Sample orientation from key in or_bins
             while True:
-                orientation = random.choice(list(self.or_bins.keys()))
+                rand_vector = rand_direction_vector()
+                orientation = get_bin_from_orientation(rand_vector)
                 if len(self.or_bins[orientation]) == 0:
-                    #print("No trees in orientation", orientation)
+                    print("No trees in orientation", orientation)
                     continue
                 tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
                 required_point_pos = random.choice(self.reachable_euclidean_grid)
@@ -171,7 +266,7 @@ class CustomTrainCallback(BaseCallback):
         for i in range(len(infos)):
             for key in self._reward_dict.keys():
                 self._reward_dict[key].append(infos[i][key])
-            if infos[i]["TimeLimit.truncated"]:
+            if infos[i]["TimeLimit.truncated"] or infos[i]["is_success"]:
                 for key in self._info_dict.keys():
                     self._info_dict[key].append(infos[i][key])
 
@@ -180,6 +275,12 @@ class CustomTrainCallback(BaseCallback):
             #grab screen
             self._screens_buffer.append(self._grab_screen_callback(self.locals, self.globals))
 
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            if self.best_model_save_path is not None:
+                os.makedirs(self.best_model_save_path, exist_ok=True)
+            self.model.save(os.path.join(self.best_model_save_path, "current_model_{}".format(self.num_timesteps)))
+            with open(os.path.join(self.best_model_save_path, "current_mean_std_{}.pkl".format(self.num_timesteps)), "wb") as f:
+                pickle.dump((self.model.policy.running_mean_var_oflow_x, self.model.policy.running_mean_var_oflow_y), f)
         return True
     
     def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
@@ -353,29 +454,17 @@ class CustomEvalCallback(EventCallback):
         return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos
 
     def _make_dataset(self):
-        # Sample orientation uniformly from key in or_bins
-        lat_range = (-85, 95)
-        lon_range = (-175, 185)
-
-        # Number of bins
-        num_bins = 36
-        num_bins_per_axis = int(np.sqrt(num_bins))
-        lat_step = int(lat_range[1] - lat_range[0]) / num_bins_per_axis
-        lon_step = int(lon_range[1] - lon_range[0]) / num_bins_per_axis
-
-        # Create the bins
-        lat_bins = np.arange(lat_range[0], lat_range[1], lat_step, dtype=int)
-        lon_bins = np.arange(lon_range[0], lon_range[1], lon_step, dtype=int)
-        # Make a grid
-        lat_grid, lon_grid = np.meshgrid(lat_bins, lon_bins)
-        or_list = list(zip(lat_grid.flatten(), lon_grid.flatten()))
+        points = fibonacci_sphere(samples=self.n_eval_episodes)
+        # bins = lambda x: get_bin_from_orientation(x), points
+        bins = [get_bin_from_orientation(x) for x in points]
+        num_bins = len(set(bins))
         dataset = []
         for i in range(self.n_eval_episodes):
             while True:
-                orientation = or_list[i % num_bins]
+                orientation = bins[i % num_bins]
                 if len(self.or_bins[orientation]) == 0:
                     print("No trees in orientation", orientation)
-                    continue
+                    break
                 tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
                 required_point_pos = random.choice(self.reachable_euclidean_grid)
 
@@ -760,7 +849,7 @@ class CustomResultCallback(EventCallback):
         if self.dataset is None:
             self.dataset = self._make_dataset()
             print("Dataset made", len(self.dataset))
-        print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
+        # print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
         tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos = self.dataset[self.current_index[idx]]
         self.current_index[idx] = min(self.current_index[idx]+1, self.n_eval_episodes//self.eval_env.num_envs*(idx+1)-1)
         return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos
@@ -771,10 +860,12 @@ class CustomResultCallback(EventCallback):
         lon_range = (-175, 185)
 
         # Number of bins
-        num_bins = 648
-        num_bins_per_axis = int(np.sqrt(num_bins))
-        lat_step = int(lat_range[1] - lat_range[0]) / num_bins_per_axis
-        lon_step = int(lon_range[1] - lon_range[0]) / num_bins_per_axis
+        # num_bins = 648
+        # num_bins_per_axis = int(np.sqrt(num_bins))
+        num_bins_lat = 18
+        num_bins_lon = 36
+        lat_step = int(lat_range[1] - lat_range[0]) // num_bins_lat
+        lon_step = int(lon_range[1] - lon_range[0]) // num_bins_lon
 
         # Create the bins
         lat_bins = np.arange(lat_range[0], lat_range[1], lat_step, dtype=int)
@@ -782,9 +873,8 @@ class CustomResultCallback(EventCallback):
         #Make a grid
         lat_grid, lon_grid = np.meshgrid(lat_bins, lon_bins)
         or_list = list(zip(lat_grid.flatten(), lon_grid.flatten()))
-        print("Orientation list", or_list)
-        print(self.or_bins.keys())
-        num_points_per_or = 10
+        num_bins = len(or_list)
+        num_points_per_or = 5
         dataset = []
         for i in range(self.n_eval_episodes):
             for j in range(num_points_per_or):
@@ -878,7 +968,7 @@ class CustomResultCallback(EventCallback):
 
             observation_info = self.eval_env.get_attr("observation_info", i)[0]
             tree_goal_pos = self.eval_env.get_attr("tree_goal_pos", i)[0]
-            imageio.mimsave("results/{}_{}.gif".format(observation_info["desired_pos"], tree_goal_pos), self._screens_buffer[i])
+            # imageio.mimsave("results/{}_{}.gif".format(observation_info["desired_pos"], tree_goal_pos), self._screens_buffer[i])
             self._screens_buffer[i] = []
             self._collisions_acceptable_buffer[i] = []
             self._collisions_unacceptable_buffer[i] = []
@@ -933,7 +1023,7 @@ class CustomResultCallback(EventCallback):
         self._log_collisions(_locals, _globals)
         self._log_success_callback(_locals, _globals)
         self._log_rewards_callback(_locals, _globals)
-        self._grab_screen_callback(_locals, _globals)
+        # self._grab_screen_callback(_locals, _globals)
         self._log_final_metrics(_locals, _globals)
 
         info = _locals["info"]

@@ -136,9 +136,12 @@ if __name__ == "__main__":
         success_link_pos = env.ur5.get_current_pose(env.ur5.end_effector_index)[0]
         # env.pyb.add_sphere(0.005, success_link_pos, [1, 0, 0, 1])
         observation, reward, terminated, truncated, infos = env.step(val)
+        env.tree_goal_pos = [-0.435, -.988, 0.096+0.91]
         # print(observation['achieved_goal'], observation['desired_goal'])
-
+        # print(env.ur5.init_pos_ee, env.ur5.init_pos_eebase)
         # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
+        # print(env.ur5.get_current_pose(env.ur5.end_effector_index),env.ur5.get_current_pose(env.ur5.success_link_index))
+        print(observation["achieved_goal"], observation["desired_goal"], observation["achieved_or"])
         #get base position and orientation
 
         # print("ee position", env.ur5.get_current_pose(env.ur5.end_effector_index)[0])

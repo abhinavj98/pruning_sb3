@@ -56,8 +56,7 @@ if __name__ == "__main__":
     #Shuffle the data inside the bisn
     for key in or_bins_test.keys():
         random.shuffle(or_bins_test[key])
-    args_train["n_eval_episodes"] = len(or_bins_test.keys())
-    eval_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=8)
+    eval_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=args_global["n_envs"])
     # Use deterministic actions for evaluation
     eval_callback = CustomResultCallback(eval_env,  best_model_save_path="../logs/test",
                                        log_path="../logs/test",
@@ -78,7 +77,7 @@ if __name__ == "__main__":
         "n_lstm_layers": 2,
     }
     policy = RecurrentActorCriticPolicy
-    model = RecurrentPPOAE.load(load_path_model, env=eval_env,  device=th.device('cpu'))#, custom_objects=load_dict)
+    model = RecurrentPPOAE.load(load_path_model, env=eval_env)#, custom_objects=load_dict)
     model.policy.load_running_mean_std_from_file(load_path_mean_std)
     model.num_timesteps = 100000
     model._num_timesteps_at_start = 100000

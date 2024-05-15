@@ -577,8 +577,10 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
     def load_running_mean_std_from_file(self, path):
         with open(path, 'rb') as f:
             if sys.platform == 'darwin':
+                print("MAC")
                 self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = RecurrentActorCriticPolicy.CPU_Unpickler(f).load()
             else:
+                print("NOT MAC")
                 self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = pickle.load(f)
 
     def _build_mlp_extractor(self) -> None:

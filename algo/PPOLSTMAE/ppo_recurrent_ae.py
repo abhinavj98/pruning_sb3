@@ -89,7 +89,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             n_epochs: int = 10,
             gamma: float = 0.99,
             gae_lambda: float = 0.95,
-            clip_range: Union[float, Schedule] = 0.15,
+            clip_range: Union[float, Schedule] = 0.2,
             clip_range_vf: Union[None, float, Schedule] = None,
             normalize_advantage: bool = True,
             ent_coef: float = 0.001,
