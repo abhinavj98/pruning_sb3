@@ -35,12 +35,12 @@ if __name__ == "__main__":
     shared_tree_list_test = []
 
     init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
-
+    load_timestep = 768000
     if parsed_args_dict['args_global']['load_path']:
-        load_path_model = "./logs/{}/current_model.zip".format(
-            parsed_args_dict['args_global']['load_path'])
-        load_path_mean_std = "./logs/{}/current_mean_std.pkl".format(
-            parsed_args_dict['args_global']['load_path'])
+        load_path_model = "./logs/{}/current_model_{}.zip".format(
+            parsed_args_dict['args_global']['load_path'], load_timestep)
+        load_path_mean_std = "./logs/{}/current_mean_std_{}.pkl".format(
+            parsed_args_dict['args_global']['load_path'], load_timestep)
     else:
         load_path_model = None
 
@@ -126,11 +126,11 @@ if __name__ == "__main__":
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
         
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
-        new_log_std = th.ones(6, dtype=th.float32, device=model.device) * -1.
+        #new_log_std = th.ones(6, dtype=th.float32, device=model.device) * -1.
 
-        model.policy.log_std.data = new_log_std
-        model.num_timesteps = 4000000
-        model._num_timesteps_at_start = 4000000
+        #imodel.policy.log_std.data = new_log_std
+        model.num_timesteps = load_timestep
+        model._num_timesteps_at_start = load_timestep
         print("LOADED MODEL")
 
     model.set_logger(new_logger)

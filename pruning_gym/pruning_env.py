@@ -33,7 +33,7 @@ class PruningEnv(gym.Env):
 
     def __init__(self, tree_urdf_path: str, tree_obj_path: str, tree_labelled_path: str, renders: bool = False,
                  max_steps: int = 500,
-                 distance_threshold: float = 0.05, angle_threshold_perp: float = 0.3, angle_threshold_point: float = 0.3,
+                 distance_threshold: float = 0.05, angle_threshold_perp: float = 0.52, angle_threshold_point: float = 0.52,
                  tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
                  algo_width: int = 224, algo_height: int = 224,
                  evaluate: bool = False, num_points: Optional[int] = None, action_dim: int = 12,
