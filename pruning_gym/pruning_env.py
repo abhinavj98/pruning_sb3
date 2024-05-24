@@ -19,7 +19,11 @@ from .reward_utils import Reward
 from skimage.draw import disk
 from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH, ROBOT_URDF_PATH, SUPPORT_AND_POST_PATH
 import copy
+from scipy.spatial.transform import Rotation as R
 
+import pybullet_planning as pp
+from pybullet_planning.interfaces.planner_interface.joint_motion_planning import get_sample_fn, get_extend_fn, get_distance_fn
+from pybullet_planning.interfaces.robots import get_collision_fn
 
 class PruningEnv(gym.Env):
     """
@@ -242,7 +246,6 @@ class PruningEnv(gym.Env):
         self.observation_info = dict()
         self.prev_observation_info: dict = dict()
 
-    def set_tree_properties(self, tree_urdf, point_pos, point_branch_or, tree_orientation, tree_scale, tree_pos,):
     def set_tree_properties(self, tree_urdf, point_pos, point_branch_or, tree_orientation, tree_scale, tree_pos, point_branch_normal):
         self.tree_urdf = tree_urdf
         self.tree_goal_pos = point_pos
@@ -346,6 +349,7 @@ class PruningEnv(gym.Env):
         # Add debug branch and point
         """Display red line as point"""
 
+
         self.set_extended_observation()
         info = dict()  # type: ignore
         self.reset_counter += 1
@@ -363,8 +367,8 @@ class PruningEnv(gym.Env):
 
     def activate_tree(self, pyb):
         print("activating tree")
-        assert self.tree_id is None
-        assert self.supports is None
+        # assert self.tree_id is None
+        # assert self.supports is None
         print('Loading tree from ', self.tree_urdf)
         self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [self.tree_pos[0], self.tree_pos[1]-0.05, 0.0],
                                          list(pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
@@ -373,12 +377,12 @@ class PruningEnv(gym.Env):
                                         globalScaling=self.tree_scale)
 
     def inactivate_tree(self, pyb):
-        assert self.tree_id is not None
-        assert self.supports is not None
+        # assert self.tree_id is not None
+        # assert self.supports is not None
         pyb.con.removeBody(self.tree_id)
         pyb.con.removeBody(self.supports)
-        self.tree_id = None
-        self.supports = None
+        # self.tree_id = None
+        # self.supports = None
 
     def force_time_limit(self):
         """Force time limit"""
@@ -698,14 +702,16 @@ class PruningEnv(gym.Env):
 
     def is_state_successful(self, achieved_pos, desired_pos, orientation_perp_value, orientation_point_value):
         terminated = False
+        #TODO: Success only if the collision is in the branch plane
         is_success_collision = self.ur5.check_success_collision(self.tree_id)
         dist_from_target = np.linalg.norm(achieved_pos - desired_pos)
         if is_success_collision and dist_from_target < self.distance_threshold:
             if (orientation_perp_value > self.angle_threshold_perp_cosine) and (
                     orientation_point_value > self.angle_threshold_point_cosine):
                 terminated = True
-
+                print("Success")
         return terminated
+
 
     def log_collision_info(self, collision_info):
         if collision_info['collisions_acceptable']:
@@ -713,4 +719,92 @@ class PruningEnv(gym.Env):
         elif collision_info['collisions_unacceptable']:
             self.collisions_unacceptable += 1
 
+    def generate_goal_pos(self):
+        forward = -self.tree_goal_normal/np.linalg.norm(self.tree_goal_normal)
+        up = self.tree_goal_or/np.linalg.norm(self.tree_goal_or)
+        right = np.cross(forward, up)
+        # Get a vector in plane of up and right using linear combination
+        rotation_matrix = np.column_stack((up, right, forward))
+        rotation_matrix = R.from_matrix(rotation_matrix).as_matrix()
+        rotation_axis = rotation_matrix[:, 0]
+        rotation_angle = np.random.uniform(0, 2*np.pi)
+        random_rotation = R.from_rotvec(rotation_angle * rotation_axis).as_matrix()
+        rotation_matrix = random_rotation @ rotation_matrix
+        r = R.from_matrix(rotation_matrix)
+        quaternion = r.as_quat()
+        return quaternion, forward, rotation_matrix
+
+    def get_different_ik_results(self, num_solutions=1, total_attempts=50):
+        solutions = []
+        collision = False
+        attempts = 0
+        import time
+        while len(solutions) < num_solutions and attempts < total_attempts:
+            orientation, forward, rot = self.generate_goal_pos()
+            init_vec = np.array([0, 0, 1])
+            init_vec = rot @ init_vec
+            goal = self.tree_goal_pos - 0.03 * init_vec
+
+            self.inactivate_tree(self.pyb)
+
+            initial_guess = np.random.uniform(low=-np.pi, high=np.pi, size=len(self.ur5.control_joints))
+            self.ur5.set_joint_angles(initial_guess)
+            for j in range(100):
+                self.pyb.con.stepSimulation()
+
+            joint_angles = self.ur5.calculate_ik(goal, orientation)
+            self.ur5.set_joint_angles(joint_angles)
+            for j in range(100):
+                self.pyb.con.stepSimulation()
+                time.sleep(0.01)
+
+            self.activate_tree(self.pyb)
+
+            self.pyb.con.stepSimulation()
+            if self.ur5.check_collisions(self.tree_id, self.supports)[0]:
+                collision = True
+            if not collision:
+                solutions.append((joint_angles, goal, orientation))
+            self.ur5.remove_ur5_robot()
+            self.ur5.setup_ur5_arm()
+
+            attempts += 1
+        return solutions
+    def run_rrt_connect(self):
+        solutions = self.get_different_ik_results()
+        tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
+                     self.tree_pos, self.tree_goal_normal]
+
+        if not solutions:
+            print("No valid solutions found")
+            return None, tree_info, None
+        start = self.ur5.get_joint_angles()
+        goal, goal_pos, goal_or = solutions[0]
+        self.inactivate_tree(self.pyb)
+        self.ur5.remove_ur5_robot()
+        self.ur5.setup_ur5_arm()
+        self.activate_tree(self.pyb)
+
+
+
+        controllable_joints = [3, 4, 5, 6, 7, 8]
+        distance_fn = get_distance_fn(self.ur5.ur5_robot, controllable_joints)
+        sample_position = get_sample_fn(self.ur5.ur5_robot, controllable_joints)
+        extend_fn = get_extend_fn(self.ur5.ur5_robot, controllable_joints)
+        collision_fn = get_collision_fn(self.ur5.ur5_robot, controllable_joints, [self.tree_id, self.supports])
+
+        path = pp.rrt_connect(start, goal, distance_fn, sample_position, extend_fn, collision_fn)#, max_time = 60, max_iterations = 100)
+        if path is None:
+            print("no path found")
+            return None, tree_info, None
+        # terminate = False
+        #
+        # while not (terminate):
+        #     env.step([d_vec[0] / 100, d_vec[1] / 100, d_vec[2] / 100, 0, 0, 0])
+        #     env.con.stepSimulation()
+        #     terminate, success_info = env.is_task_done()
+        #     # print(env.orientation_point_value, env.orientation_perp_value, env.target_dist, env.check_success_collision())
+        #     if terminate:
+        #         print(success_info)
+        return (path, tree_info, goal_or)
 
