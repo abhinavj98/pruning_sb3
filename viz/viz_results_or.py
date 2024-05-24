@@ -38,7 +38,28 @@ parsed_args_dict = organize_args(parsed_args)
 
 # %%
 import math
+def get_bin_from_orientation(orientation):
+    offset = 1e-4
+    orientation = orientation / np.linalg.norm(orientation)
+    lat_angle = np.rad2deg(np.arcsin(orientation[2])) + offset
+    lon_angle = np.rad2deg(np.arctan2(orientation[1], orientation[0])) + offset
+    lat_angle_min = rounddown(lat_angle)
+    lat_angle_max = roundup(lat_angle)
+    lon_angle_min = rounddown(lon_angle)
+    lon_angle_max = roundup(lon_angle)
+    bin_key = (round((lat_angle_min + lat_angle_max) / 2), round((lon_angle_min + lon_angle_max) / 2))
+    # if bin_key[0] not in between -85 and 85 set as 85 or -85
+    # if bin_keyp[1] not in between -175 and 175 set as 175 or -175
 
+    if bin_key[0] > 85:
+        bin_key = (85, bin_key[1])
+    elif bin_key[0] < -85:
+        bin_key = (-85, bin_key[1])
+    if bin_key[1] > 175:
+        bin_key = (bin_key[0], 175)
+    elif bin_key[1] < -175:
+        bin_key = (bin_key[0], -175)
+    return bin_key
 
 def roundup(x):
     return math.ceil(x / 10.0) * 10
@@ -88,7 +109,7 @@ def angle_between_vectors(v1, v2):
     return np.arccos(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
 
 
-def populate_bins(direction_vectors, bins, df, idx_name):
+def populate_bins(bins, df, idx_name):
     """
     Populate the bins based on a list of direction vectors.
 
@@ -104,17 +125,26 @@ def populate_bins(direction_vectors, bins, df, idx_name):
     orientations = df[['or_x', 'or_y', 'or_z']]
     # Normalize the orientation data
     orientations = orientations / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
+    print(orientations)
+    offset = 1e-3
     for i, direction_vector in enumerate(orientations.values):
-        lat_angle = np.rad2deg(np.arcsin(direction_vector[2]))
-        lon_angle = np.rad2deg(np.arctan2(direction_vector[1], direction_vector[0]))
+        lat_angle = np.rad2deg(np.arcsin(direction_vector[2]))+offset
+        lon_angle = np.rad2deg(np.arctan2(direction_vector[1], direction_vector[0]))+offset
         lat_angle_min = rounddown(lat_angle)
         lat_angle_max = roundup(lat_angle)
         lon_angle_min = rounddown(lon_angle)
         lon_angle_max = roundup(lon_angle)
-        bin_key = ((lat_angle_min + lat_angle_max) / 2, (lon_angle_min + lon_angle_max) / 2)
+        bin_key = (round((lat_angle_min + lat_angle_max) / 2), round((lon_angle_min + lon_angle_max) / 2))
+        if bin_key[0] > 85:
+            bin_key = (85, bin_key[1])
+        elif bin_key[0] < -85:
+            bin_key = (-85, bin_key[1])
+        if bin_key[1] > 175:
+            bin_key = (bin_key[0], 175)
+        elif bin_key[1] < -175:
+            bin_key = (bin_key[0], -175)
         #append perp_cosine_sim_error to the bin
         bins[bin_key].append((df[idx_name][i]))
-        print(bins[bin_key], df[idx_name][i])
 
         # Find the closest bin based on latitude and longitude angles
         #
@@ -278,42 +308,44 @@ df = pd.read_csv('episode_info.csv')
 orientations = df[['or_x', 'or_y', 'or_z']]
 
 # Normalize the orientation data
-orientations = orientations / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
+# orientations = orientations / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
 dataset = []
 # for i in range(36):
 #     randnums = np.random.uniform(size=(3,))
 #     dataset.append(rand_rotation_matrix(1.0, randnums))
 # dataset = np.array(dataset)
 
-num_bins = 72
-lat_range = (-85, 95)
-lon_range = (-175, 185)
-num_bins_per_axis = int(np.sqrt(num_bins))
-lat_step = int(lat_range[1] - lat_range[0]) / num_bins_per_axis
-lon_step = int(lon_range[1] - lon_range[0]) / num_bins_per_axis
-
-# Create the bins
-lat_bins = np.arange(lat_range[0], lat_range[1], lat_step, dtype=int)
-lon_bins = np.arange(lon_range[0], lon_range[1], lon_step, dtype=int)
-# Make a grid
-lat_grid, lon_grid = np.meshgrid(np.deg2rad(lat_bins), np.deg2rad(lon_bins))
-or_list = np.array(list(zip(lat_grid.flatten(), lon_grid.flatten())))
-#convert or_list to xyz
-or_list = np.array([np.array([np.cos(lat)*np.cos(lon), np.cos(lat)*np.sin(lon), np.sin(lat)]) for lat, lon in or_list])
+# num_bins = 72
+# lat_range = (-85, 95)
+# lon_range = (-175, 185)
+# num_bins_per_axis = int(np.sqrt(num_bins))
+# lat_step = int(lat_range[1] - lat_range[0]) / num_bins_per_axis
+# lon_step = int(lon_range[1] - lon_range[0]) / num_bins_per_axis
+#
+# # Create the bins
+# lat_bins = np.arange(lat_range[0], lat_range[1], lat_step, dtype=int)
+# lon_bins = np.arange(lon_range[0], lon_range[1], lon_step, dtype=int)
+# # Make a grid
+# lat_grid, lon_grid = np.meshgrid(np.deg2rad(lat_bins), np.deg2rad(lon_bins))
+# or_list = np.array(list(zip(lat_grid.flatten(), lon_grid.flatten())))
+# #convert or_list to xyz
+# or_list = np.array([np.array([np.cos(lat)*np.cos(lon), np.cos(lat)*np.sin(lon), np.sin(lat)]) for lat, lon in or_list])
 # dataset = np.array(or_list)
-dataset = np.array(fibonacci_sphere(36))
-#randomly sample 1000 orientations
-orientations = orientations.sample(500)
-#Display the normalized orientations as a 3D plot on the unit sphere
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-# plot orientation as points on the unit sphere
-ax.scatter(dataset[:, 0], dataset[:, 1], dataset[:, 2])
-# ax.scatter(orientations['or_x'], orientations['or_y'], orientations['or_z'])
-ax.set_xlim([-1, 1])
-ax.set_ylim([-1, 1])
-ax.set_zlim([-1, 1])
-plt.show()
+# dataset = np.array(fibonacci_sphere(32))
+# orientations_ds = orientations.values
+# print([get_bin_from_orientation(x) for x in dataset])
+# print([get_bin_from_orientation(x) for x in orientations_ds])
+# # orientations = orientations.sample(500)
+# #Display the normalized orientations as a 3D plot on the unit sphere
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# # plot orientation as points on the unit sphere
+# ax.scatter(dataset[:, 0], dataset[:, 1], dataset[:, 2])
+# # ax.scatter(orientations['or_x'], orientations['or_y'], orientations['or_z'])
+# ax.set_xlim([-1, 1])
+# ax.set_ylim([-1, 1])
+# ax.set_zlim([-1, 1])
+# plt.show()
 
 # Step 3: Calculate latitudes and longitudes from orientations
 # This is a placeholder. Replace this with the actual conversion logic based on your specific context.
@@ -325,11 +357,13 @@ plt.show()
 num_latitude_bins = 18
 num_longitude_bins = 36
 bins = create_bins(num_latitude_bins, num_longitude_bins)
-bins = populate_bins(orientations, bins, df, 'perpendicular_cosine_sim_error')
+bins = populate_bins(bins, df, 'is_success')
 #For each bin, calculate the average perpendicular cosine sim error and display it
 perp_bins = {}
+print((bins.values()))
 for key in bins.keys():
-    perp_bins[key] = mean(bins[key])
+    perp_bins[key] = np.mean(np.array(bins[key]))
 #Assign each latitude and longitude to a bin
-print(perp_bins)
-visualize_sphere(perp_bins, 'perpendicular_cosine_sim_error')
+# print(perp_bins)
+# visualize_2d(perp_bins, 'is_success')
+visualize_sphere(perp_bins, 'is_success')

@@ -1,6 +1,5 @@
 import os
 import sys
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from pruning_sb3.pruning_gym.custom_callbacks import CustomResultCallback
@@ -31,11 +30,12 @@ if __name__ == "__main__":
     shared_tree_list_train = []
     shared_tree_list_test = []
 
+    load_timestep = 7296000
     if parsed_args_dict['args_global']['load_path']:
-        load_path_model = "./logs/{}/best_model.zip".format(
-            parsed_args_dict['args_global']['load_path'])
-        load_path_mean_std = "./logs/{}/best_mean_std.pkl".format(
-            parsed_args_dict['args_global']['load_path'])
+        load_path_model = "./logs/{}/current_model_{}.zip".format(
+            parsed_args_dict['args_global']['load_path'], load_timestep)
+        load_path_mean_std = "./logs/{}/current_mean_std_{}.pkl".format(
+            parsed_args_dict['args_global']['load_path'], load_timestep)
     else:
         load_path_model = None
 
@@ -79,8 +79,8 @@ if __name__ == "__main__":
     policy = RecurrentActorCriticPolicy
     model = RecurrentPPOAE.load(load_path_model, env=eval_env)#, custom_objects=load_dict)
     model.policy.load_running_mean_std_from_file(load_path_mean_std)
-    model.num_timesteps = 100000
-    model._num_timesteps_at_start = 100000
+    model.num_timesteps = load_timestep
+    model._num_timesteps_at_start = load_timestep
 
     print(model.num_timesteps)
     print("Policy on device: ", model.policy.device)
