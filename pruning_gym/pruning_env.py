@@ -181,6 +181,7 @@ class PruningEnv(gym.Env):
         # Tree parameters
         self.tree_goal_pos = None
         self.tree_goal_or = None
+        self.tree_goal_normal = None
         self.tree_urdf = None
         self.tree_pos = None
         self.tree_orientation = None
@@ -242,12 +243,28 @@ class PruningEnv(gym.Env):
         self.prev_observation_info: dict = dict()
 
     def set_tree_properties(self, tree_urdf, point_pos, point_branch_or, tree_orientation, tree_scale, tree_pos,):
+    def set_tree_properties(self, tree_urdf, point_pos, point_branch_or, tree_orientation, tree_scale, tree_pos, point_branch_normal):
         self.tree_urdf = tree_urdf
         self.tree_goal_pos = point_pos
         self.tree_goal_or = point_branch_or
         self.tree_pos = tree_pos
         self.tree_orientation = tree_orientation
         self.tree_scale = tree_scale
+        self.tree_goal_normal = point_branch_normal
+        #Make collision shape centered at tree_goal_pos and tree_goal_normal
+        #and of size 0.1
+        # point_branch_or_quat = self.pyb.con.getQuaternionFromEuler(point_branch_or)
+        # a = self.pyb.con.createCollisionShape(self.pyb.con.GEOM_CYLINDER, radius=.025, collisionFramePosition=point_pos,collisionFrameOrientation=point_branch_or_quat)
+        # b = self.pyb.con.createVisualShape(self.pyb.con.GEOM_CYLINDER, radius=.025, visualFramePosition=point_pos, visualFrameOrientation = point_branch_or_quat, rgbaColor=[1,1,1,1])
+        # self.pyb.con.createMultiBody(0, a, b)
+        self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=self.tree_goal_pos,
+                                lineToXYZ=[self.tree_goal_pos[0] + 0.005, self.tree_goal_pos[1] + 0.005,
+                                           self.tree_goal_pos[2] + 0.005],
+                                lineColorRGB=[1, 0, 0],
+                                lineWidth=400)
+        _ = self.pyb.add_debug_item('line', 'reset', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
+                                    lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
+                                    lineWidth=400)
         if self.tree_id is not None:
             self.inactivate_tree(self.pyb)
         self.activate_tree(self.pyb)
@@ -328,14 +345,6 @@ class PruningEnv(gym.Env):
 
         # Add debug branch and point
         """Display red line as point"""
-        self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=self.tree_goal_pos,
-                                lineToXYZ=[self.tree_goal_pos[0] + 0.005, self.tree_goal_pos[1] + 0.005,
-                                           self.tree_goal_pos[2] + 0.005],
-                                lineColorRGB=[1, 0, 0],
-                                lineWidth=400)
-        _ = self.pyb.add_debug_item('line', 'reset', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
-                                    lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
-                                    lineWidth=400)
 
         self.set_extended_observation()
         info = dict()  # type: ignore
