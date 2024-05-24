@@ -224,6 +224,8 @@ class UR5:
         """
         collisions_acceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=tree)
         collisions_unacceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=tree_support)
+        self_collision = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=self.ur5_robot)
+        collisions_unacceptable = collisions_unacceptable + self_collision
         collision_info = {"collisions_acceptable": False, "collisions_unacceptable": False}
         for i in range(len(collisions_unacceptable)):
             # print("collision")
