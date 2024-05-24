@@ -180,11 +180,14 @@ class pyb_utils:
                                 lineWidth=200)
 
     def visualize_rot_mat(self, rot_mat: List, pos):
+        #if rot_mat is Tuple:
+        if isinstance(rot_mat, tuple) or len(rot_mat) == 4:
+            rot_mat = np.array(self.con.getMatrixFromQuaternion(rot_mat)).reshape(3, 3)
         dx = 0.1
         colors = np.eye(3)
         for i in range(3):
             self.add_debug_item('sphere', 'step', lineFromXYZ=[pos[0], pos[1], pos[2]],
-                                lineToXYZ=[pos[0] + rot_mat[i][0] * dx, pos[1] + rot_mat[i][1] * dx,\
-                                           pos[2] + rot_mat[i][2] * dx],
+                                lineToXYZ=[pos[0] + rot_mat[0][i] * dx, pos[1] + rot_mat[1][i] * dx,\
+                                           pos[2] + rot_mat[2][i] * dx],
                                 lineColorRGB=colors[i],
                                 lineWidth=200)
