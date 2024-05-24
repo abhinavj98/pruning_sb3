@@ -47,6 +47,7 @@ class UR5:
         self.robot_urdf_path = robot_urdf_path
         self.camera_base_offset = np.array(
             [-0.063179, 0.077119, 0.0420027])
+
         self.setup_ur5_arm() #Changes pos and orientation if randomize is True
 
 
@@ -111,15 +112,19 @@ class UR5:
         self.joint_angles = np.array(self.init_joint_angles).astype(np.float32)
         self.achieved_pos = np.array(self.get_current_pose(self.end_effector_index)[0])
         base_pos, base_or = self.get_current_pose(self.base_index)
+        self.set_collision_filter()
 
 
     def set_collision_filter(self):
         # TO SET CUTTER DISABLE COLLISIONS WITH SELF
-        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 9, 11, 0)
-        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 8, 11, 0)
-        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 10, 11, 0)
-        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 7, 11, 0)
-        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 6, 11, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 9, 11, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 8, 11, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 10, 11, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 7, 11, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 6, 11, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 14, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 8, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 9, 0)
 
     def unset_collision_filter(self):
         # TO SET CUTTER DISABLE COLLISIONS WITH SELF
@@ -270,7 +275,6 @@ class UR5:
             lowerLimits=lower_limits, jointRanges=joint_ranges  # , restPoses=self.init_joint_angles
         )
         return joint_angles
-
     def get_current_pose(self, index: int) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """Returns current pose of the end effector. Pos wrt end effector, orientation wrt world"""
         link_state: Tuple = self.con.getLinkState(self.ur5_robot, index, computeForwardKinematics=True)
