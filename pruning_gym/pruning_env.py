@@ -736,56 +736,68 @@ class PruningEnv(gym.Env):
 
     def get_different_ik_results(self, num_solutions=1, total_attempts=50):
         solutions = []
-        collision = False
         attempts = 0
         import time
         while len(solutions) < num_solutions and attempts < total_attempts:
+            collision = False
+            # import time
             orientation, forward, rot = self.generate_goal_pos()
             init_vec = np.array([0, 0, 1])
             init_vec = rot @ init_vec
             goal = self.tree_goal_pos - 0.03 * init_vec
 
+            self.pyb.visualize_rot_mat(orientation, goal)
             self.inactivate_tree(self.pyb)
 
-            initial_guess = np.random.uniform(low=-np.pi, high=np.pi, size=len(self.ur5.control_joints))
+            # initial_guess = np.random.uniform(low=-np.pi/2, high=np.pi/2, size=len(self.ur5.control_joints)) + self.ur5.init_joint_angles
+            #initial_guess is joint angles at a random 10cm away from the goal
+            offset = np.random.uniform(-0.1, 0.1, 3)
+            #scale the offset to be 10cm away from the goal
+            offset = 0.15 * offset / np.linalg.norm(offset)
+            initial_guess = self.ur5.calculate_ik(goal + offset, orientation)
             self.ur5.set_joint_angles(initial_guess)
-            for j in range(100):
+            for j in range(50):
                 self.pyb.con.stepSimulation()
+                # time.sleep(0.01)
 
             joint_angles = self.ur5.calculate_ik(goal, orientation)
             self.ur5.set_joint_angles(joint_angles)
-            for j in range(100):
+            # print("Set initial guress")
+            for j in range(50):
                 self.pyb.con.stepSimulation()
-                time.sleep(0.01)
-
+                # time.sleep(0.01)
+            # print("Set joint angles")
             self.activate_tree(self.pyb)
 
             self.pyb.con.stepSimulation()
-            if self.ur5.check_collisions(self.tree_id, self.supports)[0]:
+            collision_info = self.ur5.check_collisions(self.tree_id, self.supports)
+            if collision_info[0]:#collision_info[1]['collisions_unacceptable']:
                 collision = True
+                # print("Collision")
+                # print(collision_info[1])
+
             if not collision:
-                solutions.append((joint_angles, goal, orientation))
+                current_ee_pose = self.ur5.get_current_pose(self.ur5.end_effector_index)
+                if np.linalg.norm(current_ee_pose[0] - goal) < 0.05:
+                    solutions.append((joint_angles, goal, orientation))
+                # solutions.append((joint_angles, goal, orientation))
+            # print("Sleep", collision, len(solutions))
+
+
+            # time.sleep(5)
             self.ur5.remove_ur5_robot()
             self.ur5.setup_ur5_arm()
-
+            # self.pyb.remove_debug_items("step")
             attempts += 1
         return solutions
     def run_rrt_connect(self):
-        solutions = self.get_different_ik_results()
+        solutions = self.get_different_ik_results(num_solutions=5)
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
                      self.tree_pos, self.tree_goal_normal]
 
         if not solutions:
             print("No valid solutions found")
-            return None, tree_info, None
-        start = self.ur5.get_joint_angles()
-        goal, goal_pos, goal_or = solutions[0]
-        self.inactivate_tree(self.pyb)
-        self.ur5.remove_ur5_robot()
-        self.ur5.setup_ur5_arm()
-        self.activate_tree(self.pyb)
-
-
+            return 0, tree_info, None
 
         controllable_joints = [3, 4, 5, 6, 7, 8]
         distance_fn = get_distance_fn(self.ur5.ur5_robot, controllable_joints)
@@ -793,10 +805,19 @@ class PruningEnv(gym.Env):
         extend_fn = get_extend_fn(self.ur5.ur5_robot, controllable_joints)
         collision_fn = get_collision_fn(self.ur5.ur5_robot, controllable_joints, [self.tree_id, self.supports])
 
-        path = pp.rrt_connect(start, goal, distance_fn, sample_position, extend_fn, collision_fn)#, max_time = 60, max_iterations = 100)
-        if path is None:
-            print("no path found")
-            return None, tree_info, None
+        for i in range(len(solutions)):
+            start = self.ur5.get_joint_angles()
+            goal, goal_pos, goal_or = solutions[i]
+            self.inactivate_tree(self.pyb)
+            self.ur5.remove_ur5_robot()
+            self.ur5.setup_ur5_arm()
+            self.activate_tree(self.pyb)
+
+            path = pp.rrt_connect(start, goal, distance_fn, sample_position, extend_fn, collision_fn, max_iterations = 1000)
+            if path is None:
+                continue
+            else:
+                break
         # terminate = False
         #
         # while not (terminate):
@@ -806,5 +827,9 @@ class PruningEnv(gym.Env):
         #     # print(env.orientation_point_value, env.orientation_perp_value, env.target_dist, env.check_success_collision())
         #     if terminate:
         #         print(success_info)
+        if path is None:
+            print("No valid path found")
+            return 2, tree_info, None
+
         return (path, tree_info, goal_or)
 

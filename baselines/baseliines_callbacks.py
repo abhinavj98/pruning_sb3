@@ -21,6 +21,52 @@ import copy
 import math
 
 
+def fibonacci_sphere(samples=1000):
+
+    points = []
+    phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
+
+    for i in range(samples):
+        y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
+        radius = math.sqrt(1 - y * y)  # radius at y
+
+        theta = phi * i  # golden angle increment
+
+        x = math.cos(theta) * radius
+        z = math.sin(theta) * radius
+
+        points.append((x, y, z))
+
+    return points
+
+def roundup(x):
+    return math.ceil(x / 10.0) * 10
+
+def rounddown(x):
+    return math.floor(x / 10.0) * 10
+
+def get_bin_from_orientation(orientation):
+    offset = 1e-4
+    orientation = orientation / np.linalg.norm(orientation)
+    lat_angle = np.rad2deg(np.arcsin(orientation[2])) + offset
+    lon_angle = np.rad2deg(np.arctan2(orientation[1], orientation[0])) + offset
+    lat_angle_min = rounddown(lat_angle)
+    lat_angle_max = roundup(lat_angle)
+    lon_angle_min = rounddown(lon_angle)
+    lon_angle_max = roundup(lon_angle)
+    bin_key = (round((lat_angle_min + lat_angle_max) / 2), round((lon_angle_min + lon_angle_max) / 2))
+    # if bin_key[0] not in between -85 and 85 set as 85 or -85
+    # if bin_keyp[1] not in between -175 and 175 set as 175 or -175
+
+    if bin_key[0] > 85:
+        bin_key = (85, bin_key[1])
+    elif bin_key[0] < -85:
+        bin_key = (-85, bin_key[1])
+    if bin_key[1] > 175:
+        bin_key = (bin_key[0], 175)
+    elif bin_key[1] < -175:
+        bin_key = (bin_key[0], -175)
+    return bin_key
 def get_reachable_euclidean_grid(radius, resolution):
     num_bins = int(radius / resolution) * 2
     base_center = np.array([0, 0, 0.91])
@@ -134,23 +180,29 @@ class RRTCallback(EventCallback):
         tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal = self.dataset[self.current_index[idx]]
         # if self.current_index[idx] < len(self.dataset)//self.eval_env.num_envs*(idx+1)-1:
         self.current_index[idx] = min(self.current_index[idx]+1, len(self.dataset)//self.eval_env.num_envs*(idx+1)-1)
+        print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
         return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal
 
     def _make_dataset(self):
+        uniform = False
+
         # Make this dataset to sample all orientations, and 10 random required_point_pos for each orientation
-        lat_range = (-85, 95)
-        lon_range = (-175, 185)
-
-        lat_step = 10
-        lon_step = 10
-        lat_bins = np.arange(lat_range[0], lat_range[1], lat_step, dtype=int)
-        lon_bins = np.arange(lon_range[0], lon_range[1], lon_step, dtype=int)
-        #Make a grid
-        lat_grid, lon_grid = np.meshgrid(lat_bins, lon_bins)
-        or_list = list(zip(lat_grid.flatten(), lon_grid.flatten()))
-        num_bins = len(or_list)
-
-
+        if not uniform:
+            lat_range = (-85, 95)
+            lon_range = (-175, 185)
+            lat_step = 10
+            lon_step = 10
+            lat_bins = np.arange(lat_range[0], lat_range[1], lat_step, dtype=int)
+            lon_bins = np.arange(lon_range[0], lon_range[1], lon_step, dtype=int)
+            #Make a grid
+            lat_grid, lon_grid = np.meshgrid(lat_bins, lon_bins)
+            or_list = list(zip(lat_grid.flatten(), lon_grid.flatten()))
+            num_bins = len(or_list)
+        else:
+            points = fibonacci_sphere(samples=self.n_eval_episodes)
+            # bins = lambda x: get_bin_from_orientation(x), points
+            or_list = [get_bin_from_orientation(x) for x in points]
+            num_bins = len(or_list)
         dataset = []
         num_points_per_or = self.num_points_per_or
         for i in range(num_bins):
@@ -181,6 +233,7 @@ class RRTCallback(EventCallback):
     def update_tree_properties(self, idx):
         tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal \
             = self._sample_tree_and_point(idx)
+
         self.eval_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
                                      point_pos=final_point_pos, point_branch_or=current_branch_or,
                                      tree_orientation=tree_orientation, tree_scale=scale,

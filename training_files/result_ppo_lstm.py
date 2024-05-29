@@ -20,6 +20,7 @@ from pruning_sb3.args.args import \
 from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
     set_args, organize_args, add_arg_to_env
 import random
+import pickle
 
 if __name__ == "__main__":
     # Create the ArgumentParser object
@@ -45,22 +46,28 @@ if __name__ == "__main__":
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_record = dict(args_test, **parsed_args_dict['args_record'])
-
-
-    data_env_test = PruningEnv(**args_test, make_trees=True)
-    or_bins_test = Tree.create_bins(18, 36)
-    for key in or_bins_test.keys():
-        for i in data_env_test.trees:
-            or_bins_test[key].extend(i.or_bins[key])
-    del data_env_test
-    #Shuffle the data inside the bisn
-    for key in or_bins_test.keys():
-        random.shuffle(or_bins_test[key])
+    or_bins_test = None
+    dataset = None
+    if os.path.exists("rrt_dataset.pkl"):
+        with open("rrt_dataset.pkl", "rb") as f:
+            dataset = pickle.load(f)
+            # shuffle the dataset
+            random.shuffle(dataset)
+    else:
+        data_env_test = PruningEnv(**args_test, make_trees=True)
+        or_bins_test = Tree.create_bins(18, 36)
+        for key in or_bins_test.keys():
+            for i in data_env_test.trees:
+                or_bins_test[key].extend(i.or_bins[key])
+        del data_env_test
+        #Shuffle the data inside the bisn
+        for key in or_bins_test.keys():
+            random.shuffle(or_bins_test[key])
     eval_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=args_global["n_envs"])
     # Use deterministic actions for evaluation
     eval_callback = CustomResultCallback(eval_env,  best_model_save_path="../logs/test",
                                        log_path="../logs/test",
-                                       deterministic=True, render=False, or_bins = or_bins_test, **parsed_args_dict['args_callback'])
+                                       deterministic=True, render=False, or_bins = or_bins_test, dataset = dataset, **parsed_args_dict['args_callback'])
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
