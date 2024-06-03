@@ -86,7 +86,7 @@ def plot_density(df, x, label, title, val):
     # plt.savefig('density{}.png'.format(label))
 
 if __name__ == '__main__':
-    file_path = 'policy_long_lat.csv'
+    file_path = 'policy_uniform.csv'
     df = read_csv_file(file_path)
     df['init_point_cosine_sim_abs'] = df['init_point_cosine_sim'].abs()
     df['init_perp_cosine_sim_abs'] = df['init_perp_cosine_sim'].abs()
@@ -100,7 +100,7 @@ if __name__ == '__main__':
         'Euclidean Error': np.concatenate([data1, data2]),
         'Environment': ['Real World'] * len(data1) + ['Simulation'] * len(data2)
     })
-    plot_violin(df_euc, 'Euclidean Error', 'Euclidean Error (m)', 'Euclidean Error', 0.05, True, 'Environment')
+    plot_violin(df_euc, 'Euclidean Error', 'Euclidean Error (m)', 'Euclidean Error', 0.05, False, 'Environment')
     # plot_violin(df, 'pointing_cosine_angle_error_abs', 'Pointing Error (Radians)', 'Pointing error', 0.52)
     # plot_violin(df, 'perpendicular_cosine_angle_error_abs', 'Perpendicular Error (Radians)', 'Perpendicular error', 0.52)
     # plot_violin(df, 'euclidean_error', 'Euclidean Error', 'Euclidean error (cm)', 0.05)
@@ -111,7 +111,7 @@ if __name__ == '__main__':
         'Perpendicular angle error': np.concatenate([data1, data2]),
         'Environment': ['Real World'] * len(data1) + ['Simulation'] * len(data2)
     })
-    plot_violin(df_perp, 'Perpendicular angle error', 'Perpendicular angle error (rad)', 'Euclidean Error', 0.52, True, 'Environment', xlim=[-0.1, 1.75])
+    plot_violin(df_perp, 'Perpendicular angle error', 'Perpendicular angle error (rad)', 'Euclidean Error', 0.52, False, 'Environment', xlim=[-0.1, 1.75])
 
     data1 = np.abs(np.random.normal(loc=0, scale=0.43, size=1000))
     data2 = df['pointing_cosine_angle_error_abs']
@@ -119,7 +119,7 @@ if __name__ == '__main__':
         'Pointing angle error': np.concatenate([data1, data2]),
         'Environment': ['Real World'] * len(data1) + ['Simulation'] * len(data2)
     })
-    plot_violin(df_point, 'Pointing angle error', 'Pointing angle error (rad)', 'Euclidean Error', 0.52, True, 'Environment', xlim=[-0.1, 1.75])
+    plot_violin(df_point, 'Pointing angle error', 'Pointing angle error (rad)', 'Euclidean Error', 0.52, False, 'Environment', xlim=[-0.1, 1.75])
     #print total number of rows
     # # print(len(df))
     # #print success rate

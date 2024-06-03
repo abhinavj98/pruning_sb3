@@ -824,7 +824,7 @@ class PruningEnv(gym.Env):
         #     env.step([d_vec[0] / 100, d_vec[1] / 100, d_vec[2] / 100, 0, 0, 0])
         #     env.con.stepSimulation()
         #     terminate, success_info = env.is_task_done()
-        #     # print(env.orientation_point_value, env.orientation_perp_value, env.target_dist, env.check_success_collision())
+        #     # print(env.orienstation_point_value, env.orientation_perp_value, env.target_dist, env.check_success_collision())
         #     if terminate:
         #         print(success_info)
         if path is None:

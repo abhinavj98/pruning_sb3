@@ -289,7 +289,7 @@ class Tree:
                 label = labels[0]
             else:
                 label = "JOINT"
-
+            #TODO: At this point create a new file with faces of each label
             if label != "SPUR" and label != "WATER_BRANCH":
                 continue
             self.vertex_and_projection.append((tree_point, perpendicular_projection,

@@ -843,7 +843,10 @@ class CustomResultCallback(EventCallback):
         self.num_points_per_or = 5
 
         #divide n_eval_episodes by n_envs
-        self.current_index = None#[(self.n_eval_episodes*self.num_points_per_or)//self.eval_env.num_envs*i for i in range(self.eval_env.num_envs)]
+        if self.dataset is not None:
+            self.current_index = [(len(self.dataset))//self.eval_env.num_envs*i for i in range(self.eval_env.num_envs)]
+        else:
+            self.current_index = None#[(self.n_eval_episodes*self.num_points_per_or)//self.eval_env.num_envs*i for i in range(self.eval_env.num_envs)]
 
     def _init_callback(self) -> None:
         # Does not work in some corner cases, where the wrapper is not the same

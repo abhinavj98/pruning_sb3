@@ -128,7 +128,7 @@ args = {
 
         'tree_count': {
             'type': int,
-            'default': 10,
+            'default': 3,
             'help': 'number of trees to load'
         },
 
@@ -163,7 +163,7 @@ args = {
 
         'tree_count': {
             'type': int,
-            'default': 10,
+            'default': 3,
             'help': 'number of trees to load'
         },
 

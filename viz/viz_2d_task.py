@@ -322,88 +322,33 @@ def plot_bar(df, label):
 
 
 # Step 1: Read the csv file
-df_policy = pd.read_csv('policy_long_lat.csv')
-df_rrt = pd.read_csv('rrt_results.csv')
+df_policy = pd.read_csv('policy_task.csv')
+df_rrt = pd.read_csv('rrt_task.csv')
 # Step 2: Extract the orientation data
 # Assuming the orientation data is stored in columns 'or_x', 'or_y', 'or_z'
 orientations = df_policy[['or_x', 'or_y', 'or_z']]
-
+df_policy['init_point_cosine_sim_abs'] = df_policy['init_point_cosine_sim'].abs()
+df_policy['init_perp_cosine_sim_abs'] = df_policy['init_perp_cosine_sim'].abs()
+df_policy['pointing_cosine_sim_error_abs'] = df_policy['pointing_cosine_sim_error'].abs()
+df_policy['perpendicular_cosine_sim_error_abs'] = df_policy['perpendicular_cosine_sim_error'].abs()
+df_policy['pointing_cosine_angle_error_abs'] = np.arccos(df_policy['pointing_cosine_sim_error']).abs()
+df_policy['perpendicular_cosine_angle_error_abs'] = np.arccos(df_policy['perpendicular_cosine_sim_error']).abs()
 # Normalize the orientation data
 # orientations = orientations / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
 dataset = []
-# for i in range(36):
-#     randnums = np.random.uniform(size=(3,))
-#     dataset.append(rand_rotation_matrix(1.0, randnums))
-# dataset = np.array(dataset)
-
-# num_bins = 72
-# lat_range = (-85, 95)
-# lon_range = (-175, 185)
-# num_bins_per_axis = int(np.sqrt(num_bins))
-# lat_step = int(lat_range[1] - lat_range[0]) / num_bins_per_axis
-# lon_step = int(lon_range[1] - lon_range[0]) / num_bins_per_axis
-#
-# # Create the bins
-# lat_bins = np.arange(lat_range[0], lat_range[1], lat_step, dtype=int)
-# lon_bins = np.arange(lon_range[0], lon_range[1], lon_step, dtype=int)
-# # Make a grid
-# lat_grid, lon_grid = np.meshgrid(np.deg2rad(lat_bins), np.deg2rad(lon_bins))
-# or_list = np.array(list(zip(lat_grid.flatten(), lon_grid.flatten())))
-# #convert or_list to xyz
-# or_list = np.array([np.array([np.cos(lat)*np.cos(lon), np.cos(lat)*np.sin(lon), np.sin(lat)]) for lat, lon in or_list])
-# dataset = np.array(or_list)
-# dataset = np.array(fibonacci_sphere(32))
-# orientations_ds = orientations.values
-# print([get_bin_from_orientation(x) for x in dataset])
-# print([get_bin_from_orientation(x) for x in orientations_ds])
-# # orientations = orientations.sample(500)
-# #Display the normalized orientations as a 3D plot on the unit sphere
-# fig = plt.figure()
-# ax = fig.add_subplot(111, projection='3d')
-# # plot orientation as points on the unit sphere
-# ax.scatter(dataset[:, 0], dataset[:, 1], dataset[:, 2])
-# # ax.scatter(orientations['or_x'], orientations['or_y'], orientations['or_z'])
-# ax.set_xlim([-1, 1])
-# ax.set_ylim([-1, 1])
-# ax.set_zlim([-1, 1])
-# plt.show()
-
-# Step 3: Calculate latitudes and longitudes from orientations
-# This is a placeholder. Replace this with the actual conversion logic based on your specific context.
-
-# offset = 1e-3
-# latitudes = np.rad2deg(np.arcsin(orientations['or_z'])) + offset
-# longitudes = np.rad2deg(np.arctan2(orientations['or_y'], orientations['or_x'])) + offset
-# Step 4: Bin the latitude data
-
-# df_rrt['pointing_cosine_sim_error_abs'] = df_rrt['pointing_cosine_sim_error'].abs()
-# df_rrt['perpendicular_cosine_sim_error_abs'] = df_rrt['perpendicular_cosine_sim_error'].abs()
-# df_rrt['pointing_cosine_angle_error_abs'] = np.arccos(df_rrt['pointing_cosine_sim_error']).abs()
-# df_rrt['perpendicular_cosine_angle_error_abs'] = np.arccos(df_rrt['perpendicular_cosine_sim_error']).abs()
 
 num_latitude_bins = 18
 num_longitude_bins = 36
 bins = create_bins(num_latitude_bins, num_longitude_bins)
 idx_name = 'is_success'
-title = 'Success Rate (RRT)'
-df_rrt[title] = df_rrt[idx_name]
-bins = populate_bins(bins, df_rrt, title)
+
+bins = populate_bins(bins, df_rrt, idx_name)
 
 #For each bin, calculate the average perpendicular cosine sim error and display it
 perp_bins = {}
 print((bins.values()))
 for key in bins.keys():
     perp_bins[key] = np.mean(np.array(bins[key]))
-#Assign each latitude and longitude to a bin
-# print(perp_bins)
-# visualize_2d(perp_bins, 'is_success')
-#print is_success rate
-# print(df_rrt['is_success'].value_counts()/len(df_rrt))
-# print(df_rrt['is_success'].value_counts()/len(df_policy))
-#get count of fail modes
-print(df_rrt.groupby(df_rrt['fail_mode']).count())
-df_a = pd.DataFrame({'success':[len(df_rrt[df_rrt['is_success']==True])/len(df_rrt), len(df_policy[df_policy['is_success']==True])/len(df_policy)]})
-df_success = pd.DataFrame({'Success Rate': df_a['success'], 'Environment': ['RRT'] + ['Policy']})
-# print(df_success)
-plot_bar(df_success, 'Success Rate')
-# visualize_2d(perp_bins, title, title)
+
+title = "asd"
+visualize_2d(perp_bins, idx_name, title)
