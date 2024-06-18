@@ -422,7 +422,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <sphere radius="0.00001" />
+        <sphere radius="0.01" />
       </geometry>
       <material name="red">
         <color rgba="1 0 0 0" />
@@ -439,7 +439,7 @@
 <!--    <origin rpy="0 0 0" xyz="0 0.09721 0.24210"/>  &lt;!&ndash; Left down out &ndash;&gt;-->
 <!--    <origin rpy="0 0 0" xyz="-0.00425 0.08971 0.24210"/> &lt;!&ndash;USE THIS ONE IF THE IK FOR BELOW DOESNT DO BETTER&ndash;&gt;-->
 <!--    <origin rpy="0 0 0" xyz="-0.063175 0 0.12864"/>-->
-    <origin rpy="0 0 0" xyz="-0.063175 0 0.12864"/>
+    <origin rpy="0 0 0" xyz="0.063175 0 0.12864"/>
 <!--    <origin rpy="0 0 3.14159" xyz="-0.09425 -0.00511 0.09707"/>-->
 
     <axis xyz="0 0 1"/>
@@ -448,13 +448,13 @@
   </joint>
   <link name="cutpoint">
     <visual>
-      <origin rpy="0 0 0" xyz="0.0 -0.05 0.0"/>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
 
       <geometry>
-        <sphere radius="0.000001" />
+        <sphere radius="0.01" />
       </geometry>
-      <material name="green">
-        <color rgba="0 1 0 0" />
+      <material name="blue">
+        <color rgba="0 0 1 0" />
       </material>
     </visual>
     <inertial>
