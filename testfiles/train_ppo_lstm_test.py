@@ -101,6 +101,7 @@ if __name__ == "__main__":
                 parsed_args_dict['args_policy']['emb_size'] // 2]),
         "share_features_extractor": True,
         "n_lstm_layers": 2,
+        "algo_size": (parsed_args_dict['args_env']['algo_height'], parsed_args_dict['args_env']['algo_width']),
     }
     policy = RecurrentActorCriticPolicy
 

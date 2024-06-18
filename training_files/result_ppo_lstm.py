@@ -63,11 +63,13 @@ if __name__ == "__main__":
         #Shuffle the data inside the bisn
         for key in or_bins_test.keys():
             random.shuffle(or_bins_test[key])
+    # args_record['renders'] = True
     eval_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=args_global["n_envs"])
     # Use deterministic actions for evaluation
     eval_callback = CustomResultCallback(eval_env,  best_model_save_path="../logs/test",
                                        log_path="../logs/test",
-                                       deterministic=True, render=False, or_bins = or_bins_test, dataset = dataset, **parsed_args_dict['args_callback'])
+                                       deterministic=True, render=False, or_bins = or_bins_test, dataset = dataset, save_video = True,
+                                        **parsed_args_dict['args_callback'])
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
@@ -82,6 +84,7 @@ if __name__ == "__main__":
                 parsed_args_dict['args_policy']['emb_size'] // 2]),
         "share_features_extractor": True,
         "n_lstm_layers": 2,
+        "algo_size": (parsed_args_dict['args_env']['algo_height'], parsed_args_dict['args_env']['algo_width']),
     }
     policy = RecurrentActorCriticPolicy
     model = RecurrentPPOAE.load(load_path_model, env=eval_env)#, custom_objects=load_dict)

@@ -35,7 +35,7 @@ if __name__ == "__main__":
     shared_tree_list_test = []
 
     init_wandb(parsed_args_dict, parsed_args_dict['args_global']['run_name'])
-    load_timestep = 768000
+    load_timestep = 1104000
     if parsed_args_dict['args_global']['load_path']:
         load_path_model = "./logs/{}/current_model_{}.zip".format(
             parsed_args_dict['args_global']['load_path'], load_timestep)
@@ -105,6 +105,7 @@ if __name__ == "__main__":
         "n_lstm_layers": 2,
         "features_dim_critic_add": 2, #Assymetric critic
         "lstm_hidden_size": 128,
+        "algo_size": (parsed_args_dict['args_env']['algo_height'], parsed_args_dict['args_env']['algo_width']),
         # "squash_output": True,  # Doesn't work
     }
     policy = RecurrentActorCriticPolicy
