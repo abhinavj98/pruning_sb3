@@ -74,14 +74,15 @@ if __name__ == "__main__":
     # viz_env = PruningEnv(**args_record)
     eval_callback = RRTCallback(eval_env, n_eval_episodes = args_callback['n_eval_episodes'], render=False, or_bins=or_bins_test, dataset = dataset)
     eval_callback._init_callback()
-    result_df = pd.DataFrame(columns = ["pointx", "pointy", "pointz", "or_x", "or_y", "or_z", "or_w", "is_success"])
+    result_df = pd.DataFrame(columns = ["pointx", "pointy", "pointz", "or_x", "or_y", "or_z", "or_w", "is_success", "time_total", "time_find_end_config", "time_find_path",])
     dataset = eval_callback.dataset
     for i in range(len(dataset)//eval_env.num_envs):
         ret = eval_env.env_method("run_rrt_connect")
         for k in range(eval_env.num_envs):
-            path, tree_info, goal_orientation = ret[k]
+            path, tree_info, goal_orientation, timing = ret[k]
             goal_pos = tree_info[1]
             goal_or = tree_info[2]
+
             success = isinstance(path, list)
             if success:
                 fail_mode = 1
@@ -89,7 +90,9 @@ if __name__ == "__main__":
                 fail_mode = path
             result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
                               "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}
+            result.update(timing)
             result = pd.DataFrame([result])
+
             result_df = pd.concat([result_df, result])
         # if path:
         #     viz_env.set_tree_properties(*tree_info)
