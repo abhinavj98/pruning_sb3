@@ -125,7 +125,7 @@ def populate_bins(bins, df, idx_name):
     orientations = df[['or_x', 'or_y', 'or_z']]
     # Normalize the orientation data
     orientations = orientations / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
-    print(orientations)
+
     offset = 1e-3
     for i, direction_vector in enumerate(orientations.values):
         lat_angle = np.rad2deg(np.arcsin(direction_vector[2]))+offset
@@ -215,7 +215,7 @@ def visualize_sphere(bins, idx_name):
     fig.colorbar(scalar_map, cax=cax, orientation='vertical')
     scalar_map.set_array(frequencies)
     plt.show()
-def visualize_2d(bins, idx_name, title):
+def visualize_2d(bins, idx_name, title, colorbar_title, reverse = False, save = False):
     # Extract latitude and longitude ranges from each bin
 
     lat_centers, lon_centers = zip(*bins.keys())
@@ -230,16 +230,26 @@ def visualize_2d(bins, idx_name, title):
 
     # Create 2D histogram
     # figure = plt.figure()
-    plt.hist2d(lat_centers, lon_centers, weights=frequencies, bins=[num_latitude_bins, num_longitude_bins])
-    plt.colorbar(label=idx_name)
-    plt.xlabel('Latitude (rad)')
-    plt.ylabel('Longitude (rad)')
+    #invert colormap
+
+    pallet = plt.cm.get_cmap('viridis', 256)
+    if reverse:
+        pallet = pallet.reversed()
+
+    plt.hist2d(lat_centers, lon_centers, weights=frequencies, bins=[num_latitude_bins, num_longitude_bins], cmap=pallet)
+    plt.colorbar(label=colorbar_title)
+    plt.xlabel('Elevation ({}) (rad)'.format('\u03B8'))
+    plt.ylabel('Azimuth ({}) (rad)'.format('\u03C6'))
+    plt.title(title)
+    #Set legend title to idx_name
     # import seaborn as sns
     # sns.histplot(x=lat_centers, y=lon_centers, weights=frequencies, binwidth=np.deg2rad(11), cbar=True, palette=pallet)
 
     # plt.title(idx_name)
-    # plt.savefig('grid{}.png'.format(idx_name), bbox_inches='tight', pad_inches=0.05)
-    plt.show()
+    if save:
+        plt.savefig('grid{}.png'.format(title), bbox_inches='tight', pad_inches=0.05)
+    else:
+        plt.show()
 
 
 def rand_rotation_matrix(deflection=1.0, randnums=None):
@@ -322,33 +332,111 @@ def plot_bar(df, label):
 
 
 # Step 1: Read the csv file
-df_policy = pd.read_csv('policy_task.csv')
-df_rrt = pd.read_csv('rrt_task.csv')
-# Step 2: Extract the orientation data
-# Assuming the orientation data is stored in columns 'or_x', 'or_y', 'or_z'
-orientations = df_policy[['or_x', 'or_y', 'or_z']]
-df_policy['init_point_cosine_sim_abs'] = df_policy['init_point_cosine_sim'].abs()
-df_policy['init_perp_cosine_sim_abs'] = df_policy['init_perp_cosine_sim'].abs()
-df_policy['pointing_cosine_sim_error_abs'] = df_policy['pointing_cosine_sim_error'].abs()
-df_policy['perpendicular_cosine_sim_error_abs'] = df_policy['perpendicular_cosine_sim_error'].abs()
+df_policy = pd.read_csv('results_data/policy_task.csv')
+df_rrt = pd.read_csv('results_data/rrt_task.csv')
 df_policy['pointing_cosine_angle_error_abs'] = np.arccos(df_policy['pointing_cosine_sim_error']).abs()
 df_policy['perpendicular_cosine_angle_error_abs'] = np.arccos(df_policy['perpendicular_cosine_sim_error']).abs()
+# print(df_policy.keys())
+# print(df_rrt.head())
+
+# Make a common table for both dfs where 'pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z','or_w' are same an
+new_df = pd.merge(df_policy, df_rrt, on=['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z'])
+new_df['is_success'] = new_df['is_success_x'] | new_df['is_success_y']
+
+new_df = new_df[new_df['is_success'] == True]
+
+filtered_df_policy = pd.merge(df_policy, new_df[['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z']],
+                              on=['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z'],
+                              how='inner')
+filtered_df_rrt = pd.merge(df_rrt, new_df[['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z']],
+                           on=['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z'],
+                           how='inner')
+print(len(filtered_df_policy[filtered_df_policy['is_success'] == True])/len(filtered_df_policy))
+print(len(filtered_df_rrt[filtered_df_rrt['is_success'] == True])/len(filtered_df_rrt))
 # Normalize the orientation data
 # orientations = orientations / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
 dataset = []
 
 num_latitude_bins = 18
 num_longitude_bins = 36
+
+idx_list = ['pointing_cosine_angle_error_abs', 'perpendicular_cosine_angle_error_abs', 'is_success']
+title_list = ['Pointing Angle Error (rad)', 'Perpendicular Angle Error (rad)', 'Success Rate (Policy)']
+colorbar_title_list = ['Pointing Angle Error (rad)', 'Perpendicular Angle Error (rad)', 'Success Rate']
+idx_title_list = zip(idx_list, title_list, colorbar_title_list)
+
+for idx_name, idx_title, colorbar_title in idx_title_list:
+    # For each bin, calculate the average perpendicular cosine sim error and display it
+    plt.figure()
+    bins = create_bins(num_latitude_bins, num_longitude_bins)
+    bins = populate_bins(bins, df_policy, idx_name)
+
+    # For each bin, calculate the average perpendicular cosine sim error and display it
+    perp_bins = {}
+    for key in bins.keys():
+        perp_bins[key] = np.mean(np.array(bins[key]))
+
+    title = idx_title
+    if 'success' in idx_name:
+        reverse = False
+    else:
+        reverse = True
+    visualize_2d(perp_bins, idx_name, title, colorbar_title=colorbar_title, reverse=reverse, save = True)
+
+# bins = create_bins(num_latitude_bins, num_longitude_bins)
+# bins = populate_bins(bins, filtered_df_policy, idx_name)
+
+# for key in bins.keys():
+#     if len(bins[key]) == 0:
+#         bins[key].append(1)
+#     perp_bins[key] = np.mean(np.array(bins[key]))
+# visualize_2d(perp_bins, 'is_success', 'Success Rate', reverse=False, save=False)
+# visualize_2d is_success rate for RRT
 bins = create_bins(num_latitude_bins, num_longitude_bins)
-idx_name = 'is_success'
-
-bins = populate_bins(bins, df_rrt, idx_name)
-
-#For each bin, calculate the average perpendicular cosine sim error and display it
+bins = populate_bins(bins, df_rrt, 'is_success')
 perp_bins = {}
-print((bins.values()))
+title = 'Success Rate (RRT Connect)'
+colorbar_title = 'Success Rate'
 for key in bins.keys():
     perp_bins[key] = np.mean(np.array(bins[key]))
+plt.figure()
+visualize_2d(perp_bins, 'is_success', title, colorbar_title, save=True)
+#
+# bins_rrt = create_bins(num_latitude_bins, num_longitude_bins)
+# bins_rrt = populate_bins(bins_rrt, df_rrt, 'is_success')
+# # perp_bins_rrt = {}
+# # for key in bins_rrt.keys():
+# #     perp_bins_rrt[key] = np.mean(np.array(bins_rrt[key]))
+#
+# bins_policy = create_bins(num_latitude_bins, num_longitude_bins)
+# bins_policy = populate_bins(bins_policy, df_policy, 'is_success')
+# perp_bins_policy = {}
+# for key in bins_policy.keys():
+#     perp_bins_policy[key] = np.mean(np.array(bins_policy[key]))
 
-title = "asd"
-visualize_2d(perp_bins, idx_name, title)
+# reachable_bins = {}
+# for key in bins_rrt.keys():
+#     for i in range(len(bins_rrt[key])):
+#         print(len(bins_rrt[key]), len(bins_policy[key]))
+#         if key not in reachable_bins:
+#             reachable_bins[key] = []
+#         reachable_bins[key].append((bins_rrt[key][i] or bins_policy[key][i]))
+# #threshold at 0.5
+# threshold = 0.5
+# perp_bins = {}
+# for key in reachable_bins.keys():
+#     perp_bins[key] = np.mean(np.array(reachable_bins[key]))
+# visualize_2d(reachable_bins, 'is_success', 'Reachable Success Rate')
+# for key in bins_rrt.keys():
+#     if perp_bins_rrt[key] >= threshold:
+#         perp_bins_rrt[key] = 1
+#     else:
+#         perp_bins_rrt[key] = 0
+# for key in bins_policy.keys():
+#     if perp_bins_policy[key] >= threshold:
+#         perp_bins_policy[key] = 1
+#     else:
+#         perp_bins_policy[key] = 0
+#
+# visualize_2d(perp_bins_rrt, 'is_success', 'Success Rate RRT')
+# visualize_2d(perp_bins_policy, 'is_success', 'Success Rate Policy')

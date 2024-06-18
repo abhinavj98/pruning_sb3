@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 class OpticalFlow:
-    def __init__(self, size = (224, 224), subprocess = False, shared_var = (None, None), num_envs = 1):
+    def __init__(self, size = (240, 240), subprocess = False, shared_var = (None, None), num_envs = 1):
         self.device = "cuda" if th.cuda.is_available() else "cpu"
         weights = Raft_Small_Weights.DEFAULT
         self.transforms = weights.transforms()

@@ -696,6 +696,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
     def get_depth_proxy(self, rgb, prev_rgb, point_mask):
         optical_flow = self.optical_flow_model.calculate_optical_flow(rgb, prev_rgb)
         depth_proxy = th.cat((optical_flow, point_mask), dim = 1)
+
         return depth_proxy
 
     def extract_features(self, obs: th.Tensor):  # -> tuple[th.Tensor, th.Tensor]:
@@ -709,7 +710,47 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         # preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
         # Add running mean and var
         # TODO: compute depth proxy here
+        # from PIL import Image
+        # import numpy as np
+        # import time
+        from torchvision.transforms import functional as F
         depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
+        # #resize obs['rgb']
+        # rgb = F.resize(obs['rgb'], size = (512, 512))
+        # depth_proxy_resize = F.resize(depth_proxy, size = (512, 512))
+        # optical_flow_x = depth_proxy_resize[:, 0, :, :]
+        # optical_flow_y = depth_proxy_resize[:, 1, :, :]
+        # #comvert to rgb
+        # # optical_flow_x = (optical_flow_x - optical_flow_x.min()) / (optical_flow_x.max() - optical_flow_x.min())
+        # # optical_flow_y = (optical_flow_y - optical_flow_y.min()) / (optical_flow_y.max() - optical_flow_y.min())
+        # # optical_flow_x = (optical_flow_x * 255)#.cpu().detach().numpy()
+        # # optical_flow_y = (optical_flow_y * 255)#.cpu().detach().numpy()
+        # # optical_flow_x = optical_flow_x.astype(np.uint8)
+        # # optical_flow_y = optical_flow_y.astype(np.uint8)
+        # #Make 3 channel
+        # # optical_flow_x = th.stack((optical_flow_x, optical_flow_x, optical_flow_x), axis = 1)
+        # # optical_flow_y = th.stack((optical_flow_y, optical_flow_y, optical_flow_y), axis = 1)
+        # from torchvision.utils import flow_to_image
+        # from PIL import Image
+        # import time
+        # flow = th.cat((optical_flow_x, optical_flow_y), dim = 0)
+        #
+        # flow_imgs = flow_to_image(flow).unsqueeze(0)
+        # # print(optical_flow_y.shape, optical_flow_x.shape)
+        # # optical_flow_x = Image.fromarray(optical_flow_x)
+        # # optical_flow_y = Image.fromarray(optical_flow_y)
+        # # print(rgb.shape, optical_flow_x.shape, optical_flow_y.shape)
+        # save_img = th.cat((rgb, flow_imgs), dim = 3)
+        # # print(save_img.shape)
+        # #Save image
+        # save_img = save_img[0].permute(1, 2, 0).cpu().detach().numpy()
+        # # save_img = (save_img - save_img.min()) / (save_img.max() - save_img.min())
+        # save_img = (save_img * 255).astype(np.uint8)
+        # save_img = Image.fromarray(save_img)
+        # save_img.save('sim_of/save_img_{}.png'.format(time.time()))
+        # #concatenate rgb and depth_proxy
+        #resize depth_proxy to 224x224
+        depth_proxy = F.resize(depth_proxy, size = (224,224))
         if self.training:
             self.running_mean_var_oflow_x.update(depth_proxy[:, 0, :, :].reshape(depth_proxy.shape[0], -1))
             self.running_mean_var_oflow_y.update(depth_proxy[:, 1, :, :].reshape(depth_proxy.shape[0], -1))

@@ -137,14 +137,15 @@ class Reward:
         # This is to encourage the end effector to be perpendicular to the branch
 
         # Perpendicular vector to branch vector
-        perpendicular_vector = Reward.compute_perpendicular_projection(achieved_pos, desired_pos,
-                                                                     branch_vector + desired_pos)
+        # perpendicular_vector = Reward.compute_perpendicular_projection(achieved_pos, desired_pos,
+        #                                                              branch_vector + desired_pos)
+        pointing_vector = (desired_pos - achieved_pos)/np.linalg.norm(desired_pos - achieved_pos)
         rot_mat = np.array(getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
         # Initial vectors
         init_vector = np.array([0, 0, 1]) #Coz of starting orientation of end effector
         camera_vector = rot_mat.dot(init_vector)
-        pointing_cos_sim = np.dot(camera_vector, perpendicular_vector) / (
-                np.linalg.norm(camera_vector) * np.linalg.norm(perpendicular_vector))
+        pointing_cos_sim = np.dot(camera_vector, pointing_vector) / (
+                np.linalg.norm(camera_vector) * np.linalg.norm(pointing_vector))
         return pointing_cos_sim
 
     @staticmethod

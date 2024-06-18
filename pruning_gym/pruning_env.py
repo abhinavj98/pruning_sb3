@@ -24,7 +24,7 @@ from scipy.spatial.transform import Rotation as R
 import pybullet_planning as pp
 from pybullet_planning.interfaces.planner_interface.joint_motion_planning import get_sample_fn, get_extend_fn, get_distance_fn
 from pybullet_planning.interfaces.robots import get_collision_fn
-
+import time
 class PruningEnv(gym.Env):
     """
         PruningEnv is a custom environment that extends the gym.Env class from OpenAI Gym.
@@ -354,6 +354,7 @@ class PruningEnv(gym.Env):
         info = dict()  # type: ignore
         self.reset_counter += 1
         # Make info analogous to one in step function
+        self.start_time = time.time()
         return self.observation, info
 
     def calculate_joint_velocities_from_ee_constrained(self, velocity):
@@ -422,6 +423,7 @@ class PruningEnv(gym.Env):
                                                             self.observation_info['desired_pos'])
             infos["angular_error"] = theta
             infos['velocity'] = np.linalg.norm(self.action)
+            infos['time'] = time.time() - self.start_time
 
         return infos
 
@@ -525,7 +527,7 @@ class PruningEnv(gym.Env):
                                                                         self.pyb.cam_width - 1)] = 1  # TODO: This is a hack, numbers shouldnt exceed max and min anyways
 
         # resize point mask to algo_height, algo_width
-        point_mask_resize = cv2.resize(point_mask, dsize=(self.algo_height, self.algo_width))
+        point_mask_resize = cv2.resize(point_mask, dsize=(self.algo_width, self.algo_height))
         point_mask = np.expand_dims(point_mask_resize, axis=0).astype(np.float32)
         return point_mask
 
@@ -748,6 +750,7 @@ class PruningEnv(gym.Env):
 
             self.pyb.visualize_rot_mat(orientation, goal)
             self.inactivate_tree(self.pyb)
+            self.inactivate_tree(self.pyb)
 
             # initial_guess = np.random.uniform(low=-np.pi/2, high=np.pi/2, size=len(self.ur5.control_joints)) + self.ur5.init_joint_angles
             #initial_guess is joint angles at a random 10cm away from the goal
@@ -791,20 +794,26 @@ class PruningEnv(gym.Env):
             attempts += 1
         return solutions
     def run_rrt_connect(self):
+        timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
+        start_find_end_config = time.time()
         solutions = self.get_different_ik_results(num_solutions=5)
+        timing['time_find_end_config'] = time.time() - start_find_end_config
+
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
                      self.tree_pos, self.tree_goal_normal]
 
         if not solutions:
             print("No valid solutions found")
-            return 0, tree_info, None
+            timing['time_find_path'] = None
+            timing['time_total'] = None
+            return 0, tree_info, None, timing
 
         controllable_joints = [3, 4, 5, 6, 7, 8]
         distance_fn = get_distance_fn(self.ur5.ur5_robot, controllable_joints)
         sample_position = get_sample_fn(self.ur5.ur5_robot, controllable_joints)
         extend_fn = get_extend_fn(self.ur5.ur5_robot, controllable_joints)
         collision_fn = get_collision_fn(self.ur5.ur5_robot, controllable_joints, [self.tree_id, self.supports])
-
+        start_find_path = time.time()
         for i in range(len(solutions)):
             start = self.ur5.get_joint_angles()
             goal, goal_pos, goal_or = solutions[i]
@@ -827,9 +836,11 @@ class PruningEnv(gym.Env):
         #     # print(env.orienstation_point_value, env.orientation_perp_value, env.target_dist, env.check_success_collision())
         #     if terminate:
         #         print(success_info)
+        timing['time_find_path'] = time.time() - start_find_path
+        timing['time_total'] = timing['time_find_end_config'] + timing['time_find_path']
         if path is None:
             print("No valid path found")
-            return 2, tree_info, None
+            return 2, tree_info, None, timing
 
-        return (path, tree_info, goal_or)
+        return (path, tree_info, goal_or, timing)
 

@@ -137,3 +137,5 @@ logs/
 profile.html
 results*/
 *.png
+*.tiff
+*.mp4

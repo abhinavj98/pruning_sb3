@@ -46,7 +46,7 @@ class UR5:
         self.init_pos_eebase = None
         self.robot_urdf_path = robot_urdf_path
         self.camera_base_offset = np.array(
-            [-0.063179, 0.077119, 0.0420027])
+            [0.063179, 0.077119, 0.0420027])
 
         self.setup_ur5_arm() #Changes pos and orientation if randomize is True
 

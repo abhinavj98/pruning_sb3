@@ -37,36 +37,36 @@ from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from stable_baselines3.common import utils
 from pruning_sb3.pruning_gym.tree import Tree
 import torchvision.transforms.functional as F
-def plot(imgs, **imshow_kwargs):
-    if not isinstance(imgs[0], list):
-        # Make a 2d grid even if there's just 1 row
-        imgs = [imgs]
-
-    num_rows = len(imgs)
-    num_cols = len(imgs[0])
-    _, axs = plt.subplots(nrows=num_rows, ncols=num_cols, squeeze=False)
-
-    for row_idx, row in enumerate(imgs):
-        for col_idx, img in enumerate(row):
-            ax = axs[row_idx, col_idx]
-            if img.shape[0] == 1:
-                img = F.to_pil_image(img.to("cpu"), mode="F")
-                ax.imshow(np.asarray(img), cmap = "gray", **imshow_kwargs)
-            else:
-                try:
-                    img = F.to_pil_image(img.to("cpu"))
-                except:
-                    img = F.to_pil_image(img)
-                ax.imshow(np.asarray(img), **imshow_kwargs)
-            ax.set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
-    #Label the axes
-    # axs[0, 0].set_ylabel("Input")
-    # axs[0, 1].set_ylabel("Predicted Flow")
-    # axs[0, 2].set_ylabel("Predicted Flow CV")
-
-    plt.tight_layout()
-    #save the figure
-    plt.savefig("C:\\Users\\abhin\\OneDrive\\Pictures\\Screenshots\\of_6.png")
+# def plot(imgs, **imshow_kwargs):
+#     if not isinstance(imgs[0], list):
+#         # Make a 2d grid even if there's just 1 row
+#         imgs = [imgs]
+#
+#     num_rows = len(imgs)
+#     num_cols = len(imgs[0])
+#     _, axs = plt.subplots(nrows=num_rows, ncols=num_cols, squeeze=False)
+#
+#     for row_idx, row in enumerate(imgs):
+#         for col_idx, img in enumerate(row):
+#             ax = axs[row_idx, col_idx]
+#             if img.shape[0] == 1:
+#                 img = F.to_pil_image(img.to("cpu"), mode="F")
+#                 ax.imshow(np.asarray(img), cmap = "gray", **imshow_kwargs)
+#             else:
+#                 try:
+#                     img = F.to_pil_image(img.to("cpu"))
+#                 except:
+#                     img = F.to_pil_image(img)
+#                 ax.imshow(np.asarray(img), **imshow_kwargs)
+#             ax.set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
+#     #Label the axes
+#     # axs[0, 0].set_ylabel("Input")
+#     # axs[0, 1].set_ylabel("Predicted Flow")
+#     # axs[0, 2].set_ylabel("Predicted Flow CV")
+#
+#     plt.tight_layout()
+#     #save the figure
+#     plt.savefig("C:\\Users\\abhin\\OneDrive\\Pictures\\Screenshots\\of_6.png")
 
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
@@ -76,6 +76,22 @@ def get_key_pressed(env, relevant=None):
         pressed_keys.append(key)
     return pressed_keys
 
+def plot(imgs, **imshow_kwargs):
+    if not isinstance(imgs[0], list):
+        # Make a 2d grid even if there's just 1 row
+        imgs = [imgs]
+
+    num_rows = len(imgs)
+    num_cols = len(imgs[0])
+    _, axs = plt.subplots(nrows=num_rows, ncols=num_cols, squeeze=False)
+    for row_idx, row in enumerate(imgs):
+        for col_idx, img in enumerate(row):
+            ax = axs[row_idx, col_idx]
+            img = F.to_pil_image(img.to("cpu"))
+            ax.imshow(np.asarray(img), **imshow_kwargs)
+            ax.set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
+    plt.savefig("C:\\Users\\abhin\\OneDrive\\Pictures\\Screenshots\\of_7.png")
+    plt.tight_layout()
 
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
@@ -191,8 +207,13 @@ if __name__ == "__main__":
         img_prev = torch.tensor(np.moveaxis(observation['prev_rgb'], -1,0)).unsqueeze(0)
         print(img.shape, img_prev.shape)
         flow = of.calculate_optical_flow(img, img_prev)
-        #display the flow
-        # fig, axs = plt.subplots(1, 2, figsize=(10, 5))
-        print(flow[0][0].min(), flow[0][0].max(), flow[0][1].min(), flow[0][1].max())
-        plot([[img[0], img_prev[0], flow[0][0], flow[0][1]]])
-        input()
+
+        from torchvision.utils import flow_to_image
+
+        flow_imgs = flow_to_image(flow)
+
+        # The images have been mapped into [-1, 1] but for plotting we want them in [0, 1]
+        img1_batch = [img.squeeze(0)]
+
+        grid = [[img1, flow_img] for (img1, flow_img) in zip(img1_batch, flow_imgs)]
+        plot(grid)

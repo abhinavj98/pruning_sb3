@@ -138,7 +138,7 @@ class AutoEncoder(BaseFeaturesExtractor):
             nn.ReLU(),
             nn.Conv2d(3, 3, 3, padding = 1), # b, 3, 224, 224
             nn.ReLU(),
-            output_conv, # b, 1, 224, 224
+            nn.Conv2d(3, in_channels, 3, padding=1), # b, 1, 224, 224
         )
 
     def _preprocess(self, img):
