@@ -59,8 +59,7 @@ class pyb_utils:
                                            baseCollisionShapeIndex=wall_col, basePosition=wall_pos,
                                            baseOrientation=list(
                                                self.con.getQuaternionFromEuler(euler_rotation)))
-        self.con.changeVisualShape(objectUniqueId=wall_id, linkIndex=-1,
-                                   textureUniqueId=wall_texture)
+        self.con.changeVisualShape(objectUniqueId=wall_id, linkIndex=-1, textureUniqueId=wall_texture)
         return wall_id
 
     def create_background(self) -> None:

@@ -94,7 +94,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             normalize_advantage: bool = True,
             ent_coef: float = 0.001,
             vf_coef: float = 0.5,
-            ae_coeff: float = 1,
+            ae_coeff: float = 0.,
             max_grad_norm: float = 0.5,
             use_sde: bool = False,
             sde_sample_freq: int = -1,
