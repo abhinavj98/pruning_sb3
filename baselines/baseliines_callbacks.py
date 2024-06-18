@@ -146,7 +146,7 @@ class RRTCallback(EventCallback):
         self.reachable_euclidean_grid = get_reachable_euclidean_grid(0.95, 0.05)
 
         self.episode_counter = 0
-        self.num_points_per_or = 5
+        self.num_points_per_or = 3
         self.dataset = dataset
 
         #divide n_eval_episodes by n_envs
@@ -184,7 +184,7 @@ class RRTCallback(EventCallback):
         return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal
 
     def _make_dataset(self):
-        uniform = False
+        uniform = True
 
         # Make this dataset to sample all orientations, and 10 random required_point_pos for each orientation
         if not uniform:

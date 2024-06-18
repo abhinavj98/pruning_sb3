@@ -138,8 +138,6 @@ def goal_distance2d(goal_a: NDArray[Shape['3, 1'], Float], goal_b: NDArray[Shape
     assert goal_a.shape == goal_b.shape
     return np.linalg.norm(goal_a[0:2] - goal_b[0:2], axis=-1)
 
-
-
 def compute_parallel_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
     projection = np.dot(ab, bc) / np.dot(bc, bc) * bc
     return projection

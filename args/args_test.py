@@ -97,7 +97,26 @@ args = {
             'default': ()
             # 'default': (1200, 7200)
         },
-
+        'cam_height': {
+            'type': int,
+            'default': 240,
+            'help': 'height of the camera image'
+        },
+        'cam_width': {
+            'type': int,
+            'default': 424,
+            'help': 'width of the camera image'
+        },
+        'algo_height': {
+            'type': int,
+            'default': 240,  # divisible by 8
+            'help': 'height of the algorithm image'
+        },
+        'algo_width': {
+            'type': int,
+            'default': 424,  # divisible by 8
+            'help': 'width of the algorithm image'
+        },
     },
 
     'args_train': {
@@ -128,7 +147,7 @@ args = {
 
         'tree_count': {
             'type': int,
-            'default': 10,
+            'default': 3,
             'help': 'number of trees to load'
         },
 
@@ -163,7 +182,7 @@ args = {
 
         'tree_count': {
             'type': int,
-            'default': 10,
+            'default': 3,
             'help': 'number of trees to load'
         },
 

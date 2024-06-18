@@ -843,7 +843,10 @@ class CustomResultCallback(EventCallback):
         self.num_points_per_or = 5
 
         #divide n_eval_episodes by n_envs
-        self.current_index = None#[(self.n_eval_episodes*self.num_points_per_or)//self.eval_env.num_envs*i for i in range(self.eval_env.num_envs)]
+        if self.dataset is not None:
+            self.current_index = [(len(self.dataset))//self.eval_env.num_envs*i for i in range(self.eval_env.num_envs)]
+        else:
+            self.current_index = None#[(self.n_eval_episodes*self.num_points_per_or)//self.eval_env.num_envs*i for i in range(self.eval_env.num_envs)]
 
     def _init_callback(self) -> None:
         # Does not work in some corner cases, where the wrapper is not the same
@@ -867,7 +870,6 @@ class CustomResultCallback(EventCallback):
             self.dataset = self._make_dataset()
             self.current_index = [(len(self.dataset)) // self.eval_env.num_envs * i for i in
                                   range(self.eval_env.num_envs)]
-            print("Dataset made", len(self.dataset))
         # print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
         tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal = self.dataset[self.current_index[idx]]
         self.current_index[idx] = min(self.current_index[idx]+1, len(self.dataset)//self.eval_env.num_envs*(idx+1)-1)
@@ -1021,26 +1023,27 @@ class CustomResultCallback(EventCallback):
         render = cv2.resize(render, (512, 512), interpolation=cv2.INTER_NEAREST)
         rgb = observation_info["rgb"]*255
         rgb = cv2.resize(rgb, (512, 512), interpolation=cv2.INTER_NEAREST)
+
         screen = np.concatenate((render, rgb), axis=1)
         screen_copy = screen.reshape((screen.shape[0], screen.shape[1], 3)).astype(np.uint8)
         # screen_copy = cv2.resize(screen_copy, (1124, 768), interpolation=cv2.INTER_NEAREST)
-        screen_copy = cv2.putText(screen_copy, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX,
-            0.5, (255,0,0), 2, cv2.LINE_AA)
-        screen_copy = cv2.putText(screen_copy, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX,
-            0.5, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-        screen_copy = cv2.putText(screen_copy, "Current: "+str(observation_info['achieved_pos']), (0,140), cv2.FONT_HERSHEY_SIMPLEX,
-            .5, (255,0,0), 2, cv2.LINE_AA)
-        screen_copy = cv2.putText(screen_copy, "Goal: "+str(observation_info['desired_pos']), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
-            0.5, (255,0,0), 2, cv2.LINE_AA)
-        screen_copy = cv2.putText(screen_copy, "Orientation Perpendicular: " +str(observation_info['perpendicular_cosine_sim']), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
-            0.6, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
-        screen_copy = cv2.putText(screen_copy, "Orientation Pointing: " + str(
-            observation_info['pointing_cosine_sim']), (0, 230),
-                                  cv2.FONT_HERSHEY_SIMPLEX,
-                                  0.6, (255, 0, 0), 2, cv2.LINE_AA)  # str(_locals['actions'])
-
-        screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(observation_info["target_distance"])), (0,260), cv2.FONT_HERSHEY_SIMPLEX,
-            0.6, (255,0,0), 2, cv2.LINE_AA)
+        # screen_copy = cv2.putText(screen_copy, "Reward: "+str(_locals['reward']), (0,80), cv2.FONT_HERSHEY_SIMPLEX,
+        #     0.5, (255,0,0), 2, cv2.LINE_AA)
+        # screen_copy = cv2.putText(screen_copy, "Action: "+" ".join(str(x) for x in _locals['actions']), (0,110), cv2.FONT_HERSHEY_SIMPLEX,
+        #     0.5, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+        # screen_copy = cv2.putText(screen_copy, "Current: "+str(observation_info['achieved_pos']), (0,140), cv2.FONT_HERSHEY_SIMPLEX,
+        #     .5, (255,0,0), 2, cv2.LINE_AA)
+        # screen_copy = cv2.putText(screen_copy, "Goal: "+str(observation_info['desired_pos']), (0,170), cv2.FONT_HERSHEY_SIMPLEX,
+        #     0.5, (255,0,0), 2, cv2.LINE_AA)
+        # screen_copy = cv2.putText(screen_copy, "Orientation Perpendicular: " +str(observation_info['perpendicular_cosine_sim']), (0,200), cv2.FONT_HERSHEY_SIMPLEX,
+        #     0.6, (255,0,0), 2, cv2.LINE_AA) #str(_locals['actions'])
+        # screen_copy = cv2.putText(screen_copy, "Orientation Pointing: " + str(
+        #     observation_info['pointing_cosine_sim']), (0, 230),
+        #                           cv2.FONT_HERSHEY_SIMPLEX,
+        #                           0.6, (255, 0, 0), 2, cv2.LINE_AA)  # str(_locals['actions'])
+        #
+        # screen_copy = cv2.putText(screen_copy, "Distance: "+" ".join(str(observation_info["target_distance"])), (0,260), cv2.FONT_HERSHEY_SIMPLEX,
+        #     0.6, (255,0,0), 2, cv2.LINE_AA)
         #Add success label
         # screen_copy = cv2.cvtColor(screen_copy, cv2.COLOR_BGR2RGB)
         self._screens_buffer[i].append((screen_copy).astype(np.uint8))
@@ -1050,7 +1053,7 @@ class CustomResultCallback(EventCallback):
         self._collisions_unacceptable_buffer[i].append(self.eval_env.get_attr("collisions_unacceptable", i)[0])
 
     def _master_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
-        # self._grab_screen_callback(_locals, _globals)
+        self._grab_screen_callback(_locals, _globals)
         self._log_collisions(_locals, _globals)
         self._log_success_callback(_locals, _globals)
         self._log_rewards_callback(_locals, _globals)
@@ -1085,6 +1088,7 @@ class CustomResultCallback(EventCallback):
         _info_dict["perpendicular_cosine_sim_error"] = []
         _info_dict["euclidean_error"] = []
         _info_dict['velocity'] = []
+        _info_dict["time"] = []
 
         self._info_dict_list = [copy.deepcopy(_info_dict) for i in range(self.eval_env.num_envs)]
 
@@ -1098,6 +1102,7 @@ class CustomResultCallback(EventCallback):
         self._terminal_dict["or_x"] = []
         self._terminal_dict["or_y"] = []
         self._terminal_dict["or_z"] = []
+
 
         self._episode_info = {}
         self._episode_info["is_success"] = []
