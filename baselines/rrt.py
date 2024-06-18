@@ -50,6 +50,8 @@ if __name__ == "__main__":
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_record = dict(args_test, **parsed_args_dict['args_record'])
+    args_callback = dict(**parsed_args_dict['args_callback'])
+    print(args_callback)
     or_bins_test = None
     dataset = None
     if os.path.exists("rrt_dataset.pkl"):
@@ -70,19 +72,25 @@ if __name__ == "__main__":
     eval_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=args_global["n_envs"])
 
     # viz_env = PruningEnv(**args_record)
-    eval_callback = RRTCallback(eval_env, render=False, or_bins=or_bins_test, dataset = dataset)
+    eval_callback = RRTCallback(eval_env, n_eval_episodes = args_callback['n_eval_episodes'], render=False, or_bins=or_bins_test, dataset = dataset)
     eval_callback._init_callback()
     result_df = pd.DataFrame(columns = ["pointx", "pointy", "pointz", "or_x", "or_y", "or_z", "or_w", "is_success"])
-    for i in range(len(dataset)):
+    dataset = eval_callback.dataset
+    for i in range(len(dataset)//eval_env.num_envs):
         ret = eval_env.env_method("run_rrt_connect")
-        path, tree_info, goal_orientation = ret[0]
-        goal_pos = tree_info[1]
-        goal_or = tree_info[2]
-        success = path is not None
-        result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
-                          "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success}
-        result = pd.DataFrame([result])
-        result_df = pd.concat([result_df, result])
+        for k in range(eval_env.num_envs):
+            path, tree_info, goal_orientation = ret[k]
+            goal_pos = tree_info[1]
+            goal_or = tree_info[2]
+            success = isinstance(path, list)
+            if success:
+                fail_mode = 1
+            else:
+                fail_mode = path
+            result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
+                              "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}
+            result = pd.DataFrame([result])
+            result_df = pd.concat([result_df, result])
         # if path:
         #     viz_env.set_tree_properties(*tree_info)
         #     viz_env.reset()
@@ -94,6 +102,7 @@ if __name__ == "__main__":
         #         for j in range(10):
         #             viz_env.pyb.con.stepSimulation()
         #             # time.sleep(5 / 240)
+        print(i, len(dataset)//eval_env.num_envs)
         for j in range(eval_env.num_envs):
             print("Resetting", j)
             eval_env.env_method("reset", indices=j)
