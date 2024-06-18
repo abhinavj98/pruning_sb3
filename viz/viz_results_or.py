@@ -215,7 +215,7 @@ def visualize_sphere(bins, idx_name):
     fig.colorbar(scalar_map, cax=cax, orientation='vertical')
     scalar_map.set_array(frequencies)
     plt.show()
-def visualize_2d(bins, idx_name):
+def visualize_2d(bins, idx_name, title):
     # Extract latitude and longitude ranges from each bin
 
     lat_centers, lon_centers = zip(*bins.keys())
@@ -224,17 +224,21 @@ def visualize_2d(bins, idx_name):
     frequencies = [bin_assignment for bin_assignment in bins.values()]
 
     # Convert to numpy arrays for hist2d
-    lat_centers = np.array(lat_centers)
-    lon_centers = np.array(lon_centers)
+    lat_centers = np.deg2rad(np.array(lat_centers))
+    lon_centers = np.deg2rad(np.array(lon_centers))
     frequencies = np.array(frequencies)
 
     # Create 2D histogram
-    figure = plt.figure()
+    # figure = plt.figure()
     plt.hist2d(lat_centers, lon_centers, weights=frequencies, bins=[num_latitude_bins, num_longitude_bins])
     plt.colorbar(label=idx_name)
-    plt.xlabel('Latitude (degrees)')
-    plt.ylabel('Longitude (degrees)')
-    plt.title('idx_name')
+    plt.xlabel('Latitude (rad)')
+    plt.ylabel('Longitude (rad)')
+    # import seaborn as sns
+    # sns.histplot(x=lat_centers, y=lon_centers, weights=frequencies, binwidth=np.deg2rad(11), cbar=True, palette=pallet)
+
+    # plt.title(idx_name)
+    # plt.savefig('grid{}.png'.format(idx_name), bbox_inches='tight', pad_inches=0.05)
     plt.show()
 
 
@@ -300,12 +304,29 @@ def fibonacci_sphere(samples=1000):
         points.append((x, y, z))
 
     return points
-# Step 1: Read the csv file
-df = pd.read_csv('episode_info.csv')
 
+def plot_bar(df, label):
+    #is_success rate as a bar plot using seaborn
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    palette = [(0.0, 0.447, 0.741), (0.85, 0.325, 0.098), (0.466, 0.674, 0.188)]
+    # sns.set_palette(palette)
+
+    sns.barplot(data=df, y='Success Rate', hue='Environment', palette=palette)
+    plt.ylabel('Success Rate')
+    plt.title(label)
+    # plt.savefig('bar{}.png'.format(label), bbox_inches='tight', pad_inches=0.05)
+    #Different colors for the bars
+
+    plt.show()
+
+
+# Step 1: Read the csv file
+df_policy = pd.read_csv('policy_long_lat.csv')
+df_rrt = pd.read_csv('rrt_results.csv')
 # Step 2: Extract the orientation data
 # Assuming the orientation data is stored in columns 'or_x', 'or_y', 'or_z'
-orientations = df[['or_x', 'or_y', 'or_z']]
+orientations = df_policy[['or_x', 'or_y', 'or_z']]
 
 # Normalize the orientation data
 # orientations = orientations / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
@@ -354,10 +375,20 @@ dataset = []
 # latitudes = np.rad2deg(np.arcsin(orientations['or_z'])) + offset
 # longitudes = np.rad2deg(np.arctan2(orientations['or_y'], orientations['or_x'])) + offset
 # Step 4: Bin the latitude data
+
+# df_rrt['pointing_cosine_sim_error_abs'] = df_rrt['pointing_cosine_sim_error'].abs()
+# df_rrt['perpendicular_cosine_sim_error_abs'] = df_rrt['perpendicular_cosine_sim_error'].abs()
+# df_rrt['pointing_cosine_angle_error_abs'] = np.arccos(df_rrt['pointing_cosine_sim_error']).abs()
+# df_rrt['perpendicular_cosine_angle_error_abs'] = np.arccos(df_rrt['perpendicular_cosine_sim_error']).abs()
+
 num_latitude_bins = 18
 num_longitude_bins = 36
 bins = create_bins(num_latitude_bins, num_longitude_bins)
-bins = populate_bins(bins, df, 'is_success')
+idx_name = 'is_success'
+title = 'Success Rate (RRT)'
+df_rrt[title] = df_rrt[idx_name]
+bins = populate_bins(bins, df_rrt, title)
+
 #For each bin, calculate the average perpendicular cosine sim error and display it
 perp_bins = {}
 print((bins.values()))
@@ -366,4 +397,13 @@ for key in bins.keys():
 #Assign each latitude and longitude to a bin
 # print(perp_bins)
 # visualize_2d(perp_bins, 'is_success')
-visualize_sphere(perp_bins, 'is_success')
+#print is_success rate
+# print(df_rrt['is_success'].value_counts()/len(df_rrt))
+# print(df_rrt['is_success'].value_counts()/len(df_policy))
+#get count of fail modes
+print(df_rrt.groupby(df_rrt['fail_mode']).count())
+df_a = pd.DataFrame({'success':[len(df_rrt[df_rrt['is_success']==True])/len(df_rrt), len(df_policy[df_policy['is_success']==True])/len(df_policy)]})
+df_success = pd.DataFrame({'Success Rate': df_a['success'], 'Environment': ['RRT'] + ['Policy']})
+# print(df_success)
+plot_bar(df_success, 'Success Rate')
+# visualize_2d(perp_bins, title, title)
