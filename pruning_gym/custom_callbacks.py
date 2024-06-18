@@ -788,6 +788,7 @@ class CustomResultCallback(EventCallback):
         verbose: int = 1,
         warn: bool = True,
         or_bins: Dict = None,
+        dataset: List = None,
         save_video: bool = False,
     ):
         super().__init__(callback_after_eval, verbose=verbose)
@@ -838,11 +839,11 @@ class CustomResultCallback(EventCallback):
         self.reachable_euclidean_grid = get_reachable_euclidean_grid(0.95, 0.05)
 
         self.episode_counter = 0
-        self.dataset = None
+        self.dataset = dataset
         self.num_points_per_or = 5
 
         #divide n_eval_episodes by n_envs
-        self.current_index = [(self.n_eval_episodes*self.num_points_per_or)//self.eval_env.num_envs*i for i in range(self.eval_env.num_envs)]
+        self.current_index = None#[(self.n_eval_episodes*self.num_points_per_or)//self.eval_env.num_envs*i for i in range(self.eval_env.num_envs)]
 
     def _init_callback(self) -> None:
         # Does not work in some corner cases, where the wrapper is not the same
@@ -858,12 +859,14 @@ class CustomResultCallback(EventCallback):
                                      point_pos=final_point_pos, point_branch_or=current_branch_or,
                                      tree_orientation=tree_orientation, tree_scale=scale,
                                      tree_pos=tree_pos, point_branch_normal = current_branch_normal)
-        self.current_index = [(self.n_eval_episodes * self.num_points_per_or) // self.eval_env.num_envs * i for i in
+        self.current_index = [(len(self.dataset)) // self.eval_env.num_envs * i for i in
                               range(self.eval_env.num_envs)]
 
     def _sample_tree_and_point(self, idx):
         if self.dataset is None:
             self.dataset = self._make_dataset()
+            self.current_index = [(len(self.dataset)) // self.eval_env.num_envs * i for i in
+                                  range(self.eval_env.num_envs)]
             print("Dataset made", len(self.dataset))
         # print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
         tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal = self.dataset[self.current_index[idx]]
@@ -898,7 +901,6 @@ class CustomResultCallback(EventCallback):
         or_list = list(zip(lat_grid.flatten(), lon_grid.flatten()))
         print("Orientation list", or_list)
         num_bins = len(or_list)
-        num_points_per_or = 5
 
 
         dataset = []
