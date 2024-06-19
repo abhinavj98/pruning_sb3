@@ -39,7 +39,8 @@ import math
 #init -> set tree properties for each environment at the start, create directory for best model
 #sample_tree_and_point -> sample a tree and point for each environment sequentially through a dataset
 #_make_dataset -> create a dataset of trees and points (Uniform)
-#update_tree_properties -> record choses random poitn, eval chooses from dataset
+#update_tree_properties -> record choses random point, eval chooses from dataset
+
 
 # class PruningCallback(BaseCallback):
 def get_reachable_euclidean_grid(radius, resolution):
@@ -108,9 +109,6 @@ def rand_direction_vector(deflection=1.0, randnums=None):
     M = (np.outer(V, V) - np.eye(3)).dot(R)
     # convert M to euler angles
     return M@[0,0,1]
-
-    return M
-
 def fibonacci_sphere(samples=1000):
 
     points = []
@@ -212,6 +210,7 @@ class CustomTrainCallback(BaseCallback):
 
     def _sample_tree_and_point(self):
             #Sample orientation from key in or_bins
+            print("Sampling tree and point")
             while True:
                 rand_vector = rand_direction_vector()
                 orientation = get_bin_from_orientation(rand_vector)
@@ -272,6 +271,8 @@ class CustomTrainCallback(BaseCallback):
         self._info_dict["is_success"] = []
         self._info_dict['velocity'] = []
         self._screens_buffer = []
+        self._collisions_acceptable_buffer = []
+        self._collisions_unacceptable_buffer = []
 
     def _log_infos(self):
         infos = self.locals["infos"]
@@ -281,6 +282,10 @@ class CustomTrainCallback(BaseCallback):
             if infos[i]["TimeLimit.truncated"] or infos[i]["is_success"]:
                 for key in self._info_dict.keys():
                     self._info_dict[key].append(infos[i][key])
+
+    def _log_collisions(self) -> None:
+        self._collisions_acceptable_buffer.extend(self.eval_env.get_attr("collisions_acceptable"))
+        self._collisions_unacceptable_buffer.extend(self.eval_env.get_attr("collisions_unacceptable"))
 
     def _log_screen(self):
         if self._rollouts % self._train_record_freq == 0:
@@ -314,6 +319,7 @@ class CustomTrainCallback(BaseCallback):
         :return: (bool) If the callback returns False, training is aborted early.
         """
         self._log_infos()
+        self._log_collisions()
         self._log_screen()
         self._update_tree_properties()
         self._save_checkpoint()
@@ -339,6 +345,8 @@ class CustomTrainCallback(BaseCallback):
             self.logger.record("rollout/" + key, np.mean(self._reward_dict[key]))
         for key in self._info_dict.keys():
             self.logger.record("rollout/" + key, np.mean(self._info_dict[key]))
+        self.logger.record("rollout/collisions_acceptable", np.mean(self._collisions_acceptable_buffer))
+        self.logger.record("rollout/collisions_unacceptable", np.mean(self._collisions_unacceptable_buffer))
         if self._rollouts % self._train_record_freq == 0:
             self.logger.record(
                 "rollout/video",
@@ -543,31 +551,31 @@ class CustomEvalCallback(EventCallback):
                                          tree_orientation=tree_orientation, tree_scale=scale,
                                          tree_pos=tree_pos, point_branch_normal = current_branch_normal)
 
-    def _log_success_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
-        """
-        Callback passed to the  ``evaluate_policy`` function
-        in order to log the success rate (when applicable),
-        for instance when using HER.
-        :param locals_:
-        :param globals_:
-        """
-
-        info = locals_["info"]
-        if locals_["done"]: #Log at end of episode
-            maybe_is_success = info.get("is_success")
-            if maybe_is_success is not None:
-                self._is_success_buffer.append(maybe_is_success)
-
-    def _log_rewards_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]):
-        infos = locals_["info"]
-        #add to buffers
-
-        for key in self._reward_dict.keys():
-            self._reward_dict[key].append(infos[key])
-        if infos["TimeLimit.truncated"] or infos['is_success']:
-            for key in self._info_dict.keys():
-                self._info_dict[key].append(infos[key])
-        return True
+    # def _log_success_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
+    #     """
+    #     Callback passed to the  ``evaluate_policy`` function
+    #     in order to log the success rate (when applicable),
+    #     for instance when using HER.
+    #     :param locals_:
+    #     :param globals_:
+    #     """
+    #
+    #     info = locals_["info"]
+    #     if locals_["done"]: #Log at end of episode
+    #         maybe_is_success = info.get("is_success")
+    #         if maybe_is_success is not None:
+    #             self._is_success_buffer.append(maybe_is_success)
+    #
+    # def _log_rewards_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]):
+    #     infos = locals_["info"]
+    #     #add to buffers
+    #
+    #     for key in self._reward_dict.keys():
+    #         self._reward_dict[key].append(infos[key])
+    #     if infos["TimeLimit.truncated"] or infos['is_success']:
+    #         for key in self._info_dict.keys():
+    #             self._info_dict[key].append(infos[key])
+    #     return True
 
     def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
         """
@@ -693,7 +701,6 @@ class CustomEvalCallback(EventCallback):
             # Reset success rate buffer
             self._is_success_buffer = []
             self._screens_buffer = []
-            self._collisions_buffer = []
             self._init_dicts()
 
             # Evaluate policy
