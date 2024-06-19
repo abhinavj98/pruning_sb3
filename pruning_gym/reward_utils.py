@@ -54,7 +54,7 @@ class Reward:
         cosine_sim_curr = self.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or, branch_vector)
         #if sign of both are different  set reward to 0
 
-        pointing_orientation_reward = (abs(cosine_sim_curr) - abs(cosine_sim_prev)) * \
+        pointing_orientation_reward = (cosine_sim_curr - cosine_sim_prev) * \
                                       self.pointing_orientation_reward_scale
         self.reward_info['pointing_orientation_reward'] = pointing_orientation_reward
         return pointing_orientation_reward, cosine_sim_curr

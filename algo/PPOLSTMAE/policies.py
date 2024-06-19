@@ -40,7 +40,7 @@ import warnings
 from abc import ABC, abstractmethod
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
-
+from torchvision.transforms import functional as F
 
 #Optical flow
 from pruning_sb3.pruning_gym.optical_flow import OpticalFlow
@@ -713,8 +713,6 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         # from PIL import Image
         # import numpy as np
         # import time
-        from torchvision.transforms import functional as F
-        depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
         # #resize obs['rgb']
         # rgb = F.resize(obs['rgb'], size = (512, 512))
         # depth_proxy_resize = F.resize(depth_proxy, size = (512, 512))
@@ -749,7 +747,10 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         # save_img = Image.fromarray(save_img)
         # save_img.save('sim_of/save_img_{}.png'.format(time.time()))
         # #concatenate rgb and depth_proxy
-        #resize depth_proxy to 224x224
+        # resize depth_proxy to 224x224
+
+        depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
+
         depth_proxy = F.resize(depth_proxy, size = (224,224))
         if self.training:
             self.running_mean_var_oflow_x.update(depth_proxy[:, 0, :, :].reshape(depth_proxy.shape[0], -1))

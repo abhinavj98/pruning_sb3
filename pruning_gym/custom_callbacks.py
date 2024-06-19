@@ -20,6 +20,28 @@ import pandas as pd
 import imageio
 import copy
 import math
+
+#Classes ->CustomTrainCallback, CustomEvalCallback, CustomRecordCallback
+#Custom Train Callback
+#Functions -> init, sample_tree_and_point, update_tree_properties
+#init -> set tree properties for each environment at the start
+#sample_tree_and_point -> sample a tree and point for each environment (Randomly but uniformly)
+#update_tree_properties -> update tree properties for each environment at the end of each episode (if episode is truncated or success)
+#on_rollout_start -> initialize reward and info dictionaries
+#on_step -> log rewards and infos for each environment and update tree properties, also save model at eval_freq
+#Event Callback is called on step, so maybe make this an event callback, and everythin in on_step is also Callbacks
+#Pass CallbackList to this EventCallback, EveryNTimesteps(EventCallback)
+
+#Custom Eval Callback
+#Evaluates policy on a different environment and logs the results
+#Also has one env to record the results
+#Functions -> init, sample_tree_and_point, update_tree_properties
+#init -> set tree properties for each environment at the start, create directory for best model
+#sample_tree_and_point -> sample a tree and point for each environment sequentially through a dataset
+#_make_dataset -> create a dataset of trees and points (Uniform)
+#update_tree_properties -> record choses random poitn, eval chooses from dataset
+
+# class PruningCallback(BaseCallback):
 def get_reachable_euclidean_grid(radius, resolution):
     num_bins = int(radius / resolution) * 2
     base_center = np.array([0, 0, 0.91])
@@ -214,7 +236,8 @@ class CustomTrainCallback(BaseCallback):
 
             return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos, current_branch_normal
 
-    def _update_tree_properties(self, infos):
+    def _update_tree_properties(self):
+        infos = self.locals["infos"]
         for i in range(len(infos)):
             if infos[i]["TimeLimit.truncated"] or infos[i]['is_success']:
                 tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal\
@@ -232,13 +255,7 @@ class CustomTrainCallback(BaseCallback):
         """
         return True
 
-    def _on_rollout_start(self) -> None:
-        """
-        A rollout is the collection of environment interaction
-        using the current policy.
-        This event is triggered before collecting new samples.
-        """
-        print("Rollout start")
+    def _init_log_storage(self):
         self._reward_dict["movement_reward"] = []
         self._reward_dict["distance_reward"] = []
         self._reward_dict["terminate_reward"] = []
@@ -256,6 +273,37 @@ class CustomTrainCallback(BaseCallback):
         self._info_dict['velocity'] = []
         self._screens_buffer = []
 
+    def _log_infos(self):
+        infos = self.locals["infos"]
+        for i in range(len(infos)):
+            for key in self._reward_dict.keys():
+                self._reward_dict[key].append(infos[i][key])
+            if infos[i]["TimeLimit.truncated"] or infos[i]["is_success"]:
+                for key in self._info_dict.keys():
+                    self._info_dict[key].append(infos[i][key])
+
+    def _log_screen(self):
+        if self._rollouts % self._train_record_freq == 0:
+            # grab screen
+            self._screens_buffer.append(self._grab_screen_callback(self.locals, self.globals))
+
+    def _save_checkpoint(self):
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            if self.best_model_save_path is not None:
+                os.makedirs(self.best_model_save_path, exist_ok=True)
+            self.model.save(os.path.join(self.best_model_save_path, "current_model_{}".format(self.num_timesteps)))
+            with open(os.path.join(self.best_model_save_path, "current_mean_std_{}.pkl".format(self.num_timesteps)), "wb") as f:
+                pickle.dump((self.model.policy.running_mean_var_oflow_x, self.model.policy.running_mean_var_oflow_y), f)
+
+    def _on_rollout_start(self) -> None:
+        """
+        A rollout is the collection of environment interaction
+        using the current policy.
+        This event is triggered before collecting new samples.
+        """
+        print("Rollout start")
+        self._init_log_storage()
+
     def _on_step(self) -> bool:
         """
         This method will be called by the model after each call to `env.step()`.
@@ -265,28 +313,14 @@ class CustomTrainCallback(BaseCallback):
 
         :return: (bool) If the callback returns False, training is aborted early.
         """
-        infos = self.locals["infos"]
-        for i in range(len(infos)):
-            for key in self._reward_dict.keys():
-                self._reward_dict[key].append(infos[i][key])
-            if infos[i]["TimeLimit.truncated"] or infos[i]["is_success"]:
-                for key in self._info_dict.keys():
-                    self._info_dict[key].append(infos[i][key])
+        self._log_infos()
+        self._log_screen()
+        self._update_tree_properties()
+        self._save_checkpoint()
 
-        self._update_tree_properties(infos)
-        if self._rollouts % self._train_record_freq == 0:
-            #grab screen
-            self._screens_buffer.append(self._grab_screen_callback(self.locals, self.globals))
-
-        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            if self.best_model_save_path is not None:
-                os.makedirs(self.best_model_save_path, exist_ok=True)
-            self.model.save(os.path.join(self.best_model_save_path, "current_model_{}".format(self.num_timesteps)))
-            with open(os.path.join(self.best_model_save_path, "current_mean_std_{}.pkl".format(self.num_timesteps)), "wb") as f:
-                pickle.dump((self.model.policy.running_mean_var_oflow_x, self.model.policy.running_mean_var_oflow_y), f)
         return True
     
-    def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
+    def _grab_screen_callback(self, _locals: Dict[str, Any], _globals: Dict[str, Any]):
         """
         Renders the environment in its current state, recording the screen in the captured `screens` list
 
@@ -297,24 +331,29 @@ class CustomTrainCallback(BaseCallback):
         screen = np.array(self.training_env.render())*255
         screen_copy = screen.reshape((screen.shape[0], screen.shape[1], 3)).astype(np.uint8)
         return screen_copy.transpose(2, 0, 1)
-    def _on_rollout_end(self) -> None:
-        """
-        This event is triggered before updating the policy.
-        """
-        print("Rollout end")
-        #TODO: Make this a dictionary and iterate through dictionary to log
+
+    def _log_to_tensorboard(self):
+        # TODO: Make this a dictionary and iterate through dictionary to log
         for key in self._reward_dict.keys():
             # print("rollout/"+key, np.mean(self._reward_dict[key])   )
-            self.logger.record("rollout/"+key, np.mean(self._reward_dict[key]))
+            self.logger.record("rollout/" + key, np.mean(self._reward_dict[key]))
         for key in self._info_dict.keys():
-            self.logger.record("rollout/"+key, np.mean(self._info_dict[key]))
+            self.logger.record("rollout/" + key, np.mean(self._info_dict[key]))
         if self._rollouts % self._train_record_freq == 0:
             self.logger.record(
                 "rollout/video",
                 Video(th.ByteTensor(np.array([self._screens_buffer])), fps=10),
                 exclude=("stdout", "log", "json", "csv"),
             )
+
+    def _on_rollout_end(self) -> None:
+        """
+        This event is triggered before updating the policy.
+        """
+        print("Rollout end")
+        self._log_to_tensorboard()
         self._rollouts += 1
+
     def _on_training_end(self) -> None:
         """
         This event is triggered before exiting the `learn()` method.
