@@ -42,6 +42,7 @@ if __name__ == "__main__":
     else:
         load_path_model = None
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
+    args_record = dict(args_test, **parsed_args_dict['args_record'])
     args_test['renders'] = False
     or_bins_test = Tree.create_bins(18, 36)
     data_env_test = PruningEnv(**args_test, make_trees=True)
@@ -54,7 +55,7 @@ if __name__ == "__main__":
         random.shuffle(or_bins_test[key])
     args_test['renders'] = True
     args_test['max_steps'] = 100000
-    env = PruningEnv(**args_test)
+    env = PruningEnv(**args_record)
     print("Env created")
 
     policy_kwargs = {
@@ -132,68 +133,4 @@ if __name__ == "__main__":
             # env.is_goal_state = True
         else:
             val = np.array([0.,0.,0., 0., 0., 0.])
-        # print(val)
-        success_link_pos = env.ur5.get_current_pose(env.ur5.end_effector_index)[0]
-        # env.pyb.add_sphere(0.005, success_link_pos, [1, 0, 0, 1])
         observation, reward, terminated, truncated, infos = env.step(val)
-        env.tree_goal_pos = [-0.435, -.988, 0.096+0.91]
-        # print(observation['achieved_goal'], observation['desired_goal'])
-        # print(env.ur5.init_pos_ee, env.ur5.init_pos_eebase)
-        # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
-        # print(env.ur5.get_current_pose(env.ur5.end_effector_index),env.ur5.get_current_pose(env.ur5.success_link_index))
-        print(observation["achieved_goal"], observation["desired_goal"], observation["achieved_or"])
-        #get base position and orientation
-
-        # print("ee position", env.ur5.get_current_pose(env.ur5.end_effector_index)[0])
-        # print("tool 0 position", env.ur5.get_current_pose(env.ur5.tool0_link_index)[0])
-        # print("tree position", env.tree.pos)
-        # print("Base position", env.ur5.get_current_pose(env.ur5.base_index)[0])
-        #pring joint angles and condition number
-        # print(env.ur5.get_joint_angles())
-        # print(env.ur5.get_condition_number())
-        base_pos, base_quat = env.pyb.con.getBasePositionAndOrientation(env.ur5.ur5_robot)
-        # print(infos['TimeLimit.truncated'])
-        infos = [infos]
-
-        train_callback.on_step()
-        # print(base_pos, base_quat)
-        # print(env.ur5.get_current_pose(0))
-        # print(env.ur5.get_joint_angles())
-        # print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[6])
-        # print(env.con.getLinkState(env.ur5, env.end_effector_index, 1)[7])
-
-        # print(env.get_current_pose())
-        # print(infos)
-        # print(observation['desired_goal'], observation['achieved_goal'])
-        # env.render()
-        # jacobian = env.pyb_con.con.calculateJacobian(env.ur5.ur5_robot, env.ur5.end_effector_index, [0, 0, 0],
-        #                                      env.ur5.get_joint_angles(), [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
-        # jacobian = np.vstack(jacobian)
-        # condition_number = np.linalg.cond(jacobian)
-        # print("as", jacobian)
-        # jacobian = env.pyb_con.con.calculateJacobian(env.ur5.ur5_robot, env.ur5.tool0_link_index, [0, 0, 0],
-        #                                      env.ur5.get_joint_angles(), [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
-        # jacobian = np.vstack(jacobian)
-        # condition_number = np.linalg.cond(jacobian)
-        # print(jacobian)
-        # print(condition_number, 1 / condition_number)
-        # # print(env.get_joint_angles())
-        # print(env.target_dist)
-
-    """
-    print("Initial position: ", env.achieved_goal, pybullet.getEulerFromQuaternion(env.achieved_orient))
-    try:
-        action = int(input('action please'))
-    except:
-        continue
-    if action == 0:
-        quit()
-    if action > 12:
-        print("Wrong action")
-        continue
-    print(env.rev_actions[action])
-    
-    r = env.step(action, False)
-    print(r[1][-1])
-    print("Final position: ", env.achieved_goal, pybullet.getEulerFromQuaternion(env.achieved_orient))
-    """

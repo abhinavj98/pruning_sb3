@@ -460,6 +460,7 @@ class PruningEnv(gym.Env):
                                                    previous_pose, current_pose_eebase, previous_pose_eebase,  singularity, None)
 
         self.sum_reward += reward
+        print("Pointing orientation reward", reward_infos['pointing_orientation_reward'])
         # self.debug_line = self.pyb_con.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
         self.step_counter += 1
         self.global_step_counter += 1
@@ -665,8 +666,8 @@ class PruningEnv(gym.Env):
 
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
-        # _ = self.pyb_con.add_debug_item('line', 'step', lineFromXYZ=achieved_pos, lineToXYZ=desired_pos,
-        #                             lineColorRGB=[0, 0, 1], lineWidth=20)
+        _ = self.pyb.add_debug_item('line', 'step', lineFromXYZ=achieved_pos, lineToXYZ=desired_pos,
+                                    lineColorRGB=[0, 0, 1], lineWidth=20)
         # _ = self.pyb_con.add_debug_item('line', 'step', lineFromXYZ=previous_pos, lineToXYZ=desired_pos,
         #                             lineColorRGB=[0, 0, 1], lineWidth=20)
 
