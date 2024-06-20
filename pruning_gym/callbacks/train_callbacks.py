@@ -25,7 +25,7 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
                                          tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,
                                          point_branch_normal=current_branch_normal)
 
-    def _sample_tree_and_point(self):
+    def _sample_tree_and_point(self, idx):
         # Sample orientation from key in or_bins
         if self.verbose > 0:
             print("INFO: Sampling tree and point")
@@ -33,27 +33,9 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
         while not point_sampled:
             rand_vector = self.rand_direction_vector()
             orientation = self.get_bin_from_orientation(rand_vector)
-            if len(self.or_bins[orientation]) == 0:
-                if self.verbose > 1:
-                    print(f"DEBUG: No trees in orientation {orientation}")
-                continue
-            tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
-            current_point_pos, current_branch_or, current_branch_normal, _ = random_point
-            required_point_pos = random.choice(self.reachable_euclidean_grid)
+            point_sampled, point = self.maybe_sample_point(orientation)
 
-            offset = np.random.uniform(-0.025, 0.025, 3)
-            delta_tree_pos = np.array(required_point_pos) - np.array(current_point_pos) + offset
-            final_point_pos = np.array(current_point_pos) + delta_tree_pos
-
-            if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
-                if self.verbose > 1:
-                    print(
-                        f"DEBUG: Invalid delta pos {delta_tree_pos}, required pos {required_point_pos}, current pos {current_point_pos}, offset {offset}")
-                continue
-
-            point_sampled = True
-
-        return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos, current_branch_normal
+        return point
 
     def _update_tree_properties(self):
         infos = self.locals["infos"]
@@ -62,7 +44,7 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
                 if self.verbose > 1:
                     print(f"DEBUG: Updating tree in env {i} via callback")
                 tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal \
-                    = self._sample_tree_and_point()
+                    = self._sample_tree_and_point(i)
                 self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
                                              point_pos=final_point_pos, point_branch_or=current_branch_or,
                                              tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,

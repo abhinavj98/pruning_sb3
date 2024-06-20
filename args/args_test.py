@@ -8,8 +8,18 @@ args = {
         },
         'n_eval_episodes': {
             'type': int,
-            'default': 12,
+            'default': 2,
             'help': 'number of episodes to run during evaluation'
+        },
+        'n_eval_orientations': {
+            'type': int,
+            'default': 2,
+            'help': 'number of orientations to evaluate'
+        },
+        'n_points_per_orientation': {
+            'type': int,
+            'default': 2,
+            'help': 'number of points to sample per orientation'
         },
         'train_record_freq': {
             'type': int,
@@ -18,7 +28,7 @@ args = {
         },
         'verbose': {
             'type': int,
-            'default': 1,
+            'default': 2,
             'help': 'verbosity level'
         },
     },

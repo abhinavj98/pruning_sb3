@@ -161,8 +161,8 @@ def add_arg_to_env(key, val, env_name, parsed_args_dict):
 def make_or_bins(args, type):
     from pruning_sb3.pruning_gym.pruning_env import PruningEnv
     from pruning_sb3.pruning_gym.tree import Tree
-    if os.path.exists(f"{type}_dataset.pkl"):
-        with open(f"{type}_dataset.pkl", "rb") as f:
+    if os.path.exists(f"{type}_or_bins.pkl"):
+        with open(f"{type}_or_bins.pkl", "rb") as f:
             or_bins = pickle.load(f)
             for key in or_bins.keys():
                 random.shuffle(or_bins[key])
@@ -178,7 +178,7 @@ def make_or_bins(args, type):
         for key in or_bins.keys():
             random.shuffle(or_bins[key])
 
-        with open(f"{type}_dataset.pkl", "wb") as f:
+        with open(f"{type}_or_bins.pkl", "wb") as f:
             pickle.dump(or_bins, f)
     return or_bins
 
