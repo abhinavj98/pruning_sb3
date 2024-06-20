@@ -3,26 +3,18 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../pruning_sb3')))
 
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
 import numpy as np
 import torch as th
 from gymnasium import spaces
-from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.common.torch_layers import (
     BaseFeaturesExtractor,
-    CombinedExtractor,
     FlattenExtractor,
     MlpExtractor,
     NatureCNN,
 )
 from stable_baselines3.common.distributions import (
-    BernoulliDistribution,
-    CategoricalDistribution,
-    DiagGaussianDistribution,
     Distribution,
-    MultiCategoricalDistribution,
     StateDependentNoiseDistribution,
-    make_proba_distribution,
     SquashedDiagGaussianDistribution
 )
 from stable_baselines3.common.type_aliases import Schedule
@@ -32,18 +24,18 @@ from sb3_contrib.common.recurrent.type_aliases import RNNStates
 from stable_baselines3.common.policies import BasePolicy
 from pruning_sb3.pruning_gym.running_mean_std import RunningMeanStd
 import pickle
-from stable_baselines3.common.preprocessing import get_action_dim, is_image_space, maybe_transpose, preprocess_obs
+from stable_baselines3.common.preprocessing import get_action_dim
 
 import collections
 import copy
 import warnings
-from abc import ABC, abstractmethod
 from functools import partial
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 from torchvision.transforms import functional as F
 
-#Optical flow
+# Optical flow
 from pruning_sb3.pruning_gym.optical_flow import OpticalFlow
+
 
 class ActorCriticPolicySquashed(BasePolicy):
     """
@@ -227,8 +219,7 @@ class ActorCriticPolicySquashed(BasePolicy):
         self.action_net, self.log_std = self.action_dist.proba_distribution_net(
             latent_dim=latent_dim_pi, log_std_init=self.log_std_init
         )
-        print("LOG STD INIT: ", self.log_std_init)
-        print("LOG STD: ", self.log_std)
+
         # multiply action net weight by 10
         # self.action_net.weight.data *= 10
         # if isinstance(self.action_dist, DiagGaussianDistribution):
@@ -461,8 +452,8 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             enable_critic_lstm: bool = True,
             lstm_kwargs: Optional[Dict[str, Any]] = None,
             features_dim_critic_add: Optional[int] = None,
-            use_optical_flow = True,
-            algo_size = (224, 224)
+            use_optical_flow=True,
+            algo_size=(224, 224)
     ):
         self.lstm_output_dim = lstm_hidden_size
         super().__init__(
@@ -515,7 +506,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         if not (self.shared_lstm or self.enable_critic_lstm):
             self.critic = nn.Linear(self.features_dim, lstm_hidden_size)
         if self.use_optical_flow:
-            self.optical_flow_model = OpticalFlow(size = self.algo_size)
+            self.optical_flow_model = OpticalFlow(size=self.algo_size)
         # Use a separate LSTM for the critic
         # TODO: TEST
         if self.enable_critic_lstm:
@@ -574,11 +565,13 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
                 return lambda b: th.load(io.BytesIO(b), map_location='cpu')
             else:
                 return super().find_class(module, name)
+
     def load_running_mean_std_from_file(self, path):
         with open(path, 'rb') as f:
             if sys.platform == 'darwin':
                 print("MAC")
-                self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = RecurrentActorCriticPolicy.CPU_Unpickler(f).load()
+                self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = RecurrentActorCriticPolicy.CPU_Unpickler(
+                    f).load()
             else:
                 print("NOT MAC")
                 self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = pickle.load(f)
@@ -695,7 +688,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
 
     def get_depth_proxy(self, rgb, prev_rgb, point_mask):
         optical_flow = self.optical_flow_model.calculate_optical_flow(rgb, prev_rgb)
-        depth_proxy = th.cat((optical_flow, point_mask), dim = 1)
+        depth_proxy = th.cat((optical_flow, point_mask), dim=1)
 
         return depth_proxy
 
@@ -751,7 +744,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
 
         depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
 
-        depth_proxy = F.resize(depth_proxy, size = (224,224))
+        depth_proxy = F.resize(depth_proxy, size=[224, 224], antialias=True)
         if self.training:
             self.running_mean_var_oflow_x.update(depth_proxy[:, 0, :, :].reshape(depth_proxy.shape[0], -1))
             self.running_mean_var_oflow_y.update(depth_proxy[:, 1, :, :].reshape(depth_proxy.shape[0], -1))
@@ -779,10 +772,11 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             features = (features_actor, features_critic)
 
         # return actor features and critic features
-        #unnormalize in place
+        # unnormalize in place
         unnormalize_recon = self._unnormalize_using_running_mean_std(image_features[1], (self.running_mean_var_oflow_x,
-                                                                 self.running_mean_var_oflow_y))
+                                                                                         self.running_mean_var_oflow_y))
         return features, depth_proxy, unnormalize_recon
+
     # def make_state_from_obs(self, obs):
     #     depth_features = self.extract_features(obs['depth_proxy'])
     #     #TODO: Normalize inputs
@@ -815,10 +809,10 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         return self._get_action_dist_from_latent(latent_pi), lstm_states
 
     def predict_values(self,
-            obs: th.Tensor,
-            lstm_states: Tuple[th.Tensor, th.Tensor],
-            episode_starts: th.Tensor,
-    ) -> th.Tensor:
+                       obs: th.Tensor,
+                       lstm_states: Tuple[th.Tensor, th.Tensor],
+                       episode_starts: th.Tensor,
+                       ) -> th.Tensor:
         """
         Get the estimated values according to the current policy given the observations.
 
@@ -864,7 +858,6 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             and entropy of the action distribution.
         """
         # Calculate running mean and var for observation normalization
-
 
         # Preprocess the observation if needed
         features, depth_proxy, depth_proxy_recon = self.extract_features(obs)

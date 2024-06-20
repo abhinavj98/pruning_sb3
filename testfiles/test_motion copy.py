@@ -1,27 +1,17 @@
-import os
 import argparse
-from datetime import datetime
-import numpy as np
-from itertools import count
-from collections import namedtuple, deque
-import pickle
-import torch
-import gym
 import random
+
+import numpy as np
+import pybullet
+import torch
 # from ppo_discrete import PPO, Memory, ActorCritic
 from gym_env_discrete import PruningEnv
-import torchvision
-import imageio
-import matplotlib
-import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
-import cv2
-import pybullet
+
 writer = SummaryWriter()
 
-
-
 title = 'PyBullet UR5 robot'
+
 
 def get_args():
     parser = argparse.ArgumentParser(description=title)
@@ -37,7 +27,7 @@ def get_args():
     arg('--lp', type=float, default=0.1, help='learning parameter for task')
     # train:
     arg('--seed', type=int, default=123, help='random seed')
-    arg('--emb_size',   type=int, default=512, help='embedding size')
+    arg('--emb_size', type=int, default=512, help='embedding size')
     arg('--solved_reward', type=int, default=0, help='stop training if avg_reward > solved_reward')
     arg('--log_interval', type=int, default=10, help='interval for log')
     arg('--save_interval', type=int, default=150, help='interval for saving model')
@@ -54,12 +44,13 @@ def get_args():
     arg('--save_dir', type=str, default='saved_rl_models/', help='path to save the models')
     arg('--cuda', dest='cuda', action='store_true', default=False, help='Use cuda to train model')
     arg('--mps', dest='mps', action='store_true', default=False, help='Use mps to train model')
-    arg('--device_num', type=str, default=0,  help='GPU number to use')
-    arg('--complex_tree', type = int, default=0, help='Use complex tree to train model')
+    arg('--device_num', type=str, default=0, help='GPU number to use')
+    arg('--complex_tree', type=int, default=0, help='Use complex tree to train model')
     args = parser.parse_args()
     return args
 
-args = get_args() # Holds all the input arguments
+
+args = get_args()  # Holds all the input arguments
 
 np.set_printoptions(precision=2)
 torch.set_printoptions(profile="full", precision=2)
@@ -71,12 +62,14 @@ CP_B = '\033[34m'
 CP_Y = '\033[33m'
 CP_C = '\033[0m'
 
+
 def write_file(filepath, data, mode):
     f = open(filepath, mode)
     f.write(data)
     f.close()
 
-args.filename_tl = 'training_log.txt' # log file
+
+args.filename_tl = 'training_log.txt'  # log file
 
 env = PruningEnv(renders=True)
 
@@ -88,7 +81,7 @@ env.reset()
 print(env.actions)
 while True:
     keys = pybullet.getKeyboardEvents()
-    for k,state in keys.items():
+    for k, state in keys.items():
         if ord('-') == k:
             action = 11
         elif ord('=') == k:
@@ -100,11 +93,10 @@ while True:
         if action > 12 or action < 0:
             print("Bad action")
             continue
-        if state&pybullet.KEY_WAS_TRIGGERED:
+        if state & pybullet.KEY_WAS_TRIGGERED:
             print(env.rev_actions[action])
             r = env.step(action, False)
-        
-        
+
 """
 print("Initial position: ", env.achieved_goal, pybullet.getEulerFromQuaternion(env.achieved_orient))
 try:

@@ -1,5 +1,6 @@
-import cv2
 import os
+
+import cv2
 
 
 def images_to_video(image_folder, output_video, fps):

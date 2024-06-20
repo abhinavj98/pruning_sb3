@@ -1,15 +1,9 @@
-from stable_baselines3.common.policies import BasePolicy
-from typing import Any, Dict, List, Optional, Type, Tuple
 from functools import partial
-import gymnasium as gym
-import torch as th
-from torch import nn
-from stable_baselines3.common.type_aliases import Schedule
+from typing import Any, Dict, Optional, Type, Tuple
+
 import gymnasium as gym
 import numpy as np
 import torch as th
-from torch import nn
-
 from stable_baselines3.common.distributions import (
     BernoulliDistribution,
     CategoricalDistribution,
@@ -18,19 +12,16 @@ from stable_baselines3.common.distributions import (
     Distribution,
     MultiCategoricalDistribution,
     StateDependentNoiseDistribution,
-    make_proba_distribution,
 )
-from stable_baselines3.common.preprocessing import get_action_dim, is_image_space, maybe_transpose, preprocess_obs
+from stable_baselines3.common.policies import BasePolicy
+from stable_baselines3.common.preprocessing import get_action_dim
 from stable_baselines3.common.torch_layers import (
     BaseFeaturesExtractor,
-    CombinedExtractor,
     FlattenExtractor,
     MlpExtractor,
-    NatureCNN,
-    create_mlp,
 )
 from stable_baselines3.common.type_aliases import Schedule
-from stable_baselines3.common.utils import get_device, is_vectorized_observation, obs_as_tensor
+from torch import nn
 
 
 class ActorCriticWithAePolicy(BasePolicy):
@@ -64,28 +55,28 @@ class ActorCriticWithAePolicy(BasePolicy):
     """
 
     def __init__(
-        self,
-        observation_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
-        lr_schedule: Schedule,
-        actor_class: Type[nn.Module],
-        critic_class: Type[nn.Module],
-        critic_kwargs: Optional[Dict[str, Any]] = None,
-        actor_kwargs: Optional[Dict[str, Any]] = None,
-        activation_fn: Type[nn.Module] = nn.Tanh,
-        ortho_init: bool = True,
-        use_sde: bool = False,
-        log_std_init: float = 0.1,
-        full_std: bool = True,
-        use_expln: bool = False,
-        squash_output: bool = False,
-        features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
-        features_extractor_kwargs: Optional[Dict[str, Any]] = None,
-        normalize_images: bool = False,
-        optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
-        optimizer_kwargs: Optional[Dict[str, Any]] = None,
-        lr_schedule_ae: Schedule = 0.0001,
-        lr_schedule_logstd: Schedule = 0.0001,
+            self,
+            observation_space: gym.spaces.Space,
+            action_space: gym.spaces.Space,
+            lr_schedule: Schedule,
+            actor_class: Type[nn.Module],
+            critic_class: Type[nn.Module],
+            critic_kwargs: Optional[Dict[str, Any]] = None,
+            actor_kwargs: Optional[Dict[str, Any]] = None,
+            activation_fn: Type[nn.Module] = nn.Tanh,
+            ortho_init: bool = True,
+            use_sde: bool = False,
+            log_std_init: float = 0.1,
+            full_std: bool = True,
+            use_expln: bool = False,
+            squash_output: bool = False,
+            features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
+            features_extractor_kwargs: Optional[Dict[str, Any]] = None,
+            normalize_images: bool = False,
+            optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
+            optimizer_kwargs: Optional[Dict[str, Any]] = None,
+            lr_schedule_ae: Schedule = 0.0001,
+            lr_schedule_logstd: Schedule = 0.0001,
     ):
 
         if optimizer_kwargs is None:
@@ -104,18 +95,15 @@ class ActorCriticWithAePolicy(BasePolicy):
             squash_output=squash_output,
         )
 
-  
         self.activation_fn = activation_fn
         self.ortho_init = ortho_init
 
-        
         self.actor_class = actor_class
         self.critic_class = critic_class
         self.actor_kwargs = actor_kwargs
         self.critic_kwargs = critic_kwargs
         self.action_space = action_space
         self.use_sde = use_sde
-      
 
         self.normalize_images = normalize_images
         self.log_std_init = log_std_init
@@ -133,7 +121,6 @@ class ActorCriticWithAePolicy(BasePolicy):
         self.use_sde = use_sde
         self.dist_kwargs = dist_kwargs
         self._build(lr_schedule, lr_schedule_ae, lr_schedule_logstd)
-        
 
     def _get_constructor_parameters(self) -> Dict[str, Any]:
         data = super()._get_constructor_parameters()
@@ -164,7 +151,8 @@ class ActorCriticWithAePolicy(BasePolicy):
         Sample new weights for the exploration matrix.
         :param n_envs:
         """
-        assert isinstance(self.action_dist, StateDependentNoiseDistribution), "reset_noise() is only available when using gSDE"
+        assert isinstance(self.action_dist,
+                          StateDependentNoiseDistribution), "reset_noise() is only available when using gSDE"
         self.action_dist.sample_weights(self.log_std, batch_size=n_envs)
 
     def _build_mlp_extractor(self) -> None:
@@ -181,13 +169,14 @@ class ActorCriticWithAePolicy(BasePolicy):
             activation_fn=self.activation_fn,
             device=self.device,
         )
+
     def _build_actor_critic(self) -> None:
         self.actor = self.actor_class(**self.actor_kwargs).to(self.device)
         self.critic = self.critic_class(**self.critic_kwargs).to(self.device)
-        
-    @staticmethod    
+
+    @staticmethod
     def init_kaiming(m):
-        if type(m) == nn.Conv2d or type(m)==nn.Linear or type(m)==nn.ConvTranspose2d:
+        if type(m) == nn.Conv2d or type(m) == nn.Linear or type(m) == nn.ConvTranspose2d:
             th.nn.init.kaiming_normal_(m.weight, a=0, mode='fan_in', nonlinearity='leaky_relu')
 
     @staticmethod
@@ -201,7 +190,7 @@ class ActorCriticWithAePolicy(BasePolicy):
             print("aa")
             if module.bias is not None:
                 module.bias.data.fill_(0.0)
-    
+
     def _build(self, lr_schedule: Schedule, lr_schedule_ae: Schedule, lr_schedule_logstd) -> None:
         """
         Create the networks and the optimizer.
@@ -209,43 +198,48 @@ class ActorCriticWithAePolicy(BasePolicy):
             lr_schedule(1) is the initial learning rate
         """
 
-        #Make Actor Critic using actro critic class and kwargs, update get constructor parameters as welll
-        self.features_extractor = self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
+        # Make Actor Critic using actro critic class and kwargs, update get constructor parameters as welll
+        self.features_extractor = self.features_extractor_class(self.observation_space,
+                                                                **self.features_extractor_kwargs)
         self.features_dim = self.features_extractor.features_dim
         self._build_actor_critic()
         self.latent_dim_pi = self.actor.output_dim
         self.latent_dim_vf = self.critic.output_dim
-        self.action_dist = SquashedDiagGaussianDistribution(get_action_dim(self.action_space))#make_proba_distribution(self.action_space, use_sde=False, dist_kwargs=self.dist_kwargs)
+        self.action_dist = SquashedDiagGaussianDistribution(get_action_dim(
+            self.action_space))  # make_proba_distribution(self.action_space, use_sde=False, dist_kwargs=self.dist_kwargs)
         self.action_net, self.log_std = self.action_dist.proba_distribution_net(
-                latent_dim=self.latent_dim_pi, log_std_init=self.log_std_init
-            )
-    
+            latent_dim=self.latent_dim_pi, log_std_init=self.log_std_init
+        )
+
         self.value_net = nn.Linear(self.latent_dim_vf, 1)
         # Init weights: use orthogonal initialization
         # with small initial weight for the output
         if self.ortho_init:
-             # TODO: check for features_extractor
-             # Values from stable-baselines.
-             # features_extractor/mlp values are
-             # originally from openai/baselines (default gains/init_scales).
-             module_gains = {
-                 self.features_extractor: np.sqrt(2),
-                 self.actor: np.sqrt(2),
-                 self.critic: np.sqrt(2),
-                 self.action_net: 0.1,
-                 self.value_net: 1,
-             }
-             for module, gain in module_gains.items():
-                 print("ortho")
-                 module.apply(partial(self.init_weights, gain=gain))
+            # TODO: check for features_extractor
+            # Values from stable-baselines.
+            # features_extractor/mlp values are
+            # originally from openai/baselines (default gains/init_scales).
+            module_gains = {
+                self.features_extractor: np.sqrt(2),
+                self.actor: np.sqrt(2),
+                self.critic: np.sqrt(2),
+                self.action_net: 0.1,
+                self.value_net: 1,
+            }
+            for module, gain in module_gains.items():
+                print("ortho")
+                module.apply(partial(self.init_weights, gain=gain))
 
         # Setup optimizer with initial learning rate
-        self.optimizer = self.optimizer_class([*self.actor.parameters(), *self.critic.parameters(), *self.value_net.parameters(), *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
-        self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1), **self.optimizer_kwargs)
+        self.optimizer = self.optimizer_class(
+            [*self.actor.parameters(), *self.critic.parameters(), *self.value_net.parameters(),
+             *self.action_net.parameters()], lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.optimizer_ae = self.optimizer_class(self.features_extractor.parameters(), lr=lr_schedule_ae(1),
+                                                 **self.optimizer_kwargs)
         self.optimizer_logstd = self.optimizer_class([self.log_std], lr=lr_schedule_logstd(1), **self.optimizer_kwargs)
-        #print all nets in optimizer
+        # print all nets in optimizer
         # print(self.optimizer, self.optimizer_ae)
-    
+
     @staticmethod
     def init_weights(module: nn.Module, gain: float = 1) -> None:
         """
@@ -255,14 +249,16 @@ class ActorCriticWithAePolicy(BasePolicy):
             nn.init.orthogonal_(module.weight, gain=gain)
             if module.bias is not None:
                 module.bias.data.fill_(0.0)
-    
+
     def make_state_from_obs(self, obs):
         depth_features = self.extract_features(obs['depth'])
-        #TODO: Normalize inputs
-        robot_features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action']],  dim = 1)
+        # TODO: Normalize inputs
+        robot_features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action']],
+                                dim=1)
         return depth_features, robot_features
-        
-    def forward(self, obs: Dict, deterministic: bool = False, *args, **kwargs) -> Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]:
+
+    def forward(self, obs: Dict, deterministic: bool = False, *args, **kwargs) -> Tuple[
+        th.Tensor, th.Tensor, th.Tensor, th.Tensor]:
         """
         Forward pass in all the networks (actor and critic)
         :param obs: Observation
@@ -270,9 +266,9 @@ class ActorCriticWithAePolicy(BasePolicy):
         :return: action, value and log probability of the action
         """
         # Preprocess the observation if needed
-    
+
         # Evaluate the values for the given observations
-      
+
         depth_features, robot_features = self.make_state_from_obs(obs)
         # print(depth_features[0].shape, robot_features.shape)
         latent_pi = self.actor(depth_features[0], robot_features)
@@ -283,7 +279,6 @@ class ActorCriticWithAePolicy(BasePolicy):
         log_prob = distribution.log_prob(actions)
         return actions, values, log_prob
 
-
     def extract_features(self, obs: th.Tensor) -> th.Tensor:
         """
         Preprocess the observation if needed and extract features.
@@ -292,10 +287,10 @@ class ActorCriticWithAePolicy(BasePolicy):
         :return:
         """
         assert self.features_extractor is not None, "No features extractor was set"
-        #preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
+        # preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
         features = self.features_extractor(obs)
         return features
-        
+
     def _get_action_dist_from_latent(self, latent_pi: th.Tensor) -> Distribution:
         """
         Retrieve action distribution given the latent codes.
@@ -332,12 +327,10 @@ class ActorCriticWithAePolicy(BasePolicy):
             # latent_vf = self.critic(features[0].detach(), state)
             # values = self.value_net(latent_vf)
             distribution = self._get_action_dist_from_latent(latent_pi)
-            #actions = distribution.get_actions(deterministic=deterministic)
+            # actions = distribution.get_actions(deterministic=deterministic)
             # log_prob = distribution.log_prob(actions)
             # return self.get_distribution(observation).get_actions(deterministic=deterministic)
-            return distribution.get_actions(deterministic = deterministic)
-    
-
+            return distribution.get_actions(deterministic=deterministic)
 
     def evaluate_actions(self, obs: th.Tensor, actions: th.Tensor) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
         """
@@ -354,7 +347,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         latent_vf = self.critic(depth_features[0].detach(), robot_features)
         values = self.value_net(latent_vf)
         distribution = self._get_action_dist_from_latent(latent_pi)
-        #actions = distribution.get_actions(deterministic=deterministic)
+        # actions = distribution.get_actions(deterministic=deterministic)
         log_prob = distribution.log_prob(actions)
         return values, depth_features, log_prob, distribution.entropy()
 
@@ -379,14 +372,13 @@ class ActorCriticWithAePolicy(BasePolicy):
             latent_vf = self.critic(depth_features[0], robot_features.float())
             return self.value_net(latent_vf)
 
-
     def set_training_mode(self, mode: bool) -> None:
-            """
-            Put the policy in either training or evaluation mode.
-            This affects certain modules, such as batch normalisation and dropout.
-            :param mode: if true, set to training mode, else set to evaluation mode
-            """
-            self.actor.train(mode)
-            self.critic.train(mode)
-            self.features_extractor.train(mode)
-            self.training = mode
+        """
+        Put the policy in either training or evaluation mode.
+        This affects certain modules, such as batch normalisation and dropout.
+        :param mode: if true, set to training mode, else set to evaluation mode
+        """
+        self.actor.train(mode)
+        self.critic.train(mode)
+        self.features_extractor.train(mode)
+        self.training = mode

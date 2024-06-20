@@ -1,28 +1,15 @@
-
-import pickle
-
-import pandas as pd
-from stable_baselines3.common.callbacks import BaseCallback, EventCallback, CallbackList
-import gymnasium as gym
-from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.logger import Video
-
-from stable_baselines3.common.running_mean_std import RunningMeanStd
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-import numpy as np
-import os
-import cv2
-import torch as th
-from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
-import random
-import pandas as pd
-import imageio
-import copy
 import math
+import pickle
+import random
+from typing import Dict, Union
+
+import gymnasium as gym
+import numpy as np
+from stable_baselines3.common.callbacks import EventCallback
+from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
 
 
 def fibonacci_sphere(samples=1000):
-
     points = []
     phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
 
@@ -39,11 +26,14 @@ def fibonacci_sphere(samples=1000):
 
     return points
 
+
 def roundup(x):
     return math.ceil(x / 10.0) * 10
 
+
 def rounddown(x):
     return math.floor(x / 10.0) * 10
+
 
 def get_bin_from_orientation(orientation):
     offset = 1e-4
@@ -67,6 +57,8 @@ def get_bin_from_orientation(orientation):
     elif bin_key[1] < -175:
         bin_key = (bin_key[0], -175)
     return bin_key
+
+
 def get_reachable_euclidean_grid(radius, resolution):
     num_bins = int(radius / resolution) * 2
     base_center = np.array([0, 0, 0.91])
@@ -118,15 +110,15 @@ class RRTCallback(EventCallback):
     """
 
     def __init__(
-        self,
-        eval_env: Union[gym.Env, VecEnv],
-        n_eval_episodes: int = 5,
-        render: bool = False,
-        verbose: int = 1,
-        warn: bool = True,
-        or_bins: Dict = None,
-        save_video: bool = False,
-        dataset = None
+            self,
+            eval_env: Union[gym.Env, VecEnv],
+            n_eval_episodes: int = 5,
+            render: bool = False,
+            verbose: int = 1,
+            warn: bool = True,
+            or_bins: Dict = None,
+            save_video: bool = False,
+            dataset=None
     ):
         super().__init__(None, verbose=verbose)
 
@@ -139,7 +131,7 @@ class RRTCallback(EventCallback):
             eval_env = DummyVecEnv([lambda: eval_env])
 
         self.eval_env = eval_env
-        #Monitor, single env, do not vectorize
+        # Monitor, single env, do not vectorize
         self.or_bins = or_bins
         self.delta_pos_max = np.array([1, -0.675, 0])
         self.delta_pos_min = np.array([-1, -0.9525, -2])
@@ -149,8 +141,9 @@ class RRTCallback(EventCallback):
         self.num_points_per_or = 3
         self.dataset = dataset
 
-        #divide n_eval_episodes by n_envs
-        self.current_index = [(self.n_eval_episodes*self.num_points_per_or)//self.eval_env.num_envs*i for i in range(self.eval_env.num_envs)]
+        # divide n_eval_episodes by n_envs
+        self.current_index = [(self.n_eval_episodes * self.num_points_per_or) // self.eval_env.num_envs * i for i in
+                              range(self.eval_env.num_envs)]
 
     def _init_callback(self) -> None:
         # Does not work in some corner cases, where the wrapper is not the same
@@ -159,7 +152,6 @@ class RRTCallback(EventCallback):
         # Create folders if needed
 
         for i in range(self.eval_env.num_envs):
-
             tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal \
                 = self._sample_tree_and_point(i)
             self.eval_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
@@ -172,14 +164,16 @@ class RRTCallback(EventCallback):
     def _sample_tree_and_point(self, idx):
         if self.dataset is None:
             self.dataset = self._make_dataset()
-            #Write the dataset to a file
+            # Write the dataset to a file
             with open("rrt_dataset.pkl", "wb") as f:
                 pickle.dump(self.dataset, f)
             print("Dataset made", len(self.dataset))
         # print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
-        tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal = self.dataset[self.current_index[idx]]
+        tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal = \
+        self.dataset[self.current_index[idx]]
         # if self.current_index[idx] < len(self.dataset)//self.eval_env.num_envs*(idx+1)-1:
-        self.current_index[idx] = min(self.current_index[idx]+1, len(self.dataset)//self.eval_env.num_envs*(idx+1)-1)
+        self.current_index[idx] = min(self.current_index[idx] + 1,
+                                      len(self.dataset) // self.eval_env.num_envs * (idx + 1) - 1)
         print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
         return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal
 
@@ -194,7 +188,7 @@ class RRTCallback(EventCallback):
             lon_step = 10
             lat_bins = np.arange(lat_range[0], lat_range[1], lat_step, dtype=int)
             lon_bins = np.arange(lon_range[0], lon_range[1], lon_step, dtype=int)
-            #Make a grid
+            # Make a grid
             lat_grid, lon_grid = np.meshgrid(lat_bins, lon_bins)
             or_list = list(zip(lat_grid.flatten(), lon_grid.flatten()))
             num_bins = len(or_list)
@@ -224,7 +218,8 @@ class RRTCallback(EventCallback):
                     # print(orientation, final_point_pos)
                     if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
                         continue
-                    dataset.append((tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos, current_branch_normal))
+                    dataset.append((tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale,
+                                    delta_tree_pos, current_branch_normal))
                     break
 
         print("Dataset made", len(dataset))
@@ -235,11 +230,8 @@ class RRTCallback(EventCallback):
             = self._sample_tree_and_point(idx)
 
         self.eval_env.env_method("set_tree_properties", indices=idx, tree_urdf=tree_urdf,
-                                     point_pos=final_point_pos, point_branch_or=current_branch_or,
-                                     tree_orientation=tree_orientation, tree_scale=scale,
-                                     tree_pos=tree_pos, point_branch_normal=current_branch_normal)
-
+                                 point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                 tree_orientation=tree_orientation, tree_scale=scale,
+                                 tree_pos=tree_pos, point_branch_normal=current_branch_normal)
 
         self.episode_counter += 1
-
-

@@ -7,7 +7,6 @@ from gymnasium import spaces
 import pytest
 import torch as th
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
-from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import AutoEncoder
 import numpy as np
 
@@ -88,6 +87,7 @@ def dummy_action_space():
     action_space = spaces.Box(low=-1., high=1., shape=(6,), dtype=np.float32)
     return action_space
 
+
 def test_assymetric_extract_features(dummy_obs_space, dummy_action_space):
     fa_kwargs = {'features_dim': 18 + 72, 'in_channels': 3}
     policy = RecurrentActorCriticPolicy(dummy_obs_space, dummy_action_space, \
@@ -111,9 +111,10 @@ def test_assymetric_extract_features(dummy_obs_space, dummy_action_space):
     features, depth_proxy, _ = policy.extract_features(obs)
     # Make a torch tensor concatenating all the values in obs
     normalized_depth_proxy = policy._normalize_using_running_mean_std(depth_proxy, (policy.running_mean_var_oflow_x,
-                                                                            policy.running_mean_var_oflow_y))
+                                                                                    policy.running_mean_var_oflow_y))
     image_features = policy.features_extractor(normalized_depth_proxy)
-    output_actor = th.cat([obs['desired_goal'], obs['achieved_goal'], obs['achieved_or'], obs['joint_angles'], image_features[0]], dim=1)
+    output_actor = th.cat(
+        [obs['desired_goal'], obs['achieved_goal'], obs['achieved_or'], obs['joint_angles'], image_features[0]], dim=1)
 
     output_critic = th.cat([obs['desired_goal'], obs['achieved_goal'], obs['achieved_or'], obs['joint_angles'],
                             obs['critic_perpendicular_cosine_sim'], obs['critic_pointing_cosine_sim'],
@@ -127,6 +128,7 @@ def test_assymetric_extract_features(dummy_obs_space, dummy_action_space):
     assert (actor_features == output_actor).all()
     assert (critic_features == output_critic).all()
 
+
 @pytest.mark.skip
 def test_init_weights():
     assert False
@@ -136,8 +138,8 @@ def test__normalize_using_running_mean_std(dummy_obs_space, dummy_action_space):
     policy = RecurrentActorCriticPolicy(dummy_obs_space, dummy_action_space, \
                                         lambda x: 0.01, lr_schedule_ae=None, lr_schedule_logstd=lambda x: 0.1)
 
-    running_mv_1 = rms(shape=(1, ))
-    running_mv_2 = rms(shape=(1, ))
+    running_mv_1 = rms(shape=(1,))
+    running_mv_2 = rms(shape=(1,))
 
     data_stream = th.rand(100, 2, 240, 240)
     running_mv_1.update(data_stream[:, 0, :, :].reshape(data_stream.shape[0], -1))

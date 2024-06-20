@@ -19,14 +19,15 @@ using our implementation of the RAFT model. We will also see how to convert the
 predicted flows to RGB images for visualization.
 """
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
-import torchvision.transforms.functional as F
 import torchvision
-
+import torchvision.transforms.functional as F
 
 plt.rcParams["savefig.bbox"] = "tight"
+
+
 # sphinx_gallery_thumbnail_number = 2
 
 
@@ -43,13 +44,14 @@ def plot(imgs, **imshow_kwargs):
             ax = axs[row_idx, col_idx]
             if img.shape[0] == 1:
                 img = F.to_pil_image(img.to("cpu"), mode="F")
-                ax.imshow(np.asarray(img), cmap = "gray", **imshow_kwargs)
+                ax.imshow(np.asarray(img), cmap="gray", **imshow_kwargs)
             else:
                 img = F.to_pil_image(img.to("cpu"))
-                ax.imshow(np.asarray(img), cmap='gray',  **imshow_kwargs)
+                ax.imshow(np.asarray(img), cmap='gray', **imshow_kwargs)
             ax.set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
 
     plt.tight_layout()
+
 
 # %%
 # Reading Videos Using Torchvision
@@ -62,13 +64,11 @@ def plot(imgs, **imshow_kwargs):
 # credits go to `Pavel Danilyuk <https://www.pexels.com/@pavel-danilyuk>`_.
 
 
-import tempfile
-from pathlib import Path
-from urllib.request import urlretrieve
-
-#read images
-img_1 =torchvision.io.read_image("C:\\Users\\abhin\\OneDrive\\Pictures\\Screenshots\\of_3.png", mode = torchvision.io.ImageReadMode.RGB )
-img_2 =torchvision.io.read_image("C:\\Users\\abhin\\OneDrive\\Pictures\\Screenshots\\of_4.png", mode = torchvision.io.ImageReadMode.RGB )
+# read images
+img_1 = torchvision.io.read_image("C:\\Users\\abhin\\OneDrive\\Pictures\\Screenshots\\of_3.png",
+                                  mode=torchvision.io.ImageReadMode.RGB)
+img_2 = torchvision.io.read_image("C:\\Users\\abhin\\OneDrive\\Pictures\\Screenshots\\of_4.png",
+                                  mode=torchvision.io.ImageReadMode.RGB)
 print(f"shape = {img_1.shape}, dtype = {img_1.dtype}")
 img1_batch = torch.stack([img_1])
 img2_batch = torch.stack([img_2])
@@ -101,7 +101,6 @@ def preprocess(img1_batch, img2_batch):
 img1_batch, img2_batch = preprocess(img1_batch, img2_batch)
 
 print(f"shape = {img1_batch.shape}, dtype = {img1_batch.dtype}")
-
 
 # %%
 # Estimating Optical flow using RAFT
@@ -141,7 +140,6 @@ predicted_flows = list_of_flows[-1]
 print(f"dtype = {predicted_flows.dtype}")
 print(f"shape = {predicted_flows.shape} = (N, 2, H, W)")
 print(f"min = {predicted_flows.min()}, max = {predicted_flows.max()}")
-
 
 # %%
 # Visualizing predicted flows

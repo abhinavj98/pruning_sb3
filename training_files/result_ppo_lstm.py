@@ -1,5 +1,6 @@
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from pruning_sb3.pruning_gym.custom_callbacks import CustomResultCallback
@@ -17,8 +18,7 @@ import argparse
 # from args import args_dict
 from pruning_sb3.args.args import \
     args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
+from pruning_sb3.pruning_gym.helpers import set_args, organize_args
 import random
 import pickle
 
@@ -60,16 +60,17 @@ if __name__ == "__main__":
             for i in data_env_test.trees:
                 or_bins_test[key].extend(i.or_bins[key])
         del data_env_test
-        #Shuffle the data inside the bisn
+        # Shuffle the data inside the bisn
         for key in or_bins_test.keys():
             random.shuffle(or_bins_test[key])
     # args_record['renders'] = True
     eval_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=args_global["n_envs"])
     # Use deterministic actions for evaluation
-    eval_callback = CustomResultCallback(eval_env,  best_model_save_path="../logs/test",
-                                       log_path="../logs/test",
-                                       deterministic=True, render=False, or_bins = or_bins_test, dataset = dataset, save_video = True,
-                                        **parsed_args_dict['args_callback'])
+    eval_callback = CustomResultCallback(eval_env, best_model_save_path="../logs/test",
+                                         log_path="../logs/test",
+                                         deterministic=True, render=False, or_bins=or_bins_test, dataset=dataset,
+                                         save_video=True,
+                                         **parsed_args_dict['args_callback'])
 
     policy_kwargs = {
         "features_extractor_class": AutoEncoder,
@@ -87,7 +88,7 @@ if __name__ == "__main__":
         "algo_size": (parsed_args_dict['args_env']['algo_height'], parsed_args_dict['args_env']['algo_width']),
     }
     policy = RecurrentActorCriticPolicy
-    model = RecurrentPPOAE.load(load_path_model, env=eval_env)#, custom_objects=load_dict)
+    model = RecurrentPPOAE.load(load_path_model, env=eval_env)  # , custom_objects=load_dict)
     model.policy.load_running_mean_std_from_file(load_path_mean_std)
     model.num_timesteps = load_timestep
     model._num_timesteps_at_start = load_timestep
@@ -100,4 +101,3 @@ if __name__ == "__main__":
     eval_callback.model = model
     eval_callback._init_callback()
     eval_callback.get_results()
-

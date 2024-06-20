@@ -1,30 +1,30 @@
 import json
 import multiprocessing as mp
 import os
+import pickle
 import random
+import time
 from typing import Union, Callable
 
 import numpy as np
 import torch as th
-
 import wandb
 from nptyping import NDArray, Shape, Float
 
 from .optical_flow import OpticalFlow
-import time
-import pickle
+
 
 def init_wandb(args, name):
     if os.path.exists("../keys.json"):
-       with open("../keys.json") as f:
-         os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
+        with open("../keys.json") as f:
+            os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
 
     wandb.tensorboard.patch(root_logdir="runs", pytorch=True)
     wandb.init(
         # set the wandb project where this run will be logged
         project="ppo_lstm",
-        sync_tensorboard = True,
-        name = name,
+        sync_tensorboard=True,
+        name=name,
         # track hyperparameters and run metadata
         config=args
     )
@@ -65,7 +65,7 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
         :param progress_remaining: (float)
         :return: (float)
         """
-        return (progress_remaining)**2 * initial_value
+        return (progress_remaining) ** 2 * initial_value
 
     return func
 
@@ -84,7 +84,7 @@ def set_seed(seed: int = 42) -> None:
 
 
 def optical_flow_create_shared_vars(num_envs: int = 1):
-    #TODO = make this torch multiprocessing
+    # TODO = make this torch multiprocessing
     manager = mp.Manager()
 
     # queue = multiprocessing.Queue()
@@ -95,7 +95,7 @@ def optical_flow_create_shared_vars(num_envs: int = 1):
         ctx = mp.get_context("forkserver")
     else:
         ctx = mp.get_context("spawn")
-    #replace shared dict and queue with pipe?
+    # replace shared dict and queue with pipe?
     process = ctx.Process(target=OpticalFlow, args=((224, 224), True, shared_var, num_envs),
                           daemon=True)  # type: ignore[attr-defined]
     # pytype: enable=attribute-error
@@ -109,7 +109,6 @@ def compute_perpendicular_projection_vector(ab: NDArray[Shape['3, 1'], Float], b
     return projection
 
 
-
 def goal_distance(goal_a: NDArray[Shape['3, 1'], Float], goal_b: NDArray[Shape['3, 1'], Float]) -> float:
     # Compute the distance between the goal and the achieved goal.
     assert goal_a.shape == goal_b.shape
@@ -120,23 +119,27 @@ def compute_parallel_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: ND
     projection = np.dot(ab, bc) / np.dot(bc, bc) * bc
     return projection
 
-def set_args(arg_dict, parser, name = 'main'):
-     for arg_name, arg_params in arg_dict.items():
+
+def set_args(arg_dict, parser, name='main'):
+    for arg_name, arg_params in arg_dict.items():
         # print(arg_name, arg_params)
         if 'args' in arg_name:
             set_args(arg_params, parser, arg_name)
         else:
             parser.add_argument(f'--{name}_{arg_name}', **arg_params)
-    # return parser_dict
+
+
+# return parser_dict
 
 def organize_args(args_dict):
     parse_args_dict = {}
-    args_classes = ['args_global', 'args_train', 'args_test', 'args_record', 'args_callback', 'args_policy', 'args_env', 'args_eval']
+    args_classes = ['args_global', 'args_train', 'args_test', 'args_record', 'args_callback', 'args_policy', 'args_env',
+                    'args_eval']
     for arg_name in args_classes:
         parse_args_dict[arg_name] = {}
     for arg_name, arg_params in args_dict.items():
         index = arg_name.index('_', 5)
-        arg_val = arg_name[index+1:]
+        arg_val = arg_name[index + 1:]
         arg_key = arg_name[:index]
         parse_args_dict[arg_key][arg_val] = arg_params
     args_global = parse_args_dict['args_global']
@@ -153,7 +156,6 @@ def organize_args(args_dict):
 def add_arg_to_env(key, val, env_name, parsed_args_dict):
     for name in env_name:
         parsed_args_dict[name][key] = val
-
 
 
 def make_or_bins(args, type):
@@ -203,5 +205,3 @@ def get_policy_kwargs(args_policy, args_env, features_extractor_class):
     }
 
     return policy_kwargs
-
-

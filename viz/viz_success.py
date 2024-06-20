@@ -1,31 +1,22 @@
-#In this file I want to read from episode_info.csv file
-#Calculate latitudes and longitudes of using orientation
-#Bin each latitude and for each bin calculate average perpendicular cosine sim error
-import sys
+# In this file I want to read from episode_info.csv file
+# Calculate latitudes and longitudes of using orientation
+# Bin each latitude and for each bin calculate average perpendicular cosine sim error
 import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 import pandas as pd
-import numpy as np
-from pruning_sb3.pruning_gym.tree import Tree
-from statistics import mean
 import os
 import sys
 
 sys.path.insert(0, os.path.abspath('../../'))
-from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import *
 import numpy as np
-import cv2
-import random
 import argparse
 from pruning_sb3.args.args import args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
-import multiprocessing as mp
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from pruning_sb3.pruning_gym.helpers import set_args, organize_args
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
 
 # %%
 # Create the ArgumentParser object
@@ -38,6 +29,8 @@ parsed_args_dict = organize_args(parsed_args)
 
 # %%
 import math
+
+
 def get_bin_from_orientation(orientation):
     offset = 1e-4
     orientation = orientation / np.linalg.norm(orientation)
@@ -60,6 +53,7 @@ def get_bin_from_orientation(orientation):
     elif bin_key[1] < -175:
         bin_key = (bin_key[0], -175)
     return bin_key
+
 
 def roundup(x):
     return math.ceil(x / 10.0) * 10
@@ -128,8 +122,8 @@ def populate_bins(bins, df, idx_name):
     print(orientations)
     offset = 1e-3
     for i, direction_vector in enumerate(orientations.values):
-        lat_angle = np.rad2deg(np.arcsin(direction_vector[2]))+offset
-        lon_angle = np.rad2deg(np.arctan2(direction_vector[1], direction_vector[0]))+offset
+        lat_angle = np.rad2deg(np.arcsin(direction_vector[2])) + offset
+        lon_angle = np.rad2deg(np.arctan2(direction_vector[1], direction_vector[0])) + offset
         lat_angle_min = rounddown(lat_angle)
         lat_angle_max = roundup(lat_angle)
         lon_angle_min = rounddown(lon_angle)
@@ -143,7 +137,7 @@ def populate_bins(bins, df, idx_name):
             bin_key = (bin_key[0], 175)
         elif bin_key[1] < -175:
             bin_key = (bin_key[0], -175)
-        #append perp_cosine_sim_error to the bin
+        # append perp_cosine_sim_error to the bin
         bins[bin_key].append((df[idx_name][i]))
 
         # Find the closest bin based on latitude and longitude angles
@@ -215,6 +209,8 @@ def visualize_sphere(bins, idx_name):
     fig.colorbar(scalar_map, cax=cax, orientation='vertical')
     scalar_map.set_array(frequencies)
     plt.show()
+
+
 def visualize_2d(bins, idx_name, title):
     # Extract latitude and longitude ranges from each bin
 
@@ -283,12 +279,12 @@ def rand_rotation_matrix(deflection=1.0, randnums=None):
 
     M = (np.outer(V, V) - np.eye(3)).dot(R)
     # convert M to euler angles
-    return M@[0,0,1]
+    return M @ [0, 0, 1]
 
     return M
 
-def fibonacci_sphere(samples=1000):
 
+def fibonacci_sphere(samples=1000):
     points = []
     phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
 
@@ -305,15 +301,16 @@ def fibonacci_sphere(samples=1000):
 
     return points
 
-def plot_bar(df, label, save = False):
-    #is_success rate as a bar plot using seaborn
+
+def plot_bar(df, label, save=False):
+    # is_success rate as a bar plot using seaborn
     import seaborn as sns
     import matplotlib.pyplot as plt
     palette = [(0.0, 0.447, 0.741), (0.85, 0.325, 0.098), (0.466, 0.674, 0.188)]
     # sns.set_palette(palette)
 
     sns.barplot(data=df, y='Success Rate', hue='Environment', palette=palette)
-    #Remove title from legend
+    # Remove title from legend
     plt.legend(title=None)
     plt.ylabel('Success Rate')
     # plt.title(label)
@@ -342,13 +339,13 @@ dataset = []
 # print((bins.values()))
 # for key in bins.keys():
 #     perp_bins[key] = np.mean(np.array(bins[key]))
-#Assign each latitude and longitude to a bin
+# Assign each latitude and longitude to a bin
 # print(perp_bins)
 # visualize_2d(perp_bins, 'is_success')
-#print is_success rate
+# print is_success rate
 # print(df_rrt['is_success'].value_counts()/len(df_rrt))
 # print(df_rrt['is_success'].value_counts()/len(df_policy))
-#get count of fail modes
+# get count of fail modes
 # print(df_rrt.groupby(df_rrt['fail_mode']).count())
 # df_a = pd.DataFrame({'success':[len(df_rrt[df_rrt['is_success']==True])/len(df_rrt), len(df_policy[df_policy['is_success']==True])/len(df_policy)]})
 # df_success = pd.DataFrame({'Success Rate': df_a['success'], 'Environment': ['RRT'] + ['Policy']})

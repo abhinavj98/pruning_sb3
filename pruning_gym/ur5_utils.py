@@ -1,7 +1,6 @@
 import os
 import sys
-
-from typing import Optional, Tuple, Any, List
+from typing import Optional, Tuple
 
 from numpy import ndarray
 
@@ -11,13 +10,13 @@ import pybullet
 
 from nptyping import NDArray, Shape, Float
 from collections import namedtuple
-import random
 
 
 # ENV is a collection of objects like tree supports and ur5 robot. They interact with each other
 # through the env. UR5 class only needs access to pybullet.
 class UR5:
-    def __init__(self, con, robot_urdf_path: str, pos=[0, 0, 0], orientation = [0, 0, 0, 1], randomize_pose = False) -> None:
+    def __init__(self, con, robot_urdf_path: str, pos=[0, 0, 0], orientation=[0, 0, 0, 1],
+                 randomize_pose=False) -> None:
         assert isinstance(robot_urdf_path, str)
 
         self.con = con
@@ -48,9 +47,7 @@ class UR5:
         self.camera_base_offset = np.array(
             [0.063179, 0.077119, 0.0420027])
 
-        self.setup_ur5_arm() #Changes pos and orientation if randomize is True
-
-
+        self.setup_ur5_arm()  # Changes pos and orientation if randomize is True
 
     def setup_ur5_arm(self) -> None:
         assert self.ur5_robot is None
@@ -67,7 +64,8 @@ class UR5:
             delta_pos = np.array([0., 0., 0.])
             delta_orientation = pybullet.getQuaternionFromEuler([0, 0, 0])
 
-        self.pos, self.orientation = self.con.multiplyTransforms(self.init_pos, self.init_orientation, delta_pos, delta_orientation)
+        self.pos, self.orientation = self.con.multiplyTransforms(self.init_pos, self.init_orientation, delta_pos,
+                                                                 delta_orientation)
         self.ur5_robot = self.con.loadURDF(self.robot_urdf_path, self.pos, self.orientation, flags=flags)
 
         self.num_joints = self.con.getNumJoints(self.ur5_robot)
@@ -113,7 +111,6 @@ class UR5:
         self.achieved_pos = np.array(self.get_current_pose(self.end_effector_index)[0])
         base_pos, base_or = self.get_current_pose(self.base_index)
         self.set_collision_filter()
-
 
     def set_collision_filter(self):
         # TO SET CUTTER DISABLE COLLISIONS WITH SELF
@@ -275,6 +272,7 @@ class UR5:
             lowerLimits=lower_limits, jointRanges=joint_ranges  # , restPoses=self.init_joint_angles
         )
         return joint_angles
+
     def get_current_pose(self, index: int) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """Returns current pose of the end effector. Pos wrt end effector, orientation wrt world"""
         link_state: Tuple = self.con.getLinkState(self.ur5_robot, index, computeForwardKinematics=True)

@@ -1,7 +1,6 @@
 import numpy as np
-from typing import List, Tuple
 from nptyping import NDArray, Shape, Float
-from pybullet import getMatrixFromQuaternion, getDifferenceQuaternion, getQuaternionFromEuler
+from pybullet import getMatrixFromQuaternion, getDifferenceQuaternion
 
 
 class Reward:
@@ -20,16 +19,14 @@ class Reward:
         self.reward_info = {}
 
     def calculate_perpendicular_orientation_reward(self, achieved_or,
-                                                 previous_or,
-                                                 branch_vector):
+                                                   previous_or,
+                                                   branch_vector):
         cosine_sim_perp_prev = self.compute_perpendicular_cos_sim(previous_or, branch_vector)
         cosine_sim_perp = self.compute_perpendicular_cos_sim(achieved_or, branch_vector)
         perpendicular_orientation_reward = (abs(cosine_sim_perp) - abs(cosine_sim_perp_prev)) * \
-                                              self.perpendicular_orientation_reward_scale
+                                           self.perpendicular_orientation_reward_scale
         self.reward_info['perpendicular_orientation_reward'] = perpendicular_orientation_reward
         return perpendicular_orientation_reward, abs(cosine_sim_perp)
-
-
 
     def calculate_movement_reward(self, achieved_pos, previous_pos, desired_pos):
         # Compute the reward between the previous and current goal.
@@ -52,14 +49,12 @@ class Reward:
                                               previous_or, branch_vector):
         cosine_sim_prev = self.compute_pointing_cos_sim(previous_pos, desired_pos, previous_or, branch_vector)
         cosine_sim_curr = self.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or, branch_vector)
-        #if sign of both are different  set reward to 0
+        # if sign of both are different  set reward to 0
 
         pointing_orientation_reward = (cosine_sim_curr - cosine_sim_prev) * \
                                       self.pointing_orientation_reward_scale
         self.reward_info['pointing_orientation_reward'] = pointing_orientation_reward
         return pointing_orientation_reward, cosine_sim_curr
-
-
 
     def calculate_condition_number_reward(self, condition_number):
         condition_number_reward = np.abs(1 / condition_number) * self.condition_reward_scale
@@ -92,7 +87,6 @@ class Reward:
         self.reward_info['velocity'] = np.linalg.norm(velocity)
         return velocity_reward
 
-
     """
     
             ^ z
@@ -102,6 +96,7 @@ class Reward:
             y
             Pybullet coords
     """
+
     @staticmethod
     def compute_perpendicular_cos_sim(achieved_or,
                                       branch_vector):
@@ -112,7 +107,7 @@ class Reward:
         # Get vector for current orientation of end effector
         rot_mat = np.array(getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
         # Initial vectors
-        init_vector = np.array([1, 0, 0]) #Coz of starting orientation of end effector
+        init_vector = np.array([1, 0, 0])  # Coz of starting orientation of end effector
         camera_vector = rot_mat.dot(init_vector)
         # Check antiparallel case as well
         cosine_sim_perp = np.dot(camera_vector, branch_vector) / (
@@ -139,10 +134,10 @@ class Reward:
         # Perpendicular vector to branch vector
         # perpendicular_vector = Reward.compute_perpendicular_projection(achieved_pos, desired_pos,
         #                                                              branch_vector + desired_pos)
-        pointing_vector = (desired_pos - achieved_pos)/np.linalg.norm(desired_pos - achieved_pos)
+        pointing_vector = (desired_pos - achieved_pos) / np.linalg.norm(desired_pos - achieved_pos)
         rot_mat = np.array(getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
         # Initial vectors
-        init_vector = np.array([0, 0, 1]) #Coz of starting orientation of end effector
+        init_vector = np.array([0, 0, 1])  # Coz of starting orientation of end effector
         camera_vector = rot_mat.dot(init_vector)
         pointing_cos_sim = np.dot(camera_vector, pointing_vector) / (
                 np.linalg.norm(camera_vector) * np.linalg.norm(pointing_vector))
@@ -156,22 +151,23 @@ class Reward:
 
     @staticmethod
     def get_angular_distance_to_goal(current_or_mat, branch_vector, achieved_pos, desired_pos):
-        #get pointing vector
-        #red branch
-        #blue poitinh
-        #TODO: Decide on system for rot mat
-        pointing_vector = Reward.compute_perpendicular_projection(achieved_pos, desired_pos, branch_vector + desired_pos)
+        # get pointing vector
+        # red branch
+        # blue poitinh
+        # TODO: Decide on system for rot mat
+        pointing_vector = Reward.compute_perpendicular_projection(achieved_pos, desired_pos,
+                                                                  branch_vector + desired_pos)
         pointing_vector = pointing_vector / np.linalg.norm(pointing_vector)
-        #get perpendicular vector
+        # get perpendicular vector
         perpendicular_vector = -branch_vector
         perpendicular_vector = perpendicular_vector / np.linalg.norm(perpendicular_vector)
         up_vector = -np.cross(perpendicular_vector, pointing_vector)
-        #get rotation matrix
+        # get rotation matrix
         rf = np.array([perpendicular_vector, up_vector, pointing_vector])
         # print(rf)
-        #compute difference in rotation matrix
+        # compute difference in rotation matrix
         diff = np.matmul(current_or_mat, rf.T)
-        #get theta
+        # get theta
         theta = np.arccos((np.trace(diff) - 1) / 2)
 
         return theta, rf

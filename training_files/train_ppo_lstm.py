@@ -19,7 +19,8 @@ from stable_baselines3.common.env_util import make_vec_env
 import argparse
 from pruning_sb3.args.args import \
     args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, set_args, organize_args, init_wandb, make_or_bins, get_policy_kwargs
+from pruning_sb3.pruning_gym.helpers import linear_schedule, set_args, organize_args, init_wandb, make_or_bins, \
+    get_policy_kwargs
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -29,7 +30,7 @@ if __name__ == "__main__":
         parsed_args)
     verbose = 1
 
-    init_wandb(parsed_args_dict,args_global['run_name'])
+    init_wandb(parsed_args_dict, args_global['run_name'])
     load_timestep = args_global['load_timestep']
 
     if args_global['load_path']:
@@ -48,7 +49,8 @@ if __name__ == "__main__":
     env.logger = new_logger
 
     set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
-    checkpoint_callback = PruningCheckpointCallback(save_freq=args_callback['save_freq'], save_path="./logs/{}".format(args_global['run_name']),
+    checkpoint_callback = PruningCheckpointCallback(save_freq=args_callback['save_freq'],
+                                                    save_path="./logs/{}".format(args_global['run_name']),
                                                     name_prefix="model", verbose=args_callback['verbose'])
     record_env_callback = EveryNRollouts(200, PruningTrainRecordEnvCallback(verbose=args_callback['verbose']))
     logging_callback = PruningLogCallback(verbose=args_callback['verbose'])
@@ -72,7 +74,7 @@ if __name__ == "__main__":
                      "learning_rate_logstd": None,
                      "log_std": -0.5}
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
-        
+
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
 
         model.num_timesteps = load_timestep

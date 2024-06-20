@@ -5,19 +5,17 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import *
 import numpy as np
-import cv2
 import random
 import argparse
 from pruning_sb3.args.args_test import args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
-import multiprocessing as mp
-import copy
-from pruning_sb3.pruning_gym.custom_callbacks import CustomTrainCallback, CustomEvalCallback
+from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, set_args, organize_args
+from pruning_sb3.pruning_gym.custom_callbacks import CustomEvalCallback
 from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from stable_baselines3.common import utils
 from pruning_sb3.pruning_gym.tree import Tree
+
+
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
     events = env.pyb.con.getKeyboardEvents()
@@ -83,7 +81,7 @@ if __name__ == "__main__":
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
     model.set_logger(new_logger)
-    train_callback = CustomEvalCallback(eval_env = env, record_env = env, or_bins = or_bins_test)
+    train_callback = CustomEvalCallback(eval_env=env, record_env=env, or_bins=or_bins_test)
     train_callback.init_callback(model)
     train_callback.on_training_start(locals(), globals())
 
@@ -131,24 +129,24 @@ if __name__ == "__main__":
             train_callback.update_tree_properties(infos, 0, "eval")
             # env.is_goal_state = True
         else:
-            val = np.array([0.,0.,0., 0., 0., 0.])
+            val = np.array([0., 0., 0., 0., 0., 0.])
         # print(val)
         success_link_pos = env.ur5.get_current_pose(env.ur5.end_effector_index)[0]
         # env.pyb.add_sphere(0.005, success_link_pos, [1, 0, 0, 1])
         observation, reward, terminated, truncated, infos = env.step(val)
-        env.tree_goal_pos = [-0.435, -.988, 0.096+0.91]
+        env.tree_goal_pos = [-0.435, -.988, 0.096 + 0.91]
         # print(observation['achieved_goal'], observation['desired_goal'])
         # print(env.ur5.init_pos_ee, env.ur5.init_pos_eebase)
         # base_pos, base_quat = p.getBasePositionAndOrientation(robot)
         # print(env.ur5.get_current_pose(env.ur5.end_effector_index),env.ur5.get_current_pose(env.ur5.success_link_index))
         print(observation["achieved_goal"], observation["desired_goal"], observation["achieved_or"])
-        #get base position and orientation
+        # get base position and orientation
 
         # print("ee position", env.ur5.get_current_pose(env.ur5.end_effector_index)[0])
         # print("tool 0 position", env.ur5.get_current_pose(env.ur5.tool0_link_index)[0])
         # print("tree position", env.tree.pos)
         # print("Base position", env.ur5.get_current_pose(env.ur5.base_index)[0])
-        #pring joint angles and condition number
+        # pring joint angles and condition number
         # print(env.ur5.get_joint_angles())
         # print(env.ur5.get_condition_number())
         base_pos, base_quat = env.pyb.con.getBasePositionAndOrientation(env.ur5.ur5_robot)

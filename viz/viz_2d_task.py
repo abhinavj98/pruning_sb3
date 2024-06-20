@@ -1,31 +1,22 @@
-#In this file I want to read from episode_info.csv file
-#Calculate latitudes and longitudes of using orientation
-#Bin each latitude and for each bin calculate average perpendicular cosine sim error
-import sys
+# In this file I want to read from episode_info.csv file
+# Calculate latitudes and longitudes of using orientation
+# Bin each latitude and for each bin calculate average perpendicular cosine sim error
 import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 import pandas as pd
-import numpy as np
-from pruning_sb3.pruning_gym.tree import Tree
-from statistics import mean
 import os
 import sys
 
 sys.path.insert(0, os.path.abspath('../../'))
-from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import *
 import numpy as np
-import cv2
-import random
 import argparse
 from pruning_sb3.args.args import args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
-import multiprocessing as mp
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from pruning_sb3.pruning_gym.helpers import set_args, organize_args
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
 
 # %%
 # Create the ArgumentParser object
@@ -38,6 +29,8 @@ parsed_args_dict = organize_args(parsed_args)
 
 # %%
 import math
+
+
 def get_bin_from_orientation(orientation):
     offset = 1e-4
     orientation = orientation / np.linalg.norm(orientation)
@@ -60,6 +53,7 @@ def get_bin_from_orientation(orientation):
     elif bin_key[1] < -175:
         bin_key = (bin_key[0], -175)
     return bin_key
+
 
 def roundup(x):
     return math.ceil(x / 10.0) * 10
@@ -128,8 +122,8 @@ def populate_bins(bins, df, idx_name):
 
     offset = 1e-3
     for i, direction_vector in enumerate(orientations.values):
-        lat_angle = np.rad2deg(np.arcsin(direction_vector[2]))+offset
-        lon_angle = np.rad2deg(np.arctan2(direction_vector[1], direction_vector[0]))+offset
+        lat_angle = np.rad2deg(np.arcsin(direction_vector[2])) + offset
+        lon_angle = np.rad2deg(np.arctan2(direction_vector[1], direction_vector[0])) + offset
         lat_angle_min = rounddown(lat_angle)
         lat_angle_max = roundup(lat_angle)
         lon_angle_min = rounddown(lon_angle)
@@ -143,7 +137,7 @@ def populate_bins(bins, df, idx_name):
             bin_key = (bin_key[0], 175)
         elif bin_key[1] < -175:
             bin_key = (bin_key[0], -175)
-        #append perp_cosine_sim_error to the bin
+        # append perp_cosine_sim_error to the bin
         bins[bin_key].append((df[idx_name][i]))
 
         # Find the closest bin based on latitude and longitude angles
@@ -215,7 +209,9 @@ def visualize_sphere(bins, idx_name):
     fig.colorbar(scalar_map, cax=cax, orientation='vertical')
     scalar_map.set_array(frequencies)
     plt.show()
-def visualize_2d(bins, idx_name, title, colorbar_title, reverse = False, save = False):
+
+
+def visualize_2d(bins, idx_name, title, colorbar_title, reverse=False, save=False):
     # Extract latitude and longitude ranges from each bin
 
     lat_centers, lon_centers = zip(*bins.keys())
@@ -230,7 +226,7 @@ def visualize_2d(bins, idx_name, title, colorbar_title, reverse = False, save = 
 
     # Create 2D histogram
     # figure = plt.figure()
-    #invert colormap
+    # invert colormap
 
     pallet = plt.cm.get_cmap('viridis', 256)
     if reverse:
@@ -241,7 +237,7 @@ def visualize_2d(bins, idx_name, title, colorbar_title, reverse = False, save = 
     plt.xlabel('Elevation ({}) (rad)'.format('\u03B8'))
     plt.ylabel('Azimuth ({}) (rad)'.format('\u03C6'))
     plt.title(title)
-    #Set legend title to idx_name
+    # Set legend title to idx_name
     # import seaborn as sns
     # sns.histplot(x=lat_centers, y=lon_centers, weights=frequencies, binwidth=np.deg2rad(11), cbar=True, palette=pallet)
 
@@ -293,12 +289,12 @@ def rand_rotation_matrix(deflection=1.0, randnums=None):
 
     M = (np.outer(V, V) - np.eye(3)).dot(R)
     # convert M to euler angles
-    return M@[0,0,1]
+    return M @ [0, 0, 1]
 
     return M
 
-def fibonacci_sphere(samples=1000):
 
+def fibonacci_sphere(samples=1000):
     points = []
     phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
 
@@ -315,8 +311,9 @@ def fibonacci_sphere(samples=1000):
 
     return points
 
+
 def plot_bar(df, label):
-    #is_success rate as a bar plot using seaborn
+    # is_success rate as a bar plot using seaborn
     import seaborn as sns
     import matplotlib.pyplot as plt
     palette = [(0.0, 0.447, 0.741), (0.85, 0.325, 0.098), (0.466, 0.674, 0.188)]
@@ -326,7 +323,7 @@ def plot_bar(df, label):
     plt.ylabel('Success Rate')
     plt.title(label)
     # plt.savefig('bar{}.png'.format(label), bbox_inches='tight', pad_inches=0.05)
-    #Different colors for the bars
+    # Different colors for the bars
 
     plt.show()
 
@@ -351,8 +348,8 @@ filtered_df_policy = pd.merge(df_policy, new_df[['pointx', 'pointy', 'pointz', '
 filtered_df_rrt = pd.merge(df_rrt, new_df[['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z']],
                            on=['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z'],
                            how='inner')
-print(len(filtered_df_policy[filtered_df_policy['is_success'] == True])/len(filtered_df_policy))
-print(len(filtered_df_rrt[filtered_df_rrt['is_success'] == True])/len(filtered_df_rrt))
+print(len(filtered_df_policy[filtered_df_policy['is_success'] == True]) / len(filtered_df_policy))
+print(len(filtered_df_rrt[filtered_df_rrt['is_success'] == True]) / len(filtered_df_rrt))
 # Normalize the orientation data
 # orientations = orientations / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
 dataset = []
@@ -381,7 +378,7 @@ for idx_name, idx_title, colorbar_title in idx_title_list:
         reverse = False
     else:
         reverse = True
-    visualize_2d(perp_bins, idx_name, title, colorbar_title=colorbar_title, reverse=reverse, save = True)
+    visualize_2d(perp_bins, idx_name, title, colorbar_title=colorbar_title, reverse=reverse, save=True)
 
 # bins = create_bins(num_latitude_bins, num_longitude_bins)
 # bins = populate_bins(bins, filtered_df_policy, idx_name)

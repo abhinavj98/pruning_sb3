@@ -1,5 +1,6 @@
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 from pruning_sb3.baselines.baseliines_callbacks import RRTCallback
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
@@ -8,16 +9,16 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 from pruning_sb3.args.args import \
     args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
+from pruning_sb3.pruning_gym.helpers import set_args, organize_args
 import random
 import numpy as np
 # PARSE ARGUMENTS
 import argparse
 import pickle
+
 parser = argparse.ArgumentParser()
-from pybullet_planning.motion_planners.utils import irange, argmin, RRT_ITERATIONS, INF
 import pandas as pd
+
 
 def perpendicular_vector(v):
     if v[1] == 0 and v[2] == 0:
@@ -45,7 +46,7 @@ if __name__ == "__main__":
             parsed_args_dict['args_global']['load_path'], load_timestep)
     else:
         load_path_model = None
-# Parse arguments from the command line
+    # Parse arguments from the command line
     args_global = parsed_args_dict['args_global']
     args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     if os.path.exists("rrt_dataset.pkl"):
         with open("rrt_dataset.pkl", "rb") as f:
             dataset = pickle.load(f)
-            #shuffle the dataset
+            # shuffle the dataset
             random.shuffle(dataset)
     else:
         data_env_test = PruningEnv(**args_test, make_trees=True)
@@ -72,11 +73,14 @@ if __name__ == "__main__":
     eval_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=args_global["n_envs"])
 
     # viz_env = PruningEnv(**args_record)
-    eval_callback = RRTCallback(eval_env, n_eval_episodes = args_callback['n_eval_episodes'], render=False, or_bins=or_bins_test, dataset = dataset)
+    eval_callback = RRTCallback(eval_env, n_eval_episodes=args_callback['n_eval_episodes'], render=False,
+                                or_bins=or_bins_test, dataset=dataset)
     eval_callback._init_callback()
-    result_df = pd.DataFrame(columns = ["pointx", "pointy", "pointz", "or_x", "or_y", "or_z", "or_w", "is_success", "time_total", "time_find_end_config", "time_find_path",])
+    result_df = pd.DataFrame(
+        columns=["pointx", "pointy", "pointz", "or_x", "or_y", "or_z", "or_w", "is_success", "time_total",
+                 "time_find_end_config", "time_find_path", ])
     dataset = eval_callback.dataset
-    for i in range(len(dataset)//eval_env.num_envs):
+    for i in range(len(dataset) // eval_env.num_envs):
         ret = eval_env.env_method("run_rrt_connect")
         for k in range(eval_env.num_envs):
             path, tree_info, goal_orientation, timing = ret[k]
@@ -89,7 +93,7 @@ if __name__ == "__main__":
             else:
                 fail_mode = path
             result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
-                              "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}
+                      "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}
             result.update(timing)
             result = pd.DataFrame([result])
 
@@ -105,7 +109,7 @@ if __name__ == "__main__":
         #         for j in range(10):
         #             viz_env.pyb.con.stepSimulation()
         #             # time.sleep(5 / 240)
-        print(i, len(dataset)//eval_env.num_envs)
+        print(i, len(dataset) // eval_env.num_envs)
         for j in range(eval_env.num_envs):
             print("Resetting", j)
             eval_env.env_method("reset", indices=j)

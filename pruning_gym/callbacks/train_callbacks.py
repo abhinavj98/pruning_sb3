@@ -1,10 +1,13 @@
-import numpy as np
+import pickle
 import random
+
+import numpy as np
+import torch as th
 from pruning_sb3.pruning_gym.callbacks.callbacks import PruningSetGoalCallback
 from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
 from stable_baselines3.common.logger import Video
-import torch as th
-import pickle
+
+
 class PruningTrainSetGoalCallback(PruningSetGoalCallback):
     def __init__(self, or_bins, verbose=0):
         super(PruningTrainSetGoalCallback, self).__init__(verbose)
@@ -21,7 +24,6 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
                                          point_pos=final_point_pos, point_branch_or=current_branch_or,
                                          tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,
                                          point_branch_normal=current_branch_normal)
-
 
     def _sample_tree_and_point(self):
         # Sample orientation from key in or_bins
@@ -45,7 +47,8 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
 
             if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
                 if self.verbose > 1:
-                    print(f"DEBUG: Invalid delta pos {delta_tree_pos}, required pos {required_point_pos}, current pos {current_point_pos}, offset {offset}")
+                    print(
+                        f"DEBUG: Invalid delta pos {delta_tree_pos}, required pos {required_point_pos}, current pos {current_point_pos}, offset {offset}")
                 continue
 
             point_sampled = True
@@ -58,7 +61,7 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
             if infos[i]["TimeLimit.truncated"] or infos[i]['is_success']:
                 if self.verbose > 1:
                     print(f"DEBUG: Updating tree in env {i} via callback")
-                tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal\
+                tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal \
                     = self._sample_tree_and_point()
                 self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
                                              point_pos=final_point_pos, point_branch_or=current_branch_or,
@@ -66,8 +69,9 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
                                              point_branch_normal=current_branch_normal)
 
     def _on_step(self) -> bool:
-        self._update_tree_properties() #Maybe remove infos check and pass it in an EventCallback that triggers whenever episode terminates
+        self._update_tree_properties()  # Maybe remove infos check and pass it in an EventCallback that triggers whenever episode terminates
         return True
+
 
 class PruningTrainRecordEnvCallback(BaseCallback):
     def __init__(self, verbose=0):
@@ -101,6 +105,7 @@ class PruningTrainRecordEnvCallback(BaseCallback):
         )
         self.reset_buffer()
 
+
 class PruningCheckpointCallback(CheckpointCallback):
     def __init__(self, save_freq: int, save_path: str, name_prefix: str = "rl_model", verbose=0):
         super(PruningCheckpointCallback, self).__init__(save_freq, save_path, name_prefix, verbose)
@@ -118,4 +123,3 @@ class PruningCheckpointCallback(CheckpointCallback):
                 print(f"Saving model checkpoint to {model_path}")
 
         return True
-

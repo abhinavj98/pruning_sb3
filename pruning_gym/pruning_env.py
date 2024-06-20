@@ -1,5 +1,6 @@
 import os
 import sys
+
 import cv2
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -17,14 +18,17 @@ from .ur5_utils import UR5
 from .pyb_utils import pyb_utils
 from .reward_utils import Reward
 from skimage.draw import disk
-from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH, ROBOT_URDF_PATH, SUPPORT_AND_POST_PATH
+from pruning_sb3.pruning_gym import ROBOT_URDF_PATH, SUPPORT_AND_POST_PATH
 import copy
 from scipy.spatial.transform import Rotation as R
 
 import pybullet_planning as pp
-from pybullet_planning.interfaces.planner_interface.joint_motion_planning import get_sample_fn, get_extend_fn, get_distance_fn
+from pybullet_planning.interfaces.planner_interface.joint_motion_planning import get_sample_fn, get_extend_fn, \
+    get_distance_fn
 from pybullet_planning.interfaces.robots import get_collision_fn
 import time
+
+
 class PruningEnv(gym.Env):
     """
         PruningEnv is a custom environment that extends the gym.Env class from OpenAI Gym.
@@ -37,7 +41,8 @@ class PruningEnv(gym.Env):
 
     def __init__(self, tree_urdf_path: str, tree_obj_path: str, tree_labelled_path: str, renders: bool = False,
                  max_steps: int = 500,
-                 distance_threshold: float = 0.05, angle_threshold_perp: float = 0.52, angle_threshold_point: float = 0.52,
+                 distance_threshold: float = 0.05, angle_threshold_perp: float = 0.52,
+                 angle_threshold_point: float = 0.52,
                  tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
                  algo_width: int = 224, algo_height: int = 224,
                  evaluate: bool = False, num_points: Optional[int] = None, action_dim: int = 12,
@@ -47,7 +52,9 @@ class PruningEnv(gym.Env):
                  perpendicular_orientation_reward_scale: int = 1, pointing_orientation_reward_scale: int = 1,
                  curriculum_distances: Tuple = (0.8,), curriculum_level_steps: Tuple = (),
                  use_ik: bool = True, make_trees: bool = False,
-                 ur5_pos = [0,0,0], ur5_or = [0,0,0,1], randomize_ur5_pose: bool = False, randomize_tree_pose: bool = False
+                 ur5_pos=[0, 0, 0], ur5_or=[0, 0, 0, 1], randomize_ur5_pose: bool = False,
+                 randomize_tree_pose: bool = False,
+                 verbose=1
                  ) -> None:
         """
         Initializes the environment with the following parameters:
@@ -117,6 +124,7 @@ class PruningEnv(gym.Env):
         self.cam_pan = 0
         self.cam_tilt = 0
         self.cam_xyz_offset = np.zeros(3)
+        self.verbose = verbose
 
         # Reward variables
         self.reward = Reward(movement_reward_scale, distance_reward_scale, pointing_orientation_reward_scale,
@@ -174,7 +182,8 @@ class PruningEnv(gym.Env):
         self.angle_threshold_point_cosine = np.cos(angle_threshold_point)
 
         # setup robot arm:
-        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=ur5_pos, orientation=ur5_or, randomize_pose=randomize_ur5_pose)
+        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=ur5_pos, orientation=ur5_or,
+                       randomize_pose=randomize_ur5_pose)
         self.reset_env_variables()
         # Curriculum variables
         self.eval_counter = 0
@@ -224,7 +233,6 @@ class PruningEnv(gym.Env):
         #     self.inactivate_tree(self.pyb)
         #     self.pyb.remove_debug_items("step")
 
-
         # for tree in self.trees:
         #     self.tree = tree
         #     self.activate_tree(self.pyb)
@@ -232,7 +240,6 @@ class PruningEnv(gym.Env):
         #     input()
         #     self.inactivate_tree(self.pyb)
         #     self.pyb.remove_debug_items("step")
-
 
         # Init and final logging
         self.init_distance = 0
@@ -246,7 +253,8 @@ class PruningEnv(gym.Env):
         self.observation_info = dict()
         self.prev_observation_info: dict = dict()
 
-    def set_tree_properties(self, tree_urdf, point_pos, point_branch_or, tree_orientation, tree_scale, tree_pos, point_branch_normal):
+    def set_tree_properties(self, tree_urdf, point_pos, point_branch_or, tree_orientation, tree_scale, tree_pos,
+                            point_branch_normal):
         self.tree_urdf = tree_urdf
         self.tree_goal_pos = point_pos
         self.tree_goal_or = point_branch_or
@@ -254,8 +262,8 @@ class PruningEnv(gym.Env):
         self.tree_orientation = tree_orientation
         self.tree_scale = tree_scale
         self.tree_goal_normal = point_branch_normal
-        #Make collision shape centered at tree_goal_pos and tree_goal_normal
-        #and of size 0.1
+        # Make collision shape centered at tree_goal_pos and tree_goal_normal
+        # and of size 0.1
         # point_branch_or_quat = self.pyb.con.getQuaternionFromEuler(point_branch_or)
         # a = self.pyb.con.createCollisionShape(self.pyb.con.GEOM_CYLINDER, radius=.025, collisionFramePosition=point_pos,collisionFrameOrientation=point_branch_or_quat)
         # b = self.pyb.con.createVisualShape(self.pyb.con.GEOM_CYLINDER, radius=.025, visualFramePosition=point_pos, visualFrameOrientation = point_branch_or_quat, rgbaColor=[1,1,1,1])
@@ -302,6 +310,8 @@ class PruningEnv(gym.Env):
     def reset(self, seed: Optional[int] = None, options=None) -> Tuple[dict, dict]:
         """Environment reset function"""
         super().reset(seed=seed)
+        if self.verbose > 1:
+            print("DEBUG: Resetting environment")
         random.seed(seed)
         self.reset_env_variables()
 
@@ -315,13 +325,13 @@ class PruningEnv(gym.Env):
         self.pyb.remove_debug_items("step")
         self.pyb.con.resetSimulation()
 
-        self.set_curriculum_level(self.episode_counter, self.curriculum_level_steps) #This will not work now
+        self.set_curriculum_level(self.episode_counter, self.curriculum_level_steps)  # This will not work now
 
         # Create new ur5 arm body
         self.pyb.create_background()
         self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
         # Sample new point
-        #Jitter the camera pose
+        # Jitter the camera pose
         self.set_camera_pose()
 
         for i in range(100):
@@ -339,7 +349,7 @@ class PruningEnv(gym.Env):
         self.init_perp_cosine_sim = self.reward.compute_perpendicular_cos_sim(np.array(orient),
                                                                               self.tree_goal_or) + 1e-4
 
-        #TODO: Can we remove this?
+        # TODO: Can we remove this?
         current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
         theta, _ = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_or,
                                                        pos, self.tree_goal_pos)
@@ -348,7 +358,6 @@ class PruningEnv(gym.Env):
 
         # Add debug branch and point
         """Display red line as point"""
-
 
         self.set_extended_observation()
         info = dict()  # type: ignore
@@ -367,11 +376,11 @@ class PruningEnv(gym.Env):
         return jv
 
     def activate_tree(self, pyb):
-        print("activating tree")
-        # assert self.tree_id is None
-        # assert self.supports is None
-        print('Loading tree from ', self.tree_urdf)
-        self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [self.tree_pos[0], self.tree_pos[1]-0.05, 0.0],
+        if self.verbose > 1:
+            print("DEBUG: Activating tree")
+            print('DEBUG: Loading tree from ', self.tree_urdf)
+
+        self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [self.tree_pos[0], self.tree_pos[1] - 0.05, 0.0],
                                          list(pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                          globalScaling=1)
         self.tree_id = pyb.con.loadURDF(self.tree_urdf, self.tree_pos, self.tree_orientation,
@@ -387,7 +396,7 @@ class PruningEnv(gym.Env):
 
     def force_time_limit(self):
         """Force time limit"""
-        self.step_counter = self.maxSteps+1
+        self.step_counter = self.maxSteps + 1
 
     def get_infos(self, terminated, truncated):
         infos = {'is_success': False, "TimeLimit.truncated": False}  # type: ignore
@@ -401,7 +410,8 @@ class PruningEnv(gym.Env):
             self.episode_counter += 1
             # For logging
             infos['episode'] = {"l": self.step_counter, "r": self.sum_reward}  # type: ignore
-            print("Episode Length: ", self.step_counter)
+            if self.verbose > 0:
+                print("INFO: Episode Length: ", self.step_counter)
 
             # Logging errors at the end of episode
             infos["pointing_cosine_sim_error"] = np.abs(Reward.compute_pointing_cos_sim(
@@ -457,7 +467,8 @@ class PruningEnv(gym.Env):
         previous_pose_eebase = np.hstack((self.prev_observation_info['achieved_eebase_pos'],
                                           self.prev_observation_info['achieved_eebase_or_quat']))
         reward, reward_infos = self.compute_reward(self.observation_info['desired_pos'], current_pose,
-                                                   previous_pose, current_pose_eebase, previous_pose_eebase,  singularity, None)
+                                                   previous_pose, current_pose_eebase, previous_pose_eebase,
+                                                   singularity, None)
 
         self.sum_reward += reward
         # self.debug_line = self.pyb_con.con.addUserDebugLine(self.achieved_pos, self.desired_pos, [0, 0, 1], 20)
@@ -465,7 +476,7 @@ class PruningEnv(gym.Env):
         self.global_step_counter += 1
 
         # Check if task is done
-        done, terminate_info = self.is_task_done() #done is for gym loggin -> custom_callback
+        done, terminate_info = self.is_task_done()  # done is for gym loggin -> custom_callback
 
         # Truncated is when the episode is terminated due to time limit,
         # truncated is used to add estimate of reward at the end of the episode to boost training
@@ -544,7 +555,6 @@ class PruningEnv(gym.Env):
             self.prev_observation_info['achieved_eebase_pos'] = self.ur5.init_pos_eebase[0]
             self.prev_observation_info['achieved_eebase_or_quat'] = self.ur5.init_pos_eebase[1]
 
-
         tool_pos, tool_orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
         tool_base_pos, tool_base_orient = self.ur5.get_current_pose(self.ur5.success_link_index)
 
@@ -562,7 +572,6 @@ class PruningEnv(gym.Env):
 
         init_pos_ee = np.array(self.ur5.init_pos_ee[0]).astype(np.float32)
         init_or_ee = np.array(self.ur5.init_pos_ee[1]).astype(np.float32)
-
 
         rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot',
                                                self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt,
@@ -627,7 +636,8 @@ class PruningEnv(gym.Env):
             # add sphere
             sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1], )
             rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot',
-                                                   self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt,
+                                                   self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan,
+                                                                                      tilt=self.cam_tilt,
                                                                                       xyz_offset=self.cam_xyz_offset))
             # remove sphere
             self.observation_info['rgb'] = rgb
@@ -643,14 +653,15 @@ class PruningEnv(gym.Env):
             goal_achieved_terminate = self.is_goal_state
             done = time_limit_exceeded or goal_achieved_terminate
         else:
-            goal_achieved_terminate = self.is_goal_state # Do not terminate during training
-            done = time_limit_exceeded or goal_achieved_terminate # (self.terminated is True or self.step_counter > self.maxSteps)
+            goal_achieved_terminate = self.is_goal_state  # Do not terminate during training
+            done = time_limit_exceeded or goal_achieved_terminate  # (self.terminated is True or self.step_counter > self.maxSteps)
         terminate_info = {"time_limit_exceeded": time_limit_exceeded,
                           "goal_achieved_terminate": goal_achieved_terminate}
         return done, terminate_info
 
     def compute_reward(self, desired_goal, achieved_pose,
-                       previous_pose, achieved_pose_eebase, previous_pose_eebase, singularity: bool, info: Optional[dict]) -> Tuple[float, dict]:
+                       previous_pose, achieved_pose_eebase, previous_pose_eebase, singularity: bool,
+                       info: Optional[dict]) -> Tuple[float, dict]:
 
         achieved_pos = achieved_pose[:3]
         achieved_or = achieved_pose[3:]
@@ -673,13 +684,16 @@ class PruningEnv(gym.Env):
         # Calculate rewards
         reward += self.reward.calculate_distance_reward(achieved_pos, desired_pos)
         reward += self.reward.calculate_movement_reward(achieved_pos, previous_pos, desired_pos)
-        point_reward, point_cosine_sim = self.reward.calculate_pointing_orientation_reward(achieved_pos_eebase, desired_pos,
-                                                                                           achieved_or_eebase, previous_pos_eebase,
+        point_reward, point_cosine_sim = self.reward.calculate_pointing_orientation_reward(achieved_pos_eebase,
+                                                                                           desired_pos,
+                                                                                           achieved_or_eebase,
+                                                                                           previous_pos_eebase,
                                                                                            previous_or_eebase,
                                                                                            self.tree_goal_or)
         reward += point_reward
 
-        perp_reward, perp_cosine_sim = self.reward.calculate_perpendicular_orientation_reward(achieved_or_eebase, previous_or_eebase,
+        perp_reward, perp_cosine_sim = self.reward.calculate_perpendicular_orientation_reward(achieved_or_eebase,
+                                                                                              previous_or_eebase,
                                                                                               self.tree_goal_or)
         reward += perp_reward
         condition_number = self.ur5.get_condition_number()
@@ -704,7 +718,7 @@ class PruningEnv(gym.Env):
 
     def is_state_successful(self, achieved_pos, desired_pos, orientation_perp_value, orientation_point_value):
         terminated = False
-        #TODO: Success only if the collision is in the branch plane
+        # TODO: Success only if the collision is in the branch plane
         is_success_collision = self.ur5.check_success_collision(self.tree_id)
         dist_from_target = np.linalg.norm(achieved_pos - desired_pos)
         if is_success_collision and dist_from_target < self.distance_threshold:
@@ -714,7 +728,6 @@ class PruningEnv(gym.Env):
                 print("Success")
         return terminated
 
-
     def log_collision_info(self, collision_info):
         if collision_info['collisions_acceptable']:
             self.collisions_acceptable += 1
@@ -722,14 +735,14 @@ class PruningEnv(gym.Env):
             self.collisions_unacceptable += 1
 
     def generate_goal_pos(self):
-        forward = -self.tree_goal_normal/np.linalg.norm(self.tree_goal_normal)
-        up = self.tree_goal_or/np.linalg.norm(self.tree_goal_or)
+        forward = -self.tree_goal_normal / np.linalg.norm(self.tree_goal_normal)
+        up = self.tree_goal_or / np.linalg.norm(self.tree_goal_or)
         right = np.cross(forward, up)
         # Get a vector in plane of up and right using linear combination
         rotation_matrix = np.column_stack((up, right, forward))
         rotation_matrix = R.from_matrix(rotation_matrix).as_matrix()
         rotation_axis = rotation_matrix[:, 0]
-        rotation_angle = np.random.uniform(0, 2*np.pi)
+        rotation_angle = np.random.uniform(0, 2 * np.pi)
         random_rotation = R.from_rotvec(rotation_angle * rotation_axis).as_matrix()
         rotation_matrix = random_rotation @ rotation_matrix
         r = R.from_matrix(rotation_matrix)
@@ -739,7 +752,6 @@ class PruningEnv(gym.Env):
     def get_different_ik_results(self, num_solutions=1, total_attempts=50):
         solutions = []
         attempts = 0
-        import time
         while len(solutions) < num_solutions and attempts < total_attempts:
             collision = False
             # import time
@@ -753,9 +765,9 @@ class PruningEnv(gym.Env):
             self.inactivate_tree(self.pyb)
 
             # initial_guess = np.random.uniform(low=-np.pi/2, high=np.pi/2, size=len(self.ur5.control_joints)) + self.ur5.init_joint_angles
-            #initial_guess is joint angles at a random 10cm away from the goal
+            # initial_guess is joint angles at a random 10cm away from the goal
             offset = np.random.uniform(-0.1, 0.1, 3)
-            #scale the offset to be 10cm away from the goal
+            # scale the offset to be 10cm away from the goal
             offset = 0.15 * offset / np.linalg.norm(offset)
             initial_guess = self.ur5.calculate_ik(goal + offset, orientation)
             self.ur5.set_joint_angles(initial_guess)
@@ -774,7 +786,7 @@ class PruningEnv(gym.Env):
 
             self.pyb.con.stepSimulation()
             collision_info = self.ur5.check_collisions(self.tree_id, self.supports)
-            if collision_info[0]:#collision_info[1]['collisions_unacceptable']:
+            if collision_info[0]:  # collision_info[1]['collisions_unacceptable']:
                 collision = True
                 # print("Collision")
                 # print(collision_info[1])
@@ -786,13 +798,13 @@ class PruningEnv(gym.Env):
                 # solutions.append((joint_angles, goal, orientation))
             # print("Sleep", collision, len(solutions))
 
-
             # time.sleep(5)
             self.ur5.remove_ur5_robot()
             self.ur5.setup_ur5_arm()
             # self.pyb.remove_debug_items("step")
             attempts += 1
         return solutions
+
     def run_rrt_connect(self):
         timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
         start_find_end_config = time.time()
@@ -822,7 +834,8 @@ class PruningEnv(gym.Env):
             self.ur5.setup_ur5_arm()
             self.activate_tree(self.pyb)
 
-            path = pp.rrt_connect(start, goal, distance_fn, sample_position, extend_fn, collision_fn, max_iterations = 1000)
+            path = pp.rrt_connect(start, goal, distance_fn, sample_position, extend_fn, collision_fn,
+                                  max_iterations=1000)
             if path is None:
                 continue
             else:
@@ -843,4 +856,3 @@ class PruningEnv(gym.Env):
             return 2, tree_info, None, timing
 
         return (path, tree_info, goal_or, timing)
-

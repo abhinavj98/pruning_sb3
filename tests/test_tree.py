@@ -4,14 +4,17 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 import pytest
 from pruning_sb3.pruning_gym.tree import Tree
-from pruning_sb3.pruning_gym import ROBOT_URDF_PATH, MESHES_AND_URDF_PATH
+from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH
 from pruning_sb3.pruning_gym.pyb_utils import pyb_utils
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 import numpy as np
+
+
 @pytest.fixture
 def pyb():
     pyb = pyb_utils(None, renders=False)
     return pyb
+
 
 @pytest.fixture
 def env():
@@ -21,13 +24,16 @@ def env():
     env = PruningEnv(urdf_path, obj_path, label_path, renders=False, make_trees=True, tree_count=1)
     return env
 
+
 @pytest.fixture
 def tree(env, pyb):
     urdf_path = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'trees', 'envy', 'test', 'tree_0.urdf')
     obj_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test', 'tree_0.obj')
     label_path = os.path.join(MESHES_AND_URDF_PATH, 'meshes', 'trees', 'envy', 'test_labelled')
-    tree = Tree(env, pyb, urdf_path, obj_path, label_path, curriculum_distances=(0.4, 0.5, 0.7), curriculum_level_steps=(100, 200))
+    tree = Tree(env, pyb, urdf_path, obj_path, label_path, curriculum_distances=(0.4, 0.5, 0.7),
+                curriculum_level_steps=(100, 200))
     return tree
+
 
 def test_get_all_points():
     assert False
@@ -47,7 +53,6 @@ def test_transform_obj_vertex():
 def test_is_reachable(env):
     # tree.get_reachable_points()
     tree = env.tree
-    import time
     assert len(tree.reachable_points) > 0
     for point in tree.reachable_points:
         env.ur5.remove_ur5_robot()
@@ -61,10 +66,11 @@ def test_is_reachable(env):
         # time.sleep(10)
         assert dist < 0.05
 
+
 def test_make_trees_from_folder(env):
     import glob
     glob_path = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'trees', 'envy', 'test', '*.urdf')
-    #Get all the urdf files in the folder
+    # Get all the urdf files in the folder
     urdf_files = glob.glob(glob_path)
 
     assert len(env.trees) == len(urdf_files)

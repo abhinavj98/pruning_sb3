@@ -1,18 +1,19 @@
-from pruning_sb3.algo.SACAE.policies import SACPolicy
-from pruning_sb3.pruning_gym.custom_callbacks import CustomEvalCallback, CustomTrainCallback
-from pruning_sb3.algo.SACAE.sac_ae import SAC
-from pruning_sb3.pruning_gym.pruning_env import PruningEnv
-from models import AutoEncoder
+import argparse
 
-from stable_baselines3.common.vec_env import SubprocVecEnv
+import torch as th
+from helpers import init_wandb, linear_schedule, exp_schedule, optical_flow_create_shared_vars
+from models import AutoEncoder
+from pruning_sb3.algo.SACAE.policies import SACPolicy
+from pruning_sb3.algo.SACAE.sac_ae import SAC
+from pruning_sb3.args.args import args_dict
+from pruning_sb3.pruning_gym.custom_callbacks import CustomEvalCallback, CustomTrainCallback
+from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from stable_baselines3.common import utils
 from stable_baselines3.common.env_util import make_vec_env
-import torch as th
-import argparse
-from pruning_sb3.args.args import args_dict
-from helpers import init_wandb, linear_schedule, exp_schedule, optical_flow_create_shared_vars
-#from args_copy import args_dict
-#TODO
+from stable_baselines3.common.vec_env import SubprocVecEnv
+
+# from args_copy import args_dict
+# TODO
 # 1. Add a way to save the model
 # 2. Add a way to load the model
 # 3. Create a seperate args file for SAC
@@ -112,7 +113,7 @@ if __name__ == "__main__":
     policy = SACPolicy
 
     if not load_path:
-        model = SAC(policy, env,learning_starts = 2400, policy_kwargs = policy_kwargs)
+        model = SAC(policy, env, learning_starts=2400, policy_kwargs=policy_kwargs)
     else:
         load_dict = {"learning_rate": linear_schedule(args.LEARNING_RATE),
                      "learning_rate_ae": exp_schedule(args.LEARNING_RATE_AE),

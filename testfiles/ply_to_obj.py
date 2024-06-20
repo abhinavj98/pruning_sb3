@@ -1,13 +1,15 @@
-import pymeshlab
-from glob import glob
 import os
+from glob import glob
+
+import pymeshlab
+
 remove = False
 folder = "envy/ply"
-PLY_FOLDER = "./meshes_and_urdf/meshes/trees/"+folder
-for file_path in glob(PLY_FOLDER+"/*.ply")[0:1]:
+PLY_FOLDER = "./meshes_and_urdf/meshes/trees/" + folder
+for file_path in glob(PLY_FOLDER + "/*.ply")[0:1]:
     print("Processing {}".format(file_path))
     ms = pymeshlab.MeshSet()
     ms.load_new_mesh(file_path)
-    ms.save_current_mesh(file_path[:-4]+'.obj')
+    ms.save_current_mesh(file_path[:-4] + '.obj')
     if remove:
         os.remove(file_path)

@@ -44,20 +44,20 @@ if __name__ == "__main__":
     # Create or_bins
     or_bins = make_or_bins(args_train, "train")
 
-
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=verbose, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
 
     set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
-    checkpoint_callback = PruningCheckpointCallback(save_freq=args_callback['save_freq'], save_path="./logs/{}".format(args_global['run_name']),
+    checkpoint_callback = PruningCheckpointCallback(save_freq=args_callback['save_freq'],
+                                                    save_path="./logs/{}".format(args_global['run_name']),
                                                     name_prefix="model", verbose=args_callback['verbose'])
-    record_env_callback = EveryNRollouts(args_callback['train_record_freq'], PruningTrainRecordEnvCallback(verbose=args_callback['verbose']))
+    record_env_callback = EveryNRollouts(args_callback['train_record_freq'],
+                                         PruningTrainRecordEnvCallback(verbose=args_callback['verbose']))
     logging_callback = PruningLogCallback(verbose=args_callback['verbose'])
     callback_list = [record_env_callback, set_goal_callback, checkpoint_callback, logging_callback]
 
-
-    #Set policy
+    # Set policy
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
 
@@ -76,7 +76,7 @@ if __name__ == "__main__":
                      "learning_rate_logstd": None, }
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
 
-        #Change log_std
+        # Change log_std
         # new_log_std = th.ones(6, dtype=th.float32, device=model.device) * -1.
         # model.policy.log_std.data = new_log_std
         # print(model.policy.log_std)

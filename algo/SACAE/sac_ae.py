@@ -2,19 +2,18 @@ from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 import numpy as np
 import torch as th
+import torchvision
 from gymnasium import spaces
-from torch.nn import functional as F
-
-from stable_baselines3.common.logger import Image
 from stable_baselines3.common.buffers import ReplayBuffer
+from stable_baselines3.common.logger import Image
 from stable_baselines3.common.noise import ActionNoise
 from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
 from stable_baselines3.common.policies import BasePolicy, ContinuousCritic
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import get_parameters_by_name, polyak_update
 from stable_baselines3.sac.policies import Actor, CnnPolicy, MlpPolicy, MultiInputPolicy, SACPolicy
-import torchvision
-from stable_baselines3 import HerReplayBuffer
+from torch.nn import functional as F
+
 SelfSAC = TypeVar("SelfSAC", bound="SAC")
 
 
@@ -90,34 +89,34 @@ class SAC(OffPolicyAlgorithm):
     critic_target: ContinuousCritic
 
     def __init__(
-        self,
-        policy: Union[str, Type[SACPolicy]],
-        env: Union[GymEnv, str],
-        learning_rate: Union[float, Schedule] = 3e-4,
-        buffer_size: int = 1_000_000,  # 1e6
-        learning_starts: int = 100,
-        batch_size: int = 256,
-        tau: float = 0.005,
-        gamma: float = 0.99,
-        train_freq: Union[int, Tuple[int, str]] = 1,
-        gradient_steps: int = 1,
-        action_noise: Optional[ActionNoise] = None,
-        replay_buffer_class: Optional[Type[ReplayBuffer]] = None,
-        replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
-        optimize_memory_usage: bool = False,
-        ent_coef: Union[str, float] = "auto",
-        target_update_interval: int = 1,
-        target_entropy: Union[str, float] = "auto",
-        use_sde: bool = False,
-        sde_sample_freq: int = -1,
-        use_sde_at_warmup: bool = False,
-        stats_window_size: int = 100,
-        tensorboard_log: Optional[str] = None,
-        policy_kwargs: Optional[Dict[str, Any]] = None,
-        verbose: int = 0,
-        seed: Optional[int] = None,
-        device: Union[th.device, str] = "auto",
-        _init_setup_model: bool = True,
+            self,
+            policy: Union[str, Type[SACPolicy]],
+            env: Union[GymEnv, str],
+            learning_rate: Union[float, Schedule] = 3e-4,
+            buffer_size: int = 1_000_000,  # 1e6
+            learning_starts: int = 100,
+            batch_size: int = 256,
+            tau: float = 0.005,
+            gamma: float = 0.99,
+            train_freq: Union[int, Tuple[int, str]] = 1,
+            gradient_steps: int = 1,
+            action_noise: Optional[ActionNoise] = None,
+            replay_buffer_class: Optional[Type[ReplayBuffer]] = None,
+            replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
+            optimize_memory_usage: bool = False,
+            ent_coef: Union[str, float] = "auto",
+            target_update_interval: int = 1,
+            target_entropy: Union[str, float] = "auto",
+            use_sde: bool = False,
+            sde_sample_freq: int = -1,
+            use_sde_at_warmup: bool = False,
+            stats_window_size: int = 100,
+            tensorboard_log: Optional[str] = None,
+            policy_kwargs: Optional[Dict[str, Any]] = None,
+            verbose: int = 0,
+            seed: Optional[int] = None,
+            device: Union[th.device, str] = "auto",
+            _init_setup_model: bool = True,
     ):
         # print(policy_kwargs)
         super().__init__(
@@ -266,7 +265,7 @@ class SAC(OffPolicyAlgorithm):
             critic_loss = 0.5 * sum(F.mse_loss(current_q, target_q_values) for current_q in current_q_values)
             assert isinstance(critic_loss, th.Tensor)  # for type checker
             critic_losses.append(critic_loss.item())  # type: ignore[union-attr]
-            ae_l2_loss = self.mse_loss(F.interpolate(replay_data.observations['depth'], size = (112,112)), features[1]) 
+            ae_l2_loss = self.mse_loss(F.interpolate(replay_data.observations['depth'], size=(112, 112)), features[1])
             ae_losses.append(ae_l2_loss.item())
             # Optimize the critic
             self.critic.optimizer.zero_grad()
@@ -299,23 +298,23 @@ class SAC(OffPolicyAlgorithm):
         self.logger.record("train/actor_loss", np.mean(actor_losses))
         self.logger.record("train/critic_loss", np.mean(critic_losses))
 
-        
         plot_obs = self.replay_buffer.sample(1, env=self._vec_normalize_env).observations
         plot_img = plot_obs['depth']
         with th.no_grad():
             _, recon = self.policy.actor.extract_features(plot_obs)
-        ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
+        ae_image = torchvision.utils.make_grid(
+            [recon.squeeze(0) + 0.5, F.interpolate(plot_img + 0.5, size=(112, 112)).squeeze(0)])
         self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
         self.logger.record("train/ae_loss", np.mean(ae_losses))
 
     def learn(
-        self: SelfSAC,
-        total_timesteps: int,
-        callback: MaybeCallback = None,
-        log_interval: int = 4,
-        tb_log_name: str = "SAC",
-        reset_num_timesteps: bool = True,
-        progress_bar: bool = False,
+            self: SelfSAC,
+            total_timesteps: int,
+            callback: MaybeCallback = None,
+            log_interval: int = 4,
+            tb_log_name: str = "SAC",
+            reset_num_timesteps: bool = True,
+            progress_bar: bool = False,
     ) -> SelfSAC:
         return super().learn(
             total_timesteps=total_timesteps,

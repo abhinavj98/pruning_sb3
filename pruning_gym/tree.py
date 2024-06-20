@@ -1,13 +1,14 @@
 import glob
+import math
 import os
 import pickle
 from typing import Optional, Tuple, List
+
 import numpy as np
+import pybullet
 import pywavefront
 from nptyping import NDArray, Shape, Float
 from pruning_sb3.pruning_gym.helpers import compute_perpendicular_projection_vector
-import pybullet
-import math
 
 
 # from memory_profiler import profile
@@ -68,7 +69,7 @@ class Tree:
         self.init_orientation = orientation
 
         if randomize_pose:
-            #set pos to 0,0,0
+            # set pos to 0,0,0
             new_pos = np.array([0, 0, 0])
             # TODO: Multiply orientation with initial orientation
             new_orientation = pybullet.getQuaternionFromEuler(
@@ -120,9 +121,9 @@ class Tree:
             print('Saved points to pickle file ', self.urdf_path[:-5] + '_points.pkl')
             print("Number of points: ", len(self.vertex_and_projection))
 
-        #make bins
+        # make bins
         self.or_bins = self.create_bins(18, 36)
-        #Go through vertex_and_projection and assign to bins
+        # Go through vertex_and_projection and assign to bins
         self.populate_bins(self.vertex_and_projection)
         del self.vertex_and_projection
 
@@ -137,10 +138,10 @@ class Tree:
         #     self.__init__(env, pyb, urdf_path, obj_path, labelled_obj_path, self.init_pos, self.init_orientation, num_points, scale,
         #                   curriculum_distances, curriculum_level_steps, randomize_pose=randomize_pose)
 
-
     @staticmethod
     def roundup(x):
         return math.ceil(x / 10.0) * 10
+
     @staticmethod
     def rounddown(x):
         return math.floor(x / 10.0) * 10
@@ -194,8 +195,8 @@ class Tree:
             lon_angle_min = self.rounddown(lon_angle)
             lon_angle_max = self.roundup(lon_angle)
             bin_key = (round((lat_angle_min + lat_angle_max) / 2), round((lon_angle_min + lon_angle_max) / 2))
-            #if bin_key[0] not in between -85 and 85 set as 85 or -85
-            #if bin_keyp[1] not in between -175 and 175 set as 175 or -175
+            # if bin_key[0] not in between -85 and 85 set as 85 or -85
+            # if bin_keyp[1] not in between -175 and 175 set as 175 or -175
 
             if bin_key[0] > 85:
                 bin_key = (85, bin_key[1])
@@ -206,7 +207,6 @@ class Tree:
             elif bin_key[1] < -175:
                 bin_key = (bin_key[0], -175)
             self.or_bins[bin_key].append((self.urdf_path, point, self.orientation, self.scale))
-
 
     def label_vertex_by_color(self, labels, unlabelled_vertices, labelled_vertices):
         # create a dictionary of vertices and assign label using close enough vertex on labelled tree obj
@@ -289,7 +289,7 @@ class Tree:
                 label = labels[0]
             else:
                 label = "JOINT"
-            #TODO: At this point create a new file with faces of each label
+            # TODO: At this point create a new file with faces of each label
             if label != "SPUR" and label != "WATER_BRANCH":
                 continue
             self.vertex_and_projection.append((tree_point, perpendicular_projection,
@@ -314,8 +314,10 @@ class Tree:
         self.vertex_and_projection = list(filter(lambda x: x[0][2] > self.base_xyz[2], self.vertex_and_projection))
 
     def filter_trunk_points(self):
-        self.vertex_and_projection = list(filter(lambda x: abs(x[0][0]-self.pos[0]) > 0.8, self.vertex_and_projection))
+        self.vertex_and_projection = list(
+            filter(lambda x: abs(x[0][0] - self.pos[0]) > 0.8, self.vertex_and_projection))
         print("Number of points after filtering trunk points: ", len(self.vertex_and_projection))
+
     def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]], env,
                      pyb) -> bool:
         if vertice[3] != "SPUR":

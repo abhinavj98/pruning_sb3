@@ -1,31 +1,28 @@
 # TODO: Fix this file by subclassing
 
-import pickle
-from abc import abstractmethod
-
-import pandas as pd
-from stable_baselines3.common.callbacks import BaseCallback, EventCallback, CallbackList
-import gymnasium as gym
-from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.logger import Video
-
-from stable_baselines3.common.running_mean_std import RunningMeanStd
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-import numpy as np
-import os
-import cv2
-import torch as th
-from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
-import random
-import pandas as pd
-import imageio
 import copy
 import math
+import os
+import pickle
+import random
+from abc import abstractmethod
+from typing import Any, Dict, List, Optional, Union
+
+import cv2
+import gymnasium as gym
+import imageio
+import numpy as np
+import pandas as pd
+import torch as th
+from stable_baselines3.common.callbacks import BaseCallback, EventCallback
+from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.logger import Video
+from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
+
 
 class PruningSetGoalCallback(BaseCallback):
     def __init__(self, verbose=0):
         super(PruningSetGoalCallback, self).__init__(verbose)
-
 
     @abstractmethod
     def _sample_tree_and_point(self):
@@ -48,7 +45,7 @@ class PruningSetGoalCallback(BaseCallback):
 
         # Create a mask for the valid centers
         mask = (centers[..., 0] ** 2 + centers[..., 1] ** 2 + centers[..., 2] ** 2 <= radius ** 2) & (
-                    centers[..., 1] < -0.7) & (centers[..., 2] > -0.05)
+                centers[..., 1] < -0.7) & (centers[..., 2] > -0.05)
 
         # Apply the mask to the centers array to get the valid centers
         valid_centers = centers[mask] + base_center
@@ -96,7 +93,7 @@ class PruningSetGoalCallback(BaseCallback):
         # Construct the rotation matrix  ( V Transpose(V) - I ) R.
         M = (np.outer(V, V) - np.eye(3)).dot(R)
 
-        #Rotate the vector
+        # Rotate the vector
         return M @ [0, 0, 1]
 
     @staticmethod
@@ -177,6 +174,7 @@ class EveryNRollouts(EventCallback):
             return self._on_event()
         return True
 
+
 class PruningLogCallback(BaseCallback):
     def __init__(self, verbose=0):
         super(PruningLogCallback, self).__init__(verbose)
@@ -217,7 +215,6 @@ class PruningLogCallback(BaseCallback):
         self._collisions_acceptable_buffer.extend(self.training_env.get_attr("collisions_acceptable"))
         self._collisions_unacceptable_buffer.extend(self.training_env.get_attr("collisions_unacceptable"))
 
-
     def _on_rollout_start(self) -> None:
         if self.verbose > 0:
             print("INFO: Rollout start")
@@ -241,7 +238,6 @@ class PruningLogCallback(BaseCallback):
             self.logger.record("rollout/" + key, np.mean(self._info_dict[key]))
         self.logger.record("rollout/collisions_acceptable", np.mean(self._collisions_acceptable_buffer))
         self.logger.record("rollout/collisions_unacceptable", np.mean(self._collisions_unacceptable_buffer))
-
 
 
 class CustomEvalCallback(EventCallback):
@@ -372,8 +368,8 @@ class CustomEvalCallback(EventCallback):
             print("Dataset made", len(self.dataset))
         print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
         tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal = \
-        self.dataset[
-            self.current_index[idx]]
+            self.dataset[
+                self.current_index[idx]]
         self.current_index[idx] = min(self.current_index[idx] + 1,
                                       self.n_eval_episodes // self.eval_env.num_envs * (idx + 1) - 1)
         return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal
@@ -797,7 +793,7 @@ class CustomResultCallback(EventCallback):
                                   range(self.eval_env.num_envs)]
         # print("Sampling for {} with id {}".format(idx, self.current_index[idx]))
         tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal = \
-        self.dataset[self.current_index[idx]]
+            self.dataset[self.current_index[idx]]
         self.current_index[idx] = min(self.current_index[idx] + 1,
                                       len(self.dataset) // self.eval_env.num_envs * (idx + 1) - 1)
         return tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal

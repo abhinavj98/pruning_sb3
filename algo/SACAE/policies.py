@@ -1,23 +1,19 @@
+from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
+import numpy as np
 import torch as th
 from gymnasium import spaces
-from torch import nn
-from functools import partial
-import numpy as np
 from stable_baselines3.common.distributions import SquashedDiagGaussianDistribution, StateDependentNoiseDistribution
 from stable_baselines3.common.policies import BasePolicy, BaseModel
 from stable_baselines3.common.preprocessing import get_action_dim
- 
 from stable_baselines3.common.torch_layers import (
     BaseFeaturesExtractor,
-    CombinedExtractor,
-    FlattenExtractor,
-    NatureCNN,
     create_mlp,
     get_actor_critic_arch,
 )
 from stable_baselines3.common.type_aliases import Schedule
+from torch import nn
 
 # CAP the standard deviation of the actor
 LOG_STD_MAX = 2
@@ -50,19 +46,19 @@ class Actor(BasePolicy):
     action_space: spaces.Box
 
     def __init__(
-        self,
-        observation_space: spaces.Space,
-        action_space: spaces.Box,
-        net_arch: List[int],
-        features_extractor: nn.Module,
-        features_dim: int,
-        activation_fn: Type[nn.Module] = nn.ReLU,
-        use_sde: bool = False,
-        log_std_init: float = -3,
-        full_std: bool = True,
-        use_expln: bool = False,
-        clip_mean: float = 2.0,
-        normalize_images: bool = True,
+            self,
+            observation_space: spaces.Space,
+            action_space: spaces.Box,
+            net_arch: List[int],
+            features_extractor: nn.Module,
+            features_dim: int,
+            activation_fn: Type[nn.Module] = nn.ReLU,
+            use_sde: bool = False,
+            log_std_init: float = -3,
+            full_std: bool = True,
+            use_expln: bool = False,
+            clip_mean: float = 2.0,
+            normalize_images: bool = True,
     ):
         super().__init__(
             observation_space,
@@ -103,7 +99,7 @@ class Actor(BasePolicy):
             self.action_dist = SquashedDiagGaussianDistribution(action_dim)  # type: ignore[assignment]
             self.mu = nn.Linear(last_layer_dim, action_dim)
             self.log_std = nn.Linear(last_layer_dim, action_dim)  # type: ignore[assignment]
-        
+
     def _get_constructor_parameters(self) -> Dict[str, Any]:
         data = super()._get_constructor_parameters()
 
@@ -179,7 +175,6 @@ class Actor(BasePolicy):
     def _predict(self, observation: th.Tensor, deterministic: bool = False) -> th.Tensor:
         return self(observation, deterministic)
 
-
     def extract_features(self, obs: th.Tensor):  # -> tuple[th.Tensor, th.Tensor]:
         """
         Preprocess the observation if needed and extract features.
@@ -201,6 +196,8 @@ class Actor(BasePolicy):
 
         # return actor features and critic features
         return features, image_features[1]
+
+
 class ContinuousCritic(BaseModel):
     """
     Critic network(s) for DDPG/SAC/TD3.
@@ -229,16 +226,16 @@ class ContinuousCritic(BaseModel):
     """
 
     def __init__(
-        self,
-        observation_space: spaces.Space,
-        action_space: spaces.Box,
-        net_arch: List[int],
-        features_extractor: BaseFeaturesExtractor,
-        features_dim: int,
-        activation_fn: Type[nn.Module] = nn.ReLU,
-        normalize_images: bool = True,
-        n_critics: int = 2,
-        share_features_extractor: bool = True,
+            self,
+            observation_space: spaces.Space,
+            action_space: spaces.Box,
+            net_arch: List[int],
+            features_extractor: BaseFeaturesExtractor,
+            features_dim: int,
+            activation_fn: Type[nn.Module] = nn.ReLU,
+            normalize_images: bool = True,
+            n_critics: int = 2,
+            share_features_extractor: bool = True,
     ):
         super().__init__(
             observation_space,
@@ -257,6 +254,7 @@ class ContinuousCritic(BaseModel):
             q_net = nn.Sequential(*q_net)
             self.add_module(f"qf{idx}", q_net)
             self.q_networks.append(q_net)
+
     def extract_features(self, obs: th.Tensor):  # -> tuple[th.Tensor, th.Tensor]:
         """
         Preprocess the observation if needed and extract features.
@@ -275,7 +273,6 @@ class ContinuousCritic(BaseModel):
              image_features[0], obs['close_to_goal'], obs['relative_distance']], dim=1).to(th.float32)
 
         features = features_actor
-
 
         return features, image_features[1]
 
@@ -296,7 +293,6 @@ class ContinuousCritic(BaseModel):
         with th.no_grad():
             features, image_recon = self.extract_features(obs)
         return self.q_networks[0](th.cat([features, actions], dim=1))
-    
 
 
 class SACPolicy(BasePolicy):
@@ -333,23 +329,23 @@ class SACPolicy(BasePolicy):
     critic_target: ContinuousCritic
 
     def __init__(
-        self,
-        observation_space: spaces.Space,
-        action_space: spaces.Box,
-        lr_schedule: Schedule,
-        net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
-        activation_fn: Type[nn.Module] = nn.ReLU,
-        use_sde: bool = False,
-        log_std_init: float = -3,
-        use_expln: bool = False,
-        clip_mean: float = 2.0,
-        features_extractor_class: Type[BaseFeaturesExtractor] = None,
-        features_extractor_kwargs: Optional[Dict[str, Any]] = None,
-        normalize_images: bool = True,
-        optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
-        optimizer_kwargs: Optional[Dict[str, Any]] = None,
-        n_critics: int = 2,
-        share_features_extractor: bool = False,
+            self,
+            observation_space: spaces.Space,
+            action_space: spaces.Box,
+            lr_schedule: Schedule,
+            net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
+            activation_fn: Type[nn.Module] = nn.ReLU,
+            use_sde: bool = False,
+            log_std_init: float = -3,
+            use_expln: bool = False,
+            clip_mean: float = 2.0,
+            features_extractor_class: Type[BaseFeaturesExtractor] = None,
+            features_extractor_kwargs: Optional[Dict[str, Any]] = None,
+            normalize_images: bool = True,
+            optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
+            optimizer_kwargs: Optional[Dict[str, Any]] = None,
+            n_critics: int = 2,
+            share_features_extractor: bool = False,
     ):
         super().__init__(
             observation_space,
@@ -410,7 +406,8 @@ class SACPolicy(BasePolicy):
             self.critic = self.make_critic(features_extractor=self.actor.features_extractor)
             # Do not optimize the shared features extractor with the critic loss
             # otherwise, there are gradient computation issues
-            critic_parameters = [param for name, param in self.critic.named_parameters() if "features_extractor" not in name]
+            critic_parameters = [param for name, param in self.critic.named_parameters() if
+                                 "features_extractor" not in name]
         else:
             # Create a separate features extractor for the critic
             # this requires more memory and computation
@@ -427,12 +424,12 @@ class SACPolicy(BasePolicy):
             **self.optimizer_kwargs,
         )
 
-        if True:#self.ortho_init:
+        if True:  # self.ortho_init:
             # TODO: check for features_extractor
             # Values from stable-baselines.
             # features_extractor/mlp values are
             # originally from openai/baselines (default gains/init_scales).
-          
+
             module_gains = {
                 self.actor.features_extractor: np.sqrt(2),
                 self.actor.latent_pi: np.sqrt(2),
@@ -445,13 +442,13 @@ class SACPolicy(BasePolicy):
                 print("Orthogonal initialization")
                 module.apply(partial(self.init_weights, gain=gain))
             self.actor.log_std.bias.data.fill_(self.actor.log_std_init)
-          
+
         #     print(self.actor.mu.weight.data)
         # Target networks should always be in eval mode
         self.critic_target.set_training_mode(False)
-       
-        #Get actor weights
-         #self.actor.weights.data = self.actor_target.weights.data/10
+
+        # Get actor weights
+        # self.actor.weights.data = self.actor_target.weights.data/10
 
     @staticmethod
     def init_weights(module: nn.Module, gain: float = 1) -> None:
@@ -462,7 +459,7 @@ class SACPolicy(BasePolicy):
             nn.init.orthogonal_(module.weight, gain=gain)
             if module.bias is not None:
                 module.bias.data.fill_(0.0)
-                
+
     def _get_constructor_parameters(self) -> Dict[str, Any]:
         data = super()._get_constructor_parameters()
 

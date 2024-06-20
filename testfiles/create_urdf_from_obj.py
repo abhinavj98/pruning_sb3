@@ -1,9 +1,10 @@
 import glob
 import os
-folder = "envy/train"
-OBJ_FOLDER = "./meshes_and_urdf/meshes/trees/"+folder
 
-for name in glob.glob(OBJ_FOLDER+'/*.obj'):
+folder = "envy/train"
+OBJ_FOLDER = "./meshes_and_urdf/meshes/trees/" + folder
+
+for name in glob.glob(OBJ_FOLDER + '/*.obj'):
     print(name)
     urdf_template = """<robot name="ur5e" xmlns:xacro="http://ros.org/wiki/xacro">
     <link name="tree">
@@ -32,7 +33,7 @@ for name in glob.glob(OBJ_FOLDER+'/*.obj'):
         <child link="tree"/>
         <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
     </joint>
-    </robot>""".format(filepath = name)
+    </robot>""".format(filepath=name)
     file = open("./meshes_and_urdf/urdf/trees/{}/{}.urdf".format(folder, os.path.basename(name)[:-4]), "w")
     file.write(urdf_template)
     file.close()

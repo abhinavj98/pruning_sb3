@@ -1,28 +1,27 @@
 import warnings
 from typing import Any, Dict, Optional, Type, TypeVar, Union, List
 
+import gymnasium as gym
 import numpy as np
 import torch as th
-from gymnasium import spaces
-from torch.nn import functional as F
-
-from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
-from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticPolicy, BasePolicy, MultiInputActorCriticPolicy
-from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
-from stable_baselines3.common.utils import explained_variance, get_schedule_fn
-
 import torchvision
-import gymnasium as gym
-
-from stable_baselines3.common.logger import Image
+from gymnasium import spaces
 # from stable_baselines3.common.base_class import BaseAlgorithm
 from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
+from stable_baselines3.common.logger import Image
+from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
+from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticPolicy, BasePolicy, \
+    MultiInputActorCriticPolicy
+from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
+from stable_baselines3.common.utils import explained_variance, get_schedule_fn
 # from stable_baselines3.common.callbacks import BaseCallback
 # from stable_baselines3.common.policies import ActorCriticPolicy
 # from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 # from stable_baselines3.common.utils import obs_as_tensor, safe_mean
 # from stable_baselines3.common.vec_env import VecEnv
 from stable_baselines3.common.utils import update_learning_rate
+from torch.nn import functional as F
+
 # from stable_baselines3.common.utils import (
 #     check_for_correct_spaces,
 #     get_device,
@@ -91,39 +90,40 @@ class PPOAE(OnPolicyAlgorithm):
         "CnnPolicy": ActorCriticCnnPolicy,
         "MultiInputPolicy": MultiInputActorCriticPolicy,
     }
-###MAke custom learning rate method -> update_learning_raet -> Check BasePolict base_class.py
+
+    ###MAke custom learning rate method -> update_learning_raet -> Check BasePolict base_class.py
 
     def __init__(
-        self,
-        policy: Union[str, Type[ActorCriticPolicy]],
-        env: Union[GymEnv, str],
-        learning_rate_ae: Union[float, Schedule] = 3e-4,
-        learning_rate: Union[float, Schedule] = 3e-4,
-        learning_rate_logstd : Union[float, Schedule] = 3e-4,
-        n_steps: int = 1000,
-        batch_size: int = 100,
-        n_epochs: int = 10,
-        gamma: float = 0.99,
-        latent_coef: float = 0.001,
-        gae_lambda: float = 0.95,
-        clip_range: Union[float, Schedule] = 0.2,
-        clip_range_vf: Union[None, float, Schedule] = None,
-        normalize_advantage: bool = True,
-        ent_coef: float = 0.001,
-        vf_coef: float = 0.5,
-        ae_coef: float = 1,
-        train_iterations_ae: int = 1,
-        train_iterations_a2c: int = 1,
-        max_grad_norm: float = 0.5,
-        use_sde: bool = False,
-        sde_sample_freq: int = -1,
-        target_kl: Optional[float] = None,
-        tensorboard_log: Optional[str] = None,
-        policy_kwargs: Optional[Dict[str, Any]] = None,
-        verbose: int = 0,
-        seed: Optional[int] = None,
-        device: Union[th.device, str] = "auto",
-        _init_setup_model: bool = True,
+            self,
+            policy: Union[str, Type[ActorCriticPolicy]],
+            env: Union[GymEnv, str],
+            learning_rate_ae: Union[float, Schedule] = 3e-4,
+            learning_rate: Union[float, Schedule] = 3e-4,
+            learning_rate_logstd: Union[float, Schedule] = 3e-4,
+            n_steps: int = 1000,
+            batch_size: int = 100,
+            n_epochs: int = 10,
+            gamma: float = 0.99,
+            latent_coef: float = 0.001,
+            gae_lambda: float = 0.95,
+            clip_range: Union[float, Schedule] = 0.2,
+            clip_range_vf: Union[None, float, Schedule] = None,
+            normalize_advantage: bool = True,
+            ent_coef: float = 0.001,
+            vf_coef: float = 0.5,
+            ae_coef: float = 1,
+            train_iterations_ae: int = 1,
+            train_iterations_a2c: int = 1,
+            max_grad_norm: float = 0.5,
+            use_sde: bool = False,
+            sde_sample_freq: int = -1,
+            target_kl: Optional[float] = None,
+            tensorboard_log: Optional[str] = None,
+            policy_kwargs: Optional[Dict[str, Any]] = None,
+            verbose: int = 0,
+            seed: Optional[int] = None,
+            device: Union[th.device, str] = "auto",
+            _init_setup_model: bool = True,
     ):
 
         super().__init__(
@@ -162,7 +162,7 @@ class PPOAE(OnPolicyAlgorithm):
         # because of the advantage normalization
         if normalize_advantage:
             assert (
-                batch_size > 1
+                    batch_size > 1
             ), "`batch_size` must be greater than 1. See https://github.com/DLR-RM/stable-baselines3/issues/440"
 
         if self.env is not None:
@@ -214,8 +214,8 @@ class PPOAE(OnPolicyAlgorithm):
             self.action_space,
             self.lr_schedule,
             use_sde=self.use_sde,
-            lr_schedule_ae = self.lr_schedule_ae,
-            lr_schedule_logstd = self.lr_schedule_logstd,
+            lr_schedule_ae=self.lr_schedule_ae,
+            lr_schedule_logstd=self.lr_schedule_logstd,
             **self.policy_kwargs  # pytype:disable=not-instantiable
         )
         self.policy = self.policy.to(self.device)
@@ -226,22 +226,23 @@ class PPOAE(OnPolicyAlgorithm):
                 assert self.clip_range_vf > 0, "`clip_range_vf` must be positive, " "pass `None` to deactivate vf clipping"
 
             self.clip_range_vf = get_schedule_fn(self.clip_range_vf)
+
     # def _custom_update_learning_rate():
     def _custom_update_learning_rate(self, optimizers: Union[List[th.optim.Optimizer], th.optim.Optimizer]) -> None:
-            """
-            Update the optimizers learning rate using the current learning rate schedule
-            and the current progress remaining (from 1 to 0).
-            :param optimizers:
-                An optimizer or a list of optimizers.
-            """
-            # Log the current learning rate
-            #TODO: Move to callback
-            self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
-            self.logger.record("train/learning_rate_ae", self.lr_schedule_ae(self._current_progress_remaining))
-            self.logger.record("train/learning_rate_logstd", self.lr_schedule_logstd(self._current_progress_remaining))
-            update_learning_rate(self.policy.optimizer, self.lr_schedule(self._current_progress_remaining))
-            update_learning_rate(self.policy.optimizer_ae, self.lr_schedule_ae(self._current_progress_remaining))
-            update_learning_rate(self.policy.optimizer_logstd, self.lr_schedule_logstd(self._current_progress_remaining))
+        """
+        Update the optimizers learning rate using the current learning rate schedule
+        and the current progress remaining (from 1 to 0).
+        :param optimizers:
+            An optimizer or a list of optimizers.
+        """
+        # Log the current learning rate
+        # TODO: Move to callback
+        self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
+        self.logger.record("train/learning_rate_ae", self.lr_schedule_ae(self._current_progress_remaining))
+        self.logger.record("train/learning_rate_logstd", self.lr_schedule_logstd(self._current_progress_remaining))
+        update_learning_rate(self.policy.optimizer, self.lr_schedule(self._current_progress_remaining))
+        update_learning_rate(self.policy.optimizer_ae, self.lr_schedule_ae(self._current_progress_remaining))
+        update_learning_rate(self.policy.optimizer_logstd, self.lr_schedule_logstd(self._current_progress_remaining))
 
     def _custom_setup_lr_schedule(self) -> None:
         """Transform to callable if needed."""
@@ -257,7 +258,7 @@ class PPOAE(OnPolicyAlgorithm):
         self.policy.set_training_mode(True)
         # Update optimizer learning rate
         self._custom_update_learning_rate([self.policy.optimizer, self.policy.optimizer_ae])
-     
+
         # Compute current clip range
         clip_range = self.clip_range(self._current_progress_remaining)
         # Optional: clip range for the value function
@@ -292,7 +293,7 @@ class PPOAE(OnPolicyAlgorithm):
                     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
                 # ratio between old and new policy, should be one at the first iteration
-                if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
+                if (self._n_updates / self.n_epochs) % self.train_iterations_a2c == 0:
                     ratio = th.exp(log_prob - rollout_data.old_log_prob)
 
                     # clipped surrogate loss
@@ -318,21 +319,22 @@ class PPOAE(OnPolicyAlgorithm):
                     value_loss = F.mse_loss(rollout_data.returns, values_pred)
                     value_losses.append(value_loss.item())
                     if entropy is None:
-                    # Approximate entropy when no analytical form
+                        # Approximate entropy when no analytical form
                         entropy_loss = -th.mean(-log_prob)
                     else:
                         entropy_loss = -th.mean(entropy)
 
                     entropy_losses.append(entropy_loss.item())
-                    loss += policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss 
+                    loss += policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
 
-                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
-                    ae_l2_loss = self.mse_loss(F.interpolate(rollout_data.observations['depth'], size = (112,112)), features[1]) 
-                    ae_loss = self.ae_coef * ae_l2_loss + 0.2*self.latent_coef*th.norm(features[0], dim = (1)).to(self.device).mean()
+                if (self._n_updates / self.n_epochs) % self.train_iterations_ae == 0:
+                    ae_l2_loss = self.mse_loss(F.interpolate(rollout_data.observations['depth'], size=(112, 112)),
+                                               features[1])
+                    ae_loss = self.ae_coef * ae_l2_loss + 0.2 * self.latent_coef * th.norm(features[0], dim=(1)).to(
+                        self.device).mean()
                     ae_losses.append(ae_loss.item())
                     loss += ae_loss
                 # Entropy loss favor exploration
-                
 
                 # Calculate approximate form of reverse KL Divergence for early stopping
                 # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -353,15 +355,15 @@ class PPOAE(OnPolicyAlgorithm):
                 self.policy.optimizer.zero_grad()
                 self.policy.optimizer_ae.zero_grad()
                 self.policy.optimizer_logstd.zero_grad()
-                
+
                 loss.backward()
                 # Clip grad norm
                 th.nn.utils.clip_grad_value_(self.policy.parameters(), self.max_grad_norm)
-                #Replace clip grad_norm with clip by value
-            
-                if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
+                # Replace clip grad_norm with clip by value
+
+                if (self._n_updates / self.n_epochs) % self.train_iterations_a2c == 0:
                     self.policy.optimizer.step()
-                if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
+                if (self._n_updates / self.n_epochs) % self.train_iterations_ae == 0:
                     self.policy.optimizer_ae.step()
                 self.policy.optimizer_logstd.step()
             if not continue_training:
@@ -371,14 +373,15 @@ class PPOAE(OnPolicyAlgorithm):
 
         # Logs
 
-        if (self._n_updates/self.n_epochs) % self.train_iterations_ae == 0:
+        if (self._n_updates / self.n_epochs) % self.train_iterations_ae == 0:
             plot_img = self.rollout_buffer.sample(1).observations['depth']
             with th.no_grad():
                 _, recon = self.policy.extract_features(plot_img)
-            ae_image = torchvision.utils.make_grid([recon.squeeze(0)+0.5, F.interpolate(plot_img+0.5, size = (112, 112)).squeeze(0)])
+            ae_image = torchvision.utils.make_grid(
+                [recon.squeeze(0) + 0.5, F.interpolate(plot_img + 0.5, size=(112, 112)).squeeze(0)])
             self.logger.record("autoencoder/image", Image(ae_image, "CHW"))
             self.logger.record("train/ae_loss", np.mean(ae_losses))
-        if (self._n_updates/self.n_epochs) % self.train_iterations_a2c == 0:
+        if (self._n_updates / self.n_epochs) % self.train_iterations_a2c == 0:
             self.logger.record("train/entropy_loss", np.mean(entropy_losses))
             self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
             self.logger.record("train/value_loss", np.mean(value_losses))
@@ -397,13 +400,13 @@ class PPOAE(OnPolicyAlgorithm):
         self._n_updates += self.n_epochs
 
     def learn(
-        self: SelfPPO,
-        total_timesteps: int,
-        callback: MaybeCallback = None,
-        log_interval: int = 1,
-        tb_log_name: str = "PPO",
-        reset_num_timesteps: bool = True,
-        progress_bar: bool = False,
+            self: SelfPPO,
+            total_timesteps: int,
+            callback: MaybeCallback = None,
+            log_interval: int = 1,
+            tb_log_name: str = "PPO",
+            reset_num_timesteps: bool = True,
+            progress_bar: bool = False,
     ) -> SelfPPO:
 
         return super().learn(
@@ -412,7 +415,5 @@ class PPOAE(OnPolicyAlgorithm):
             log_interval=log_interval,
             tb_log_name=tb_log_name,
             reset_num_timesteps=reset_num_timesteps,
-        #    progress_bar=progress_bar,
+            #    progress_bar=progress_bar,
         )
-
-
