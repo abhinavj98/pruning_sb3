@@ -12,7 +12,7 @@ from nptyping import NDArray, Shape, Float
 
 from .optical_flow import OpticalFlow
 import time
-
+import pickle
 
 def init_wandb(args, name):
     if os.path.exists("../keys.json"):
@@ -116,28 +116,6 @@ def goal_distance(goal_a: NDArray[Shape['3, 1'], Float], goal_b: NDArray[Shape['
     return np.linalg.norm(goal_a - goal_b, axis=-1)
 
 
-
-
-def goal_reward_projection(current: NDArray[Shape['3, 1'], Float], previous: NDArray[Shape['3, 1'], Float],
-                           target: NDArray[Shape['3, 1'], Float]):
-    # Compute the reward between the previous and current goal.
-    assert current.shape == previous.shape
-    assert current.shape == target.shape
-    # get parallel projection of current on prev
-    projection = compute_parallel_projection_vector(current - target, previous - target)
-
-    reward = np.linalg.norm(previous - target) - np.linalg.norm(projection)
-    # print(np.linalg.norm(previous - target), np.linalg.norm(projection), np.linalg.norm(current - target))
-
-    return reward
-
-
-# x,y distance
-def goal_distance2d(goal_a: NDArray[Shape['3, 1'], Float], goal_b: NDArray[Shape['3, 1'], Float]):
-    # Compute the distance between the goal and the achieved goal.
-    assert goal_a.shape == goal_b.shape
-    return np.linalg.norm(goal_a[0:2] - goal_b[0:2], axis=-1)
-
 def compute_parallel_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
     projection = np.dot(ab, bc) / np.dot(bc, bc) * bc
     return projection
@@ -161,12 +139,69 @@ def organize_args(args_dict):
         arg_val = arg_name[index+1:]
         arg_key = arg_name[:index]
         parse_args_dict[arg_key][arg_val] = arg_params
-    return parse_args_dict
+    args_global = parse_args_dict['args_global']
+    args_train = dict(parse_args_dict['args_env'], **parse_args_dict['args_train'])
+    args_test = dict(parse_args_dict['args_env'], **parse_args_dict['args_test'])
+    args_record = dict(args_test, **parse_args_dict['args_record'])
+    args_policy = parse_args_dict['args_policy']
+    args_callback = parse_args_dict['args_callback']
+    args_env = parse_args_dict['args_env']
+    args_eval = parse_args_dict['args_eval']
+    return args_global, args_train, args_test, args_record, args_callback, args_policy, args_env, args_eval, parse_args_dict
 
 
 def add_arg_to_env(key, val, env_name, parsed_args_dict):
     for name in env_name:
         parsed_args_dict[name][key] = val
 
+
+
+def make_or_bins(args, type):
+    from pruning_sb3.pruning_gym.pruning_env import PruningEnv
+    from pruning_sb3.pruning_gym.tree import Tree
+    if os.path.exists(f"{type}_dataset.pkl"):
+        with open(f"{type}_dataset.pkl", "rb") as f:
+            or_bins = pickle.load(f)
+            for key in or_bins.keys():
+                random.shuffle(or_bins[key])
+    else:
+        data_env_train = PruningEnv(**args, make_trees=True)
+        or_bins = Tree.create_bins(18, 36)
+        for key in or_bins.keys():
+            for i in data_env_train.trees:
+                or_bins[key].extend(i.or_bins[key])
+
+        del data_env_train
+        # Shuffle the data inside the bisn
+        for key in or_bins.keys():
+            random.shuffle(or_bins[key])
+
+        with open(f"{type}_dataset.pkl", "wb") as f:
+            pickle.dump(or_bins, f)
+    return or_bins
+
+
+def get_policy_kwargs(args_policy, args_env, features_extractor_class):
+    policy_kwargs = {
+        "features_extractor_class": features_extractor_class,
+        "features_extractor_kwargs": {"features_dim": args_policy['state_dim'],
+                                      "in_channels": 3,
+                                      "size": (224, 224)},
+        "optimizer_class": th.optim.Adam,
+        "log_std_init": args_policy['log_std_init'],
+        "net_arch": dict(
+            qf=[args_policy['emb_size'] * 2, args_policy['emb_size'],
+                args_policy['emb_size'] // 2],
+            pi=[args_policy['emb_size'] * 2, args_policy['emb_size'],
+                args_policy['emb_size'] // 2]),
+        "activation_fn": th.nn.ReLU,
+        "share_features_extractor": False,
+        "n_lstm_layers": 2,
+        "features_dim_critic_add": 2,  # Assymetric critic
+        "lstm_hidden_size": 128,
+        "algo_size": (args_env['algo_height'], args_env['algo_width']),
+    }
+
+    return policy_kwargs
 
 
