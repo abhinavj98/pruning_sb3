@@ -19,7 +19,7 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
     def _init_callback(self) -> None:
         for i in range(self.training_env.num_envs):
             tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal \
-                = self._sample_tree_and_point()
+                = self._sample_tree_and_point(i)
             self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
                                          point_pos=final_point_pos, point_branch_or=current_branch_or,
                                          tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,

@@ -53,6 +53,7 @@ class Reward:
 
         pointing_orientation_reward = (cosine_sim_curr - cosine_sim_prev) * \
                                       self.pointing_orientation_reward_scale
+        # print(pointing_orientation_reward, cosine_sim_curr, cosine_sim_prev)
         self.reward_info['pointing_orientation_reward'] = pointing_orientation_reward
         return pointing_orientation_reward, cosine_sim_curr
 
@@ -132,15 +133,17 @@ class Reward:
         # This is to encourage the end effector to be perpendicular to the branch
 
         # Perpendicular vector to branch vector
-        # perpendicular_vector = Reward.compute_perpendicular_projection(achieved_pos, desired_pos,
-        #                                                              branch_vector + desired_pos)
-        pointing_vector = (desired_pos - achieved_pos) / np.linalg.norm(desired_pos - achieved_pos)
+        ideal_pointing_vector = Reward.compute_perpendicular_projection(achieved_pos, desired_pos,
+                                                                     branch_vector + desired_pos)
+        # ideal_pointing_vector = (desired_pos - achieved_pos) / np.linalg.norm(desired_pos - achieved_pos)
         rot_mat = np.array(getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
         # Initial vectors
         init_vector = np.array([0, 0, 1])  # Coz of starting orientation of end effector
-        camera_vector = rot_mat.dot(init_vector)
-        pointing_cos_sim = np.dot(camera_vector, pointing_vector) / (
-                np.linalg.norm(camera_vector) * np.linalg.norm(pointing_vector))
+        current_pointing_vector = rot_mat.dot(init_vector)
+        pointing_cos_sim = np.dot(current_pointing_vector, ideal_pointing_vector) / (
+                np.linalg.norm(current_pointing_vector) * np.linalg.norm(ideal_pointing_vector))
+
+
         return pointing_cos_sim
 
     @staticmethod
