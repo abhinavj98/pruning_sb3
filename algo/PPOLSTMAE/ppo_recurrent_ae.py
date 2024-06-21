@@ -495,9 +495,9 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         plot_mask = depth_proxy[0, 2, :, :].unsqueeze(0)
         of_mask = depth_proxy_recon[0, 2, :, :].unsqueeze(0)
         of_image_grid = torchvision.utils.make_grid(
-            [of_image, plot_img.unsqueeze(0)])
+            [of_image, plot_img])
         of_mask_grid = torchvision.utils.make_grid(
-            [of_mask, plot_mask.unsqueeze(0)])
+            [of_mask, plot_mask])
         self.logger.record("autoencoder/of_mask", Image(of_mask_grid, "CHW"))
         self.logger.record("autoencoder/depth_proxy", Image(of_image_grid, "CHW"))
         self.logger.record("train/ae_loss", np.mean(ae_losses))
