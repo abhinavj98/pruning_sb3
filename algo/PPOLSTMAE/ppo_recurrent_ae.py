@@ -490,16 +490,25 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
         # Logs
-        of_image = self.normalize_image(depth_proxy_recon[0, :2, :, :])
-        plot_img = self.normalize_image(depth_proxy[0, :2, :, :])
-        plot_mask = depth_proxy[0, 2, :, :].unsqueeze(0)
+        of_image_x = self.normalize_image(depth_proxy_recon[0, 0, :, :]).unsqueeze(0)
+        of_image_y = self.normalize_image(depth_proxy_recon[0, 1, :, :]).unsqueeze(0)
         of_mask = depth_proxy_recon[0, 2, :, :].unsqueeze(0)
-        of_image_grid = torchvision.utils.make_grid(
-            [of_image, plot_img])
+
+        #resize plot_img to be the same size as of_image
+        depth_proxy_resized = F.interpolate(depth_proxy, size=(of_image_x.shape[1], of_image_x.shape[2]), mode='bilinear')
+        plot_img_x = self.normalize_image(depth_proxy[0, 0, :, :]).unsqueeze(0)
+        plot_img_y = self.normalize_image(depth_proxy[0, 1, :, :]).unsqueeze(0)
+        plot_mask = depth_proxy[0, 2, :, :].unsqueeze(0)
+        of_image_x_grid = torchvision.utils.make_grid(
+            [of_image_x, plot_img_x])
+        of_image_y_grid = torchvision.utils.make_grid(
+            [of_image_y, plot_img_y])
         of_mask_grid = torchvision.utils.make_grid(
             [of_mask, plot_mask])
-        self.logger.record("autoencoder/of_mask", Image(of_mask_grid, "CHW"))
-        self.logger.record("autoencoder/depth_proxy", Image(of_image_grid, "CHW"))
+
+        self.logger.record("autoencoder/of_mask", Image(of_mask_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
+        self.logger.record("autoencoder/depth_proxy_x", Image(of_image_x_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
+        self.logger.record("autoencoder/depth_proxy_y", Image(of_image_y_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
         self.logger.record("train/ae_loss", np.mean(ae_losses))
         self.logger.record("train/entropy_loss", np.mean(entropy_losses))
         self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
