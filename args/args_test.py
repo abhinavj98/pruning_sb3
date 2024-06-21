@@ -1,15 +1,35 @@
 args = {
     'args_callback': {
 
-        'eval_freq': {
+        'save_freq': {
             'type': int,
             'default': 10,
             'help': 'frequency of evaluation'
         },
         'n_eval_episodes': {
             'type': int,
-            'default': 12,
+            'default': 2,
             'help': 'number of episodes to run during evaluation'
+        },
+        'n_eval_orientations': {
+            'type': int,
+            'default': 2,
+            'help': 'number of orientations to evaluate'
+        },
+        'n_points_per_orientation': {
+            'type': int,
+            'default': 2,
+            'help': 'number of points to sample per orientation'
+        },
+        'train_record_freq': {
+            'type': int,
+            'default': 100,
+            'help': 'frequency of recording the training environment'
+        },
+        'verbose': {
+            'type': int,
+            'default': 2,
+            'help': 'verbosity level'
         },
     },
 
@@ -117,6 +137,11 @@ args = {
             'default': 424,  # divisible by 8
             'help': 'width of the algorithm image'
         },
+        'verbose': {
+            'type': int,
+            'default': 1,
+            'help': 'verbosity level'
+        },
     },
 
     'args_train': {
@@ -210,6 +235,14 @@ args = {
         'run_name': {
             'type': str,
             'default': 'run'
+        },
+        'run_type': {
+            'type': str,
+            'default': 'train_test'
+        },
+        'load_timestep': {
+            'type': int,
+            'default': 0
         },
         'load_path': {
             'type': str,

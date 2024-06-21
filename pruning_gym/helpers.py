@@ -1,30 +1,30 @@
 import json
 import multiprocessing as mp
 import os
+import pickle
 import random
+import time
 from typing import Union, Callable
 
 import numpy as np
 import torch as th
-
 import wandb
 from nptyping import NDArray, Shape, Float
 
 from .optical_flow import OpticalFlow
-import time
 
 
 def init_wandb(args, name):
     if os.path.exists("../keys.json"):
-       with open("../keys.json") as f:
-         os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
+        with open("../keys.json") as f:
+            os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
 
     wandb.tensorboard.patch(root_logdir="runs", pytorch=True)
     wandb.init(
         # set the wandb project where this run will be logged
         project="ppo_lstm",
-        sync_tensorboard = True,
-        name = name,
+        sync_tensorboard=True,
+        name=name,
         # track hyperparameters and run metadata
         config=args
     )
@@ -65,7 +65,7 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
         :param progress_remaining: (float)
         :return: (float)
         """
-        return (progress_remaining)**2 * initial_value
+        return (progress_remaining) ** 2 * initial_value
 
     return func
 
@@ -84,7 +84,7 @@ def set_seed(seed: int = 42) -> None:
 
 
 def optical_flow_create_shared_vars(num_envs: int = 1):
-    #TODO = make this torch multiprocessing
+    # TODO = make this torch multiprocessing
     manager = mp.Manager()
 
     # queue = multiprocessing.Queue()
@@ -95,7 +95,7 @@ def optical_flow_create_shared_vars(num_envs: int = 1):
         ctx = mp.get_context("forkserver")
     else:
         ctx = mp.get_context("spawn")
-    #replace shared dict and queue with pipe?
+    # replace shared dict and queue with pipe?
     process = ctx.Process(target=OpticalFlow, args=((224, 224), True, shared_var, num_envs),
                           daemon=True)  # type: ignore[attr-defined]
     # pytype: enable=attribute-error
@@ -109,59 +109,48 @@ def compute_perpendicular_projection_vector(ab: NDArray[Shape['3, 1'], Float], b
     return projection
 
 
-
 def goal_distance(goal_a: NDArray[Shape['3, 1'], Float], goal_b: NDArray[Shape['3, 1'], Float]) -> float:
     # Compute the distance between the goal and the achieved goal.
     assert goal_a.shape == goal_b.shape
     return np.linalg.norm(goal_a - goal_b, axis=-1)
 
 
-
-
-def goal_reward_projection(current: NDArray[Shape['3, 1'], Float], previous: NDArray[Shape['3, 1'], Float],
-                           target: NDArray[Shape['3, 1'], Float]):
-    # Compute the reward between the previous and current goal.
-    assert current.shape == previous.shape
-    assert current.shape == target.shape
-    # get parallel projection of current on prev
-    projection = compute_parallel_projection_vector(current - target, previous - target)
-
-    reward = np.linalg.norm(previous - target) - np.linalg.norm(projection)
-    # print(np.linalg.norm(previous - target), np.linalg.norm(projection), np.linalg.norm(current - target))
-
-    return reward
-
-
-# x,y distance
-def goal_distance2d(goal_a: NDArray[Shape['3, 1'], Float], goal_b: NDArray[Shape['3, 1'], Float]):
-    # Compute the distance between the goal and the achieved goal.
-    assert goal_a.shape == goal_b.shape
-    return np.linalg.norm(goal_a[0:2] - goal_b[0:2], axis=-1)
-
 def compute_parallel_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
     projection = np.dot(ab, bc) / np.dot(bc, bc) * bc
     return projection
 
-def set_args(arg_dict, parser, name = 'main'):
-     for arg_name, arg_params in arg_dict.items():
+
+def set_args(arg_dict, parser, name='main'):
+    for arg_name, arg_params in arg_dict.items():
         # print(arg_name, arg_params)
         if 'args' in arg_name:
             set_args(arg_params, parser, arg_name)
         else:
             parser.add_argument(f'--{name}_{arg_name}', **arg_params)
-    # return parser_dict
+
+
+# return parser_dict
 
 def organize_args(args_dict):
     parse_args_dict = {}
-    args_classes = ['args_global', 'args_train', 'args_test', 'args_record', 'args_callback', 'args_policy', 'args_env', 'args_eval']
+    args_classes = ['args_global', 'args_train', 'args_test', 'args_record', 'args_callback', 'args_policy', 'args_env',
+                    'args_eval']
     for arg_name in args_classes:
         parse_args_dict[arg_name] = {}
     for arg_name, arg_params in args_dict.items():
         index = arg_name.index('_', 5)
-        arg_val = arg_name[index+1:]
+        arg_val = arg_name[index + 1:]
         arg_key = arg_name[:index]
         parse_args_dict[arg_key][arg_val] = arg_params
-    return parse_args_dict
+    args_global = parse_args_dict['args_global']
+    args_train = dict(parse_args_dict['args_env'], **parse_args_dict['args_train'])
+    args_test = dict(parse_args_dict['args_env'], **parse_args_dict['args_test'])
+    args_record = dict(args_test, **parse_args_dict['args_record'])
+    args_policy = parse_args_dict['args_policy']
+    args_callback = parse_args_dict['args_callback']
+    args_env = parse_args_dict['args_env']
+    args_eval = parse_args_dict['args_eval']
+    return args_global, args_train, args_test, args_record, args_callback, args_policy, args_env, args_eval, parse_args_dict
 
 
 def add_arg_to_env(key, val, env_name, parsed_args_dict):
@@ -169,4 +158,50 @@ def add_arg_to_env(key, val, env_name, parsed_args_dict):
         parsed_args_dict[name][key] = val
 
 
+def make_or_bins(args, type):
+    from pruning_sb3.pruning_gym.pruning_env import PruningEnv
+    from pruning_sb3.pruning_gym.tree import Tree
+    if os.path.exists(f"{type}_or_bins.pkl"):
+        with open(f"{type}_or_bins.pkl", "rb") as f:
+            or_bins = pickle.load(f)
+            for key in or_bins.keys():
+                random.shuffle(or_bins[key])
+    else:
+        data_env_train = PruningEnv(**args, make_trees=True)
+        or_bins = Tree.create_bins(18, 36)
+        for key in or_bins.keys():
+            for i in data_env_train.trees:
+                or_bins[key].extend(i.or_bins[key])
 
+        del data_env_train
+        # Shuffle the data inside the bisn
+        for key in or_bins.keys():
+            random.shuffle(or_bins[key])
+
+        with open(f"{type}_or_bins.pkl", "wb") as f:
+            pickle.dump(or_bins, f)
+    return or_bins
+
+
+def get_policy_kwargs(args_policy, args_env, features_extractor_class):
+    policy_kwargs = {
+        "features_extractor_class": features_extractor_class,
+        "features_extractor_kwargs": {"features_dim": args_policy['state_dim'],
+                                      "in_channels": 3,
+                                      "size": (224, 224)},
+        "optimizer_class": th.optim.Adam,
+        "log_std_init": args_policy['log_std_init'],
+        "net_arch": dict(
+            qf=[args_policy['emb_size'] * 2, args_policy['emb_size'],
+                args_policy['emb_size'] // 2],
+            pi=[args_policy['emb_size'] * 2, args_policy['emb_size'],
+                args_policy['emb_size'] // 2]),
+        "activation_fn": th.nn.ReLU,
+        "share_features_extractor": False,
+        "n_lstm_layers": 2,
+        "features_dim_critic_add": 2,  # Assymetric critic
+        "lstm_hidden_size": 128,
+        "algo_size": (args_env['algo_height'], args_env['algo_width']),
+    }
+
+    return policy_kwargs

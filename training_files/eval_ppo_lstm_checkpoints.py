@@ -18,8 +18,7 @@ import argparse
 # from args import args_dict
 from pruning_sb3.args.args import \
     args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
+from pruning_sb3.pruning_gym.helpers import set_args, organize_args
 import random
 
 if __name__ == "__main__":
@@ -35,21 +34,21 @@ if __name__ == "__main__":
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     args_record = dict(args_test, **parsed_args_dict['args_record'])
 
-
     data_env_test = PruningEnv(**args_test, make_trees=True)
     or_bins_test = Tree.create_bins(18, 36)
     for key in or_bins_test.keys():
         for i in data_env_test.trees:
             or_bins_test[key].extend(i.or_bins[key])
     del data_env_test
-    #Shuffle the data inside the bisn
+    # Shuffle the data inside the bisn
     for key in or_bins_test.keys():
         random.shuffle(or_bins_test[key])
 
     eval_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=args_global["n_envs"])
-    eval_callback = CustomResultCallback(eval_env,  best_model_save_path="../logs/test",
+    eval_callback = CustomResultCallback(eval_env, best_model_save_path="../logs/test",
                                          log_path="../logs/test",
-                                         deterministic=True, render=False, or_bins = or_bins_test, save_video = False, **parsed_args_dict['args_callback'])
+                                         deterministic=True, render=False, or_bins=or_bins_test, save_video=False,
+                                         **parsed_args_dict['args_callback'])
     mean_reward_list = []
     load_timestep_list = [5504000, 5760000, 6016000, 6272000, 6528000, 6784000, 7040000, 7296000]
     for i in range(len(load_timestep_list)):
@@ -83,7 +82,7 @@ if __name__ == "__main__":
             "n_lstm_layers": 2,
         }
         policy = RecurrentActorCriticPolicy
-        model = RecurrentPPOAE.load(load_path_model, env=eval_env)#, custom_objects=load_dict)
+        model = RecurrentPPOAE.load(load_path_model, env=eval_env)  # , custom_objects=load_dict)
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
         model.num_timesteps = load_timestep
         model._num_timesteps_at_start = load_timestep
@@ -100,4 +99,3 @@ if __name__ == "__main__":
         print("Mean reward: ", mean_reward)
 
     print(mean_reward_list)
-

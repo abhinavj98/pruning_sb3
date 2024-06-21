@@ -5,19 +5,18 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import *
 import numpy as np
-import cv2
 import random
 import argparse
 from pruning_sb3.args.args_test import args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
-import multiprocessing as mp
-import copy
-from pruning_sb3.pruning_gym.custom_callbacks import CustomTrainCallback, CustomEvalCallback
+from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, set_args, organize_args
+from pruning_sb3.pruning_gym.helpers import make_or_bins, get_policy_kwargs
+from pruning_sb3.pruning_gym.callbacks.train_callbacks import PruningTrainSetGoalCallback
 from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from stable_baselines3.common import utils
 from pruning_sb3.pruning_gym.tree import Tree
+
+
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
     events = env.pyb.con.getKeyboardEvents()
@@ -27,51 +26,30 @@ def get_key_pressed(env, relevant=None):
     return pressed_keys
 
 
-# Create the ArgumentParser object
-parser = argparse.ArgumentParser()
-set_args(args, parser)
-parsed_args = vars(parser.parse_args())
-
-parsed_args_dict = organize_args(parsed_args)
 if __name__ == "__main__":
-    if parsed_args_dict['args_global']['load_path']:
-        load_path_model = "./logs/{}/current_model.zip".format(
-            parsed_args_dict['args_global']['load_path'])
-        load_path_mean_std = "./logs/{}/current_mean_std.pkl".format(
-            parsed_args_dict['args_global']['load_path'])
+    parser = argparse.ArgumentParser()
+    set_args(args, parser)
+    parsed_args = vars(parser.parse_args())
+    args_global, args_train, args_test, args_record, args_callback, args_policy, args_env, args_eval, parsed_args_dict = organize_args(
+        parsed_args)
+    verbose = 1
+
+    load_timestep = args_global['load_timestep']
+
+    if args_global['load_path']:
+        load_path_model = "./logs/{}/model_{}_steps.zip".format(
+            args_global['load_path'], load_timestep)
+        load_path_mean_std = "./logs/{}/model_mean_std_{}_steps.pkl".format(
+            args_global['load_path'], load_timestep)
     else:
         load_path_model = None
-    args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
-    args_record = dict(args_test, **parsed_args_dict['args_record'])
-    args_test['renders'] = False
-    or_bins_test = Tree.create_bins(18, 36)
-    data_env_test = PruningEnv(**args_test, make_trees=True)
-    for key in or_bins_test.keys():
-        for i in data_env_test.trees:
-            or_bins_test[key].extend(i.or_bins[key])
-    del data_env_test
-    # Shuffle the data inside the bisn
-    for key in or_bins_test.keys():
-        random.shuffle(or_bins_test[key])
-    args_test['renders'] = True
-    args_test['max_steps'] = 100000
+
+    print(parsed_args_dict)
+    or_bins = make_or_bins(args_test, "test")
+
     env = PruningEnv(**args_record)
     print("Env created")
-
-    policy_kwargs = {
-        "features_extractor_class": AutoEncoder,
-        "features_extractor_kwargs": {"features_dim": parsed_args_dict['args_policy']['state_dim'],
-                                      "in_channels": 3, },
-        "optimizer_class": th.optim.Adam,
-        "log_std_init": parsed_args_dict['args_policy']['log_std_init'],
-        "net_arch": dict(
-            qf=[parsed_args_dict['args_policy']['emb_size'] * 2, parsed_args_dict['args_policy']['emb_size'],
-                parsed_args_dict['args_policy']['emb_size'] // 2],
-            pi=[parsed_args_dict['args_policy']['emb_size'] * 2, parsed_args_dict['args_policy']['emb_size'],
-                parsed_args_dict['args_policy']['emb_size'] // 2]),
-        "share_features_extractor": True,
-        "n_lstm_layers": 2,
-    }
+    policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
 
     model = RecurrentPPOAE(policy, env, policy_kwargs=policy_kwargs,
@@ -84,10 +62,8 @@ if __name__ == "__main__":
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
     model.set_logger(new_logger)
-    train_callback = CustomEvalCallback(eval_env = env, record_env = env, or_bins = or_bins_test)
-    train_callback.init_callback(model)
-    train_callback.on_training_start(locals(), globals())
-
+    set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
+    set_goal_callback.init_callback(model)
     env.action_scale = 1
     # env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485, -0.7777109569760938, 3.210501267258541))
     env.reset()
@@ -129,8 +105,9 @@ if __name__ == "__main__":
             infos = {}
             infos['TimeLimit.truncated'] = True
             env.reset()
-            train_callback.update_tree_properties(infos, 0, "eval")
+            set_goal_callback._update_tree_properties()
             # env.is_goal_state = True
         else:
             val = np.array([0.,0.,0., 0., 0., 0.])
         observation, reward, terminated, truncated, infos = env.step(val)
+        set_goal_callback.locals = {"infos": [infos]}

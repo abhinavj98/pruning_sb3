@@ -9,13 +9,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import *
 import numpy as np
-import cv2
-import random
 import argparse
 from pruning_sb3.args.args_test import args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
-import multiprocessing as mp
+from pruning_sb3.pruning_gym.helpers import set_args, organize_args
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # Create the ArgumentParser object
@@ -145,7 +141,8 @@ def visualize_sphere(bins, bin_assignments, direction_vectors):
         ax.add_collection3d(Poly3DCollection([vertices], color=color, alpha=0.8))
     # Plot direction vectors
     direction_vectors = np.array(direction_vectors)
-    ax.quiver(0, 0, 0, direction_vectors[:, 0]*0.8, direction_vectors[:, 1]*0.8, direction_vectors[:, 2]*0.8, color='red')
+    ax.quiver(0, 0, 0, direction_vectors[:, 0] * 0.8, direction_vectors[:, 1] * 0.8, direction_vectors[:, 2] * 0.8,
+              color='red')
     # Create an Axes for the colorbar
     cax = fig.add_axes([0.85, 0.1, 0.03, 0.8])
     fig.colorbar(sm, cax=cax, orientation='vertical')
@@ -171,20 +168,16 @@ if __name__ == "__main__":
 
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
     env = PruningEnv(**args_test, make_trees=True)
-    #get all trees and points
+    # get all trees and points
     point_list = []
     for i in env.trees[:1]:
         point_list.extend(i.curriculum_points[0])
 
-    orientations = [np.array(i[1][1])/np.linalg.norm(np.array(i[1][1])) for i in point_list]
+    orientations = [np.array(i[1][1]) / np.linalg.norm(np.array(i[1][1])) for i in point_list]
     # orientations = np.array(orientations) / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
 
     import numpy as np
     import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-
-
-
 
     num_latitude_bins = 18  # 90 degrees / 10 degrees per bin = 9 bins
     num_longitude_bins = 36  # 360 degrees / 10 degrees per bin = 36 bins
@@ -193,7 +186,6 @@ if __name__ == "__main__":
     bin_assignments = populate_bins(orientations, bins)
 
     visualize_sphere(bins, bin_assignments, orientations)
-
 
     # #Visualize the orientation vectors as a 3D arrows on matplotlib
     # import matplotlib.pyplot as plt
@@ -210,9 +202,6 @@ if __name__ == "__main__":
     # ax.set_zlabel('Z')
     #
     # plt.show()
-
-
-
 
     # # convert each orientation vector to euler angles
     # angles = []
@@ -258,5 +247,3 @@ if __name__ == "__main__":
     #     plt.axvline(i, color='r')
     #
     # plt.show()
-
-

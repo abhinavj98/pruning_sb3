@@ -6,11 +6,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import *
 import numpy as np
-import cv2
-import random
 import argparse
 from pruning_sb3.args.args_test import args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
+from pruning_sb3.pruning_gym.helpers import optical_flow_create_shared_vars, \
     set_args, organize_args, add_arg_to_env
 
 # Create the ArgumentParser object
@@ -30,7 +28,8 @@ if __name__ == "__main__":
 
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     env = PruningEnv(**args_train)
-    env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485, -0.7777109569760938, 3.210501267258541))
+    env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485,
+                              -0.7777109569760938, 3.210501267258541))
     for _ in range(100):
         env.pyb_con.con.stepSimulation()
 

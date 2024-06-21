@@ -340,7 +340,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         self.logger.record("train/learning_rate_ae", self.lr_schedule_ae(self._current_progress_remaining))
         if self.learning_rate_logstd is not None:
             self.logger.record("train/learning_rate_logstd", self.lr_schedule_logstd(self._current_progress_remaining))
-            update_learning_rate(self.policy.optimizer_logstd, self.lr_schedule_logstd(self._current_progress_remaining))
+            update_learning_rate(self.policy.optimizer_logstd,
+                                 self.lr_schedule_logstd(self._current_progress_remaining))
 
         update_learning_rate(self.policy.optimizer, self.lr_schedule(self._current_progress_remaining))
         update_learning_rate(self.policy.optimizer_ae, self.lr_schedule_ae(self._current_progress_remaining))
@@ -436,10 +437,10 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 # Mask padded sequences
                 # TODO: depth proxy no more in obs
                 ae_l2_loss = self.mse_loss(F.interpolate(depth_proxy, size=(112, 112)), depth_proxy_recon)
-                ae_losses.append(ae_l2_loss.item()*self.ae_coeff)
+                ae_losses.append(ae_l2_loss.item() * self.ae_coeff)
                 value_loss = th.mean(((rollout_data.returns - values_pred) ** 2)[mask])
                 # Depth prediction loss
-                #TODO: Add depth prediction loss
+                # TODO: Add depth prediction loss
                 value_losses.append(value_loss.item())
 
                 # Entropy loss favor exploration
@@ -451,7 +452,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
                 entropy_losses.append(entropy_loss.item())
 
-                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + ae_l2_loss*self.ae_coeff
+                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + ae_l2_loss * self.ae_coeff
 
                 # Calculate approximate form of reverse KL Divergence for early stopping
                 # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -489,10 +490,10 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
         # Logs
-        of_image = self.normalize_image(depth_proxy_recon[0,:2,:,:])
+        of_image = self.normalize_image(depth_proxy_recon[0, :2, :, :])
         plot_img = self.normalize_image(depth_proxy[0, :2, :, :])
         plot_mask = depth_proxy[0, 2, :, :].unsqueeze(0)
-        of_mask = depth_proxy_recon[0,2,:,:].unsqueeze(0)
+        of_mask = depth_proxy_recon[0, 2, :, :].unsqueeze(0)
         of_image_grid = torchvision.utils.make_grid(
             [of_image, F.interpolate(plot_img.unsqueeze(0), size=(112, 112)).squeeze(0)])
         of_mask_grid = torchvision.utils.make_grid(
@@ -516,9 +517,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             self.logger.record("train/clip_range_vf", clip_range_vf)
 
     def normalize_image(self, image):
-        #Subtract by min and divide by max
-        return (image - th.min(image.reshape(-1)))/(th.max(image.reshape(-1)) - th.min(image.reshape(-1))+1e-8)
-
+        # Subtract by min and divide by max
+        return (image - th.min(image.reshape(-1))) / (th.max(image.reshape(-1)) - th.min(image.reshape(-1)) + 1e-8)
 
     def learn(
             self: SelfRecurrentPPOAE,

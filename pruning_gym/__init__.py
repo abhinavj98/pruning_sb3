@@ -1,4 +1,3 @@
-
 import os
 
 # Global URDF path pointing to robot and supports URDF

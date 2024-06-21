@@ -3,109 +3,64 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
-from pruning_sb3.pruning_gym.custom_callbacks import CustomEvalCallback, CustomTrainCallback
 from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
-from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import AutoEncoder
-from pruning_sb3.pruning_gym.tree import Tree
-# import subprocvecenv
+
+from pruning_sb3.pruning_gym.callbacks.callbacks import EveryNRollouts, PruningLogCallback
+from pruning_sb3.pruning_gym.callbacks.train_callbacks import PruningTrainSetGoalCallback, \
+    PruningTrainRecordEnvCallback, PruningCheckpointCallback
+
+from pruning_sb3.pruning_gym.pruning_env import PruningEnv
+
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from stable_baselines3.common import utils
 from stable_baselines3.common.env_util import make_vec_env
-import torch as th
 import argparse
-# from args import args_dict
 from pruning_sb3.args.args_test import \
     args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
-import random
+from pruning_sb3.pruning_gym.helpers import linear_schedule, set_args, organize_args, get_policy_kwargs, make_or_bins
 
 if __name__ == "__main__":
-    # Create the ArgumentParser object
+
+    # Get args from file
     parser = argparse.ArgumentParser()
     set_args(args, parser)
     parsed_args = vars(parser.parse_args())
-    parsed_args_dict = organize_args(parsed_args)
-    shared_tree_list_train = []
-    shared_tree_list_test = []
-
-    if parsed_args_dict['args_global']['load_path']:
-        load_path_model = "./logs/{}/current_model.zip".format(
-            parsed_args_dict['args_global']['load_path'])
-        load_path_mean_std = "./logs/{}/current_mean_std.pkl".format(
-            parsed_args_dict['args_global']['load_path'])
+    args_global, args_train, args_test, args_record, args_callback, args_policy, args_env, args_eval, parsed_args_dict = organize_args(
+        parsed_args)
+    verbose = 1
+    # Load model if load_path is provided
+    load_timestep = args_global['load_timestep']
+    if args_global['load_path']:
+        load_path_model = "./logs/{}/model_{}_steps.zip".format(
+            args_global['load_path'], load_timestep)
+        load_path_mean_std = "./logs/{}/model_mean_std_{}_steps.pkl".format(
+            args_global['load_path'], load_timestep)
     else:
         load_path_model = None
 
-    # add_arg_to_env('shared_tree_list', shared_list, ['args_train'], parsed_args_dict)
-    # Duplicates are resolved in favor of the value in x; dict(y, **x)
-    args_global = parsed_args_dict['args_global']
-    args_train = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_train'])
-    args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
-    args_record = dict(args_test, **parsed_args_dict['args_record'])
-    args_policy = parsed_args_dict['args_policy']
-    args_callback = parsed_args_dict['args_callback']
     print(args_train)
-    # Make an environment as usual
-    data_env_train = PruningEnv(**args_train, make_trees=True)
-    or_bins_train = Tree.create_bins(18, 36)
-    for key in or_bins_train.keys():
-        for i in data_env_train.trees:
-            or_bins_train[key].extend(i.or_bins[key])
-
-    del data_env_train
-    # Shuffle the data inside the bisn
-    for key in or_bins_train.keys():
-        random.shuffle(or_bins_train[key])
-
-    data_env_test = PruningEnv(**args_test, make_trees=True)
-    or_bins_test = Tree.create_bins(18, 36)
-    for key in or_bins_test.keys():
-        for i in data_env_test.trees:
-            or_bins_test[key].extend(i.or_bins[key])
-    del data_env_test
-    # Shuffle the data inside the bisn
-    for key in or_bins_test.keys():
-        random.shuffle(or_bins_test[key])
+    # Create or_bins
+    or_bins = make_or_bins(args_train, "train")
 
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
-    new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
+    new_logger = utils.configure_logger(verbose=verbose, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
-    eval_env = make_vec_env(PruningEnv, env_kwargs=args_test, vec_env_cls=SubprocVecEnv, n_envs=3)
-    record_env = make_vec_env(PruningEnv, env_kwargs=args_record, vec_env_cls=SubprocVecEnv, n_envs=1)
-    eval_env.logger = new_logger
-    # Use deterministic actions for evaluation
-    # eval_callback = CustomEvalCallback(eval_env, record_env,
-    #                                    best_model_save_path="./logs/{}".format(args_global['run_name']),
-    #                                    log_path="./logs/{}".format(args_global['run_name']),
-    #                                    deterministic=True, render=False, or_bins=or_bins_test,
-    #                                    **parsed_args_dict['args_callback'])
-    # It will check your custom environment and output additional warnings if needed
-    # check_env(env)
 
-    # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
-    train_callback = CustomTrainCallback(or_bins=or_bins_train, eval_freq=args_callback['eval_freq'], best_model_save_path="./logs/{}".format(args_global['run_name']))
+    set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
+    checkpoint_callback = PruningCheckpointCallback(save_freq=args_callback['save_freq'],
+                                                    save_path="./logs/{}".format(args_global['run_name']),
+                                                    name_prefix="model", verbose=args_callback['verbose'])
+    record_env_callback = EveryNRollouts(args_callback['train_record_freq'],
+                                         PruningTrainRecordEnvCallback(verbose=args_callback['verbose']))
+    logging_callback = PruningLogCallback(verbose=args_callback['verbose'])
+    callback_list = [record_env_callback, set_goal_callback, checkpoint_callback, logging_callback]
 
-    policy_kwargs = {
-        "features_extractor_class": AutoEncoder,
-        "features_extractor_kwargs": {"features_dim": parsed_args_dict['args_policy']['state_dim'],
-                                      "in_channels": 3, },
-        "optimizer_class": th.optim.Adam,
-        "log_std_init": parsed_args_dict['args_policy']['log_std_init'],
-        "net_arch": dict(
-            qf=[parsed_args_dict['args_policy']['emb_size'] * 2, parsed_args_dict['args_policy']['emb_size'],
-                parsed_args_dict['args_policy']['emb_size'] // 2],
-            pi=[parsed_args_dict['args_policy']['emb_size'] * 2, parsed_args_dict['args_policy']['emb_size'],
-                parsed_args_dict['args_policy']['emb_size'] // 2]),
-        "share_features_extractor": True,
-        "n_lstm_layers": 2,
-        "algo_size": (parsed_args_dict['args_env']['algo_height'], parsed_args_dict['args_env']['algo_width']),
-    }
+    # Set policy
+    policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
 
-    # model = RecurrentPPOAE(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE), learning_rate_logstd = linear_schedule(0.01), n_steps=args.STEPS_PER_EPOCH, batch_size=args.BATCH_SIZE, n_epochs=args.EPOCHS)
     if not load_path_model:
         model = RecurrentPPOAE(policy, env, policy_kwargs=policy_kwargs,
                                learning_rate=linear_schedule(args_policy['learning_rate']),
@@ -120,20 +75,24 @@ if __name__ == "__main__":
                      "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
                      "learning_rate_logstd": None, }
         model = RecurrentPPOAE.load(load_path_model, env=env, custom_objects=load_dict)
-        new_log_std = th.ones(6, dtype=th.float32, device=model.device) * -1.
 
-        model.policy.log_std.data = new_log_std
-        print(model.policy.log_std)
+        # Change log_std
+        # new_log_std = th.ones(6, dtype=th.float32, device=model.device) * -1.
+        # model.policy.log_std.data = new_log_std
+        # print(model.policy.log_std)
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
-        model.num_timesteps = 2756000
-        model._num_timesteps_at_start = 2756000
-        print("LOADED MODEL")
+        model.num_timesteps = load_timestep
+        model._num_timesteps_at_start = load_timestep
+        if verbose > 0:
+            print("INFO: Loaded Model")
 
     model.set_logger(new_logger)
-    train_callback.init_callback(model)
-    print("Policy on device: ", model.policy.device)
-    print("Model on device: ", model.device)
-    print("Optical flow on device: ", model.policy.optical_flow_model.device)
-    print("Using device: ", utils.get_device())
+    set_goal_callback.init_callback(model)
 
-    model.learn(10000000, callback=[train_callback], progress_bar=False, reset_num_timesteps=False)
+    if verbose > 0:
+        print("Policy on device: ", model.policy.device)
+        print("Model on device: ", model.device)
+        print("Optical flow on device: ", model.policy.optical_flow_model.device)
+        print("Using device: ", utils.get_device())
+
+    model.learn(args_policy['total_timesteps'], callback=callback_list, progress_bar=False, reset_num_timesteps=False)

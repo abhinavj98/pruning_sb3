@@ -1,10 +1,11 @@
-from pybullet_utils import bullet_client as bc
-import pybullet as pybullet
-from typing import List, Tuple
-from nptyping import NDArray
 import os
-from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH
+from typing import List, Tuple
+
 import numpy as np
+import pybullet as pybullet
+from nptyping import NDArray
+from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH
+from pybullet_utils import bullet_client as bc
 
 
 class pyb_utils:
@@ -113,7 +114,8 @@ class pyb_utils:
                                            renderer=self.con.ER_BULLET_HARDWARE_OPENGL,
                                            flags=self.con.ER_NO_SEGMENTATION_MASK, lightDirection=[1, 1, 1])
         elif type == 'viz':
-            return self.con.getCameraImage(width = self.cam_width, height = self.cam_height, viewMatrix=self.viz_view_matrix,
+            return self.con.getCameraImage(width=self.cam_width, height=self.cam_height,
+                                           viewMatrix=self.viz_view_matrix,
                                            projectionMatrix=self.viz_proj_matrix,
                                            renderer=self.con.ER_BULLET_HARDWARE_OPENGL,
                                            flags=self.con.ER_NO_SEGMENTATION_MASK, lightDirection=[1, 1, 1])
@@ -123,7 +125,9 @@ class pyb_utils:
                                                                           distance=1.06,
                                                                           yaw=-120.3, pitch=-12.48, roll=0,
                                                                           upAxisIndex=2)
-        self.viz_proj_matrix = self.con.computeProjectionMatrixFOV(fov=60, aspect=float(self.cam_width / self.cam_height), nearVal=0.1,
+        self.viz_proj_matrix = self.con.computeProjectionMatrixFOV(fov=60,
+                                                                   aspect=float(self.cam_width / self.cam_height),
+                                                                   nearVal=0.1,
                                                                    farVal=100.0)
 
     @staticmethod
@@ -179,14 +183,14 @@ class pyb_utils:
                                 lineWidth=200)
 
     def visualize_rot_mat(self, rot_mat: List, pos):
-        #if rot_mat is Tuple:
+        # if rot_mat is Tuple:
         if isinstance(rot_mat, tuple) or len(rot_mat) == 4:
             rot_mat = np.array(self.con.getMatrixFromQuaternion(rot_mat)).reshape(3, 3)
         dx = 0.1
         colors = np.eye(3)
         for i in range(3):
             self.add_debug_item('sphere', 'step', lineFromXYZ=[pos[0], pos[1], pos[2]],
-                                lineToXYZ=[pos[0] + rot_mat[0][i] * dx, pos[1] + rot_mat[1][i] * dx,\
+                                lineToXYZ=[pos[0] + rot_mat[0][i] * dx, pos[1] + rot_mat[1][i] * dx, \
                                            pos[2] + rot_mat[2][i] * dx],
                                 lineColorRGB=colors[i],
                                 lineWidth=200)

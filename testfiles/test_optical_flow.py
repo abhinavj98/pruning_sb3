@@ -1,17 +1,10 @@
-
 import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
-from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import *
-import numpy as np
 import cv2
-import random
-import argparse
 from pruning_sb3.args.args_test import args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
 import multiprocessing as mp
 from pruning_sb3.pruning_gym.optical_flow import OpticalFlow
 import matplotlib.pyplot as plt
@@ -27,16 +20,17 @@ import cv2
 import random
 import argparse
 from pruning_sb3.args.args_test import args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
+from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, set_args, organize_args
 import multiprocessing as mp
 import copy
-from pruning_sb3.pruning_gym.custom_callbacks import CustomTrainCallback, CustomEvalCallback
+from pruning_sb3.pruning_gym.custom_callbacks import CustomEvalCallback
 from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from stable_baselines3.common import utils
 from pruning_sb3.pruning_gym.tree import Tree
 import torchvision.transforms.functional as F
+
+
 def plot(imgs, **imshow_kwargs):
     if not isinstance(imgs[0], list):
         # Make a 2d grid even if there's just 1 row
@@ -51,7 +45,7 @@ def plot(imgs, **imshow_kwargs):
             ax = axs[row_idx, col_idx]
             if img.shape[0] == 1:
                 img = F.to_pil_image(img.to("cpu"), mode="F")
-                ax.imshow(np.asarray(img), cmap = "gray", **imshow_kwargs)
+                ax.imshow(np.asarray(img), cmap="gray", **imshow_kwargs)
             else:
                 try:
                     img = F.to_pil_image(img.to("cpu"))
@@ -59,14 +53,15 @@ def plot(imgs, **imshow_kwargs):
                     img = F.to_pil_image(img)
                 ax.imshow(np.asarray(img), **imshow_kwargs)
             ax.set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
-    #Label the axes
+    # Label the axes
     # axs[0, 0].set_ylabel("Input")
     # axs[0, 1].set_ylabel("Predicted Flow")
     # axs[0, 2].set_ylabel("Predicted Flow CV")
 
     plt.tight_layout()
-    #save the figure
+    # save the figure
     plt.savefig("C:\\Users\\abhin\\OneDrive\\Pictures\\Screenshots\\of_6.png")
+
 
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
@@ -186,12 +181,13 @@ if __name__ == "__main__":
             val = np.array([0., 0., 0., 0., 0., 0.])
         # print(val)
         import torch
+
         observation, reward, terminated, truncated, infos = env.step(val)
-        img = torch.tensor(np.moveaxis(observation['rgb'], -1,0)).unsqueeze(0)
-        img_prev = torch.tensor(np.moveaxis(observation['prev_rgb'], -1,0)).unsqueeze(0)
+        img = torch.tensor(np.moveaxis(observation['rgb'], -1, 0)).unsqueeze(0)
+        img_prev = torch.tensor(np.moveaxis(observation['prev_rgb'], -1, 0)).unsqueeze(0)
         print(img.shape, img_prev.shape)
         flow = of.calculate_optical_flow(img, img_prev)
-        #display the flow
+        # display the flow
         # fig, axs = plt.subplots(1, 2, figsize=(10, 5))
         print(flow[0][0].min(), flow[0][0].max(), flow[0][1].min(), flow[0][1].max())
         plot([[img[0], img_prev[0], flow[0][0], flow[0][1]]])

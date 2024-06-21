@@ -1,18 +1,19 @@
-
 import os
-#read all .obj files from train
+
+# read all .obj files from train
 dataset = "ufo"
 for dataset in ["ufo", "envy"]:
     for label in ["test", "train"]:
         train_obj_path = "./meshes_and_urdf/meshes/trees/{}/{}".format(dataset, label)
-        train_obj_files = [f for f in os.listdir(train_obj_path) if os.path.isfile(os.path.join(train_obj_path, f)) and f.endswith(".obj")]
+        train_obj_files = [f for f in os.listdir(train_obj_path) if
+                           os.path.isfile(os.path.join(train_obj_path, f)) and f.endswith(".obj")]
         try:
             os.mkdir("./meshes_and_urdf/urdf/trees/{}/{}".format(dataset, label))
         except:
             print("urdf folder already exists")
 
         for i in train_obj_files:
-            #Save urdf str as urdf file
+            # Save urdf str as urdf file
             urdf = """<robot name="ur5e" xmlns:xacro="http://ros.org/wiki/xacro">
                 <link name="tree">
                     <visual>
@@ -41,6 +42,6 @@ for dataset in ["ufo", "envy"]:
                     <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
                 </joint>
             </robot>""".format(dataset, i[:-4])
-            #Save file
-            with open("./meshes_and_urdf/urdf/trees/{}/{}/{}.urdf".format(dataset,label, i[:-4]), "w") as f:
+            # Save file
+            with open("./meshes_and_urdf/urdf/trees/{}/{}/{}.urdf".format(dataset, label, i[:-4]), "w") as f:
                 f.write(urdf)

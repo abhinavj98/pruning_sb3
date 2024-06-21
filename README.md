@@ -1,4 +1,4 @@
-How to make trees 
+How to make trees
 
 https://github.com/OSUrobotics/treesim_lpy
 
@@ -17,4 +17,6 @@ Move tree_0 to test
 
 In all .mtl files change the path to the texture to the correct path (Relative and remove Kd Ks)
 
-python .\training_files\train_ppo_lstm.py --args_global_n_envs 19 --args_policy_learning_rate 0.0005 --args_policy_learning_rate_ae 0.0005 --args_policy_steps_per_epoch 300  --args_global_run_name new_try_latest --args_env_use_ik --args_env_randomize_ur5_pose --args_env_randomize_tree_pose
+python .\training_files\train_ppo_lstm.py --args_global_n_envs 19 --args_policy_learning_rate 0.0005
+--args_policy_learning_rate_ae 0.0005 --args_policy_steps_per_epoch 300 --args_global_run_name new_try_latest
+--args_env_use_ik --args_env_randomize_ur5_pose --args_env_randomize_tree_pose

@@ -1,7 +1,7 @@
 # Repace bool elements with flags (Bool doesnt work)
 args = {
     'args_callback': {
-        'eval_freq': {
+        'save_freq': {
             'type': int,
             'default': 4000,
             'help': 'frequency of evaluation'
@@ -10,6 +10,26 @@ args = {
             'type': int,
             'default': 10,
             'help': 'number of episodes to run during evaluation'
+        },
+        'n_eval_orientations': {
+            'type': int,
+            'default': 2,
+            'help': 'number of orientations to evaluate'
+        },
+        'n_points_per_orientation': {
+            'type': int,
+            'default': 2,
+            'help': 'number of points to sample per orientation'
+        },
+        'train_record_freq': {
+            'type': int,
+            'default': 100,
+            'help': 'frequency of recording the training environment'
+        },
+        'verbose': {
+            'type': int,
+            'default': 1,
+            'help': 'verbosity level'
         },
     },
 
@@ -109,13 +129,18 @@ args = {
         },
         'algo_height': {
             'type': int,
-            'default': 240, #divisible by 8
+            'default': 240,  # divisible by 8
             'help': 'height of the algorithm image'
         },
         'algo_width': {
             'type': int,
-            'default': 424, #divisible by 8
+            'default': 424,  # divisible by 8
             'help': 'width of the algorithm image'
+        },
+        'verbose': {
+            'type': int,
+            'default': 1,
+            'help': 'verbosity level'
         },
 
     },
@@ -152,7 +177,6 @@ args = {
             'help': 'number of trees to load'
         },
 
-
     },
 
     'args_test': {
@@ -171,7 +195,7 @@ args = {
             'default': './meshes_and_urdf/meshes/trees/envy/test_labelled',
             'help': 'path to the test OBJ file for the tree environment'
         },
-         'renders': {
+        'renders': {
             'action': "store_true",
             'default': False,
             'help': 'whether to render the environment'
@@ -209,6 +233,14 @@ args = {
         'run_name': {
             'type': str,
             'default': 'run'
+        },
+        'run_type': {
+            'type': str,
+            'default': 'train'
+        },
+        'load_timestep': {
+            'type': int,
+            'default': 0
         },
         'load_path': {
             'type': str,
@@ -262,7 +294,7 @@ args = {
         },
         'log_std_init': {
             'type': float,
-            'default': -0.8,#-3.5,
+            'default': -0.8,  # -3.5,
             'help': 'initial value for the log standard deviation'
         },
         'ae_coeff': {

@@ -13,8 +13,8 @@ class RunningMeanStd:
         :param shape: the shape of the data stream's output
         """
         self.device = "cuda" if th.cuda.is_available() else "cpu"
-        self.mean = th.zeros(size = shape, dtype =th.float64).to(self.device)
-        self.var = th.ones(size = shape, dtype =th.float64).to(self.device)
+        self.mean = th.zeros(size=shape, dtype=th.float64).to(self.device)
+        self.var = th.ones(size=shape, dtype=th.float64).to(self.device)
         self.count = epsilon
 
     def copy(self) -> "RunningMeanStd":
@@ -36,7 +36,7 @@ class RunningMeanStd:
         self.update_from_moments(other.mean, other.var, other.count)
 
     def update(self, arr: th.tensor) -> None:
-        #channelwise bc(h*w)
+        # channelwise bc(h*w)
         batch_mean = th.mean(arr).to(self.device)
         batch_var = th.var(arr).to(self.device)
         batch_count = arr.shape[0]

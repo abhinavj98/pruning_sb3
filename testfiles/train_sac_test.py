@@ -1,18 +1,17 @@
+import argparse
 from typing import Callable, Union
 
-from pruning_sb3.algo.SACAE.policies import SACPolicy
-from pruning_sb3.pruning_gym.custom_callbacks import CustomEvalCallback, CustomTrainCallback
-from pruning_sb3.algo.SACAE.sac_ae import SAC
-from pruning_sb3.pruning_gym.pruning_env import PruningEnv
+import torch as th
 from models import AutoEncoder
-
+from pruning_sb3.algo.SACAE.policies import SACPolicy
+from pruning_sb3.algo.SACAE.sac_ae import SAC
+# from args import args_dict
+from pruning_sb3.args.args_test import args_dict
+from pruning_sb3.pruning_gym.custom_callbacks import CustomEvalCallback, CustomTrainCallback
+from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from stable_baselines3.common import utils
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
-import torch as th
-import argparse
-# from args import args_dict
-from pruning_sb3.args.args_test import args_dict
 
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
@@ -28,17 +27,19 @@ print(args)
 import wandb
 import os
 import json
+
 if os.path.exists("../keys.json"):
-   with open("../keys.json") as f:
-     os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
+    with open("../keys.json") as f:
+        os.environ["WANDB_API_KEY"] = json.load(f)["api_key"]
 if not args.TESTING:
     wandb.init(
         # set the wandb project where this run will be logged
         project="test-ppo",
-        sync_tensorboard = True,
+        sync_tensorboard=True,
         # track hyperparameters and run metadata
         config=args
     )
+
 
 def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
     """
@@ -59,6 +60,7 @@ def linear_schedule(initial_value: Union[float, str]) -> Callable[[float], float
 
     return func
 
+
 def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
     """
     Linear learning rate schedule.
@@ -74,24 +76,35 @@ def exp_schedule(initial_value: Union[float, str]) -> Callable[[float], float]:
         :param progress_remaining: (float)
         :return: (float)
         """
-        return (progress_remaining)**2 * initial_value
+        return (progress_remaining) ** 2 * initial_value
 
     return func
 
+
 load_path = None
-train_env_kwargs = {"renders" : args.RENDER, "tree_urdf_path" :  args.TREE_TRAIN_URDF_PATH, "tree_obj_path" :  args.TREE_TRAIN_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
-                "maxSteps" : args.MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
-                "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE, 
-                "slack_reward_scale" : args.SLACK_REWARD_SCALE, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE, "tree_count": 1}
+train_env_kwargs = {"renders": args.RENDER, "tree_urdf_path": args.TREE_TRAIN_URDF_PATH,
+                    "tree_obj_path": args.TREE_TRAIN_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
+                    "maxSteps": args.MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
+                    "action_scale": args.ACTION_SCALE, "distance_reward_scale": args.DISTANCE_REWARD_SCALE,
+                    "condition_reward_scale": args.CONDITION_REWARD_SCALE,
+                    "terminate_reward_scale": args.TERMINATE_REWARD_SCALE,
+                    "collision_reward_scale": args.COLLISION_REWARD_SCALE,
+                    "slack_reward_scale": args.SLACK_REWARD_SCALE,
+                    "orientation_reward_scale": args.ORIENTATION_REWARD_SCALE, "tree_count": 1}
 
-eval_env_kwargs =  {"renders" : False, "tree_urdf_path" :  args.TREE_TEST_URDF_PATH, "tree_obj_path" :  args.TREE_TEST_OBJ_PATH, "action_dim" : args.ACTION_DIM_ACTOR,
-                "maxSteps" : args.EVAL_MAX_STEPS, "movement_reward_scale" : args.MOVEMENT_REWARD_SCALE, "action_scale" : args.ACTION_SCALE, "distance_reward_scale" : args.DISTANCE_REWARD_SCALE,
-                "condition_reward_scale" : args.CONDITION_REWARD_SCALE, "terminate_reward_scale" : args.TERMINATE_REWARD_SCALE, "collision_reward_scale" : args.COLLISION_REWARD_SCALE, 
-                "slack_reward_scale" : args.SLACK_REWARD_SCALE, "num_points" : args.EVAL_POINTS, "orientation_reward_scale" : args.ORIENTATION_REWARD_SCALE, "tree_count": 1}
+eval_env_kwargs = {"renders": False, "tree_urdf_path": args.TREE_TEST_URDF_PATH,
+                   "tree_obj_path": args.TREE_TEST_OBJ_PATH, "action_dim": args.ACTION_DIM_ACTOR,
+                   "maxSteps": args.EVAL_MAX_STEPS, "movement_reward_scale": args.MOVEMENT_REWARD_SCALE,
+                   "action_scale": args.ACTION_SCALE, "distance_reward_scale": args.DISTANCE_REWARD_SCALE,
+                   "condition_reward_scale": args.CONDITION_REWARD_SCALE,
+                   "terminate_reward_scale": args.TERMINATE_REWARD_SCALE,
+                   "collision_reward_scale": args.COLLISION_REWARD_SCALE,
+                   "slack_reward_scale": args.SLACK_REWARD_SCALE, "num_points": args.EVAL_POINTS,
+                   "orientation_reward_scale": args.ORIENTATION_REWARD_SCALE, "tree_count": 1}
 
-env = make_vec_env(PruningEnv, env_kwargs = train_env_kwargs, n_envs = args.N_ENVS)
-new_logger = utils.configure_logger(verbose = 0, tensorboard_log = "./runs/", reset_num_timesteps = True)
-env.logger = new_logger 
+env = make_vec_env(PruningEnv, env_kwargs=train_env_kwargs, n_envs=args.N_ENVS)
+new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
+env.logger = new_logger
 eval_env = Monitor(PruningEnv(**eval_env_kwargs))
 # eval_env = DummyVecEnv([lambda: eval_env])
 # eval_env = make_vec_env(PruningEnv, env_kwargs = eval_env_kwargs, n_envs = 1)
@@ -99,23 +112,24 @@ eval_env.logger = new_logger
 # Use deterministic actions for evaluation
 eval_callback = CustomEvalCallback(eval_env, best_model_save_path="../logs/",
                                    log_path="../logs/", eval_freq=args.EVAL_FREQ,
-                                   deterministic=True, render=False, n_eval_episodes = args.EVAL_EPISODES)
+                                   deterministic=True, render=False, n_eval_episodes=args.EVAL_EPISODES)
 # It will check your custom environment and output additional warnings if needed
 # check_env(env)
 
 # video_recorder = VideoRecorderCallback(eval_env, render_freq=1000)
 custom_callback = CustomTrainCallback()
 policy_kwargs = {
-        "features_extractor_class" : AutoEncoder,
-        "optimizer_class" : th.optim.Adam,
-	     "log_std_init" : -6,
-         "net_arch" : dict(qf=[args.EMB_SIZE], pi=[args.EMB_SIZE*2, args.EMB_SIZE]),
-         "share_features_extractor" : True,
-        }
+    "features_extractor_class": AutoEncoder,
+    "optimizer_class": th.optim.Adam,
+    "log_std_init": -6,
+    "net_arch": dict(qf=[args.EMB_SIZE], pi=[args.EMB_SIZE * 2, args.EMB_SIZE]),
+    "share_features_extractor": True,
+}
 policy = SACPolicy
 
-
-model = SAC(policy, env, policy_kwargs = policy_kwargs, learning_rate = linear_schedule(args.LEARNING_RATE), learning_starts=0, batch_size=512, buffer_size=20, train_freq=(args.STEPS_PER_EPOCH, "step"))#, replay_buffer_class = HerReplayBuffer)
+model = SAC(policy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE),
+            learning_starts=0, batch_size=512, buffer_size=20,
+            train_freq=(args.STEPS_PER_EPOCH, "step"))  # , replay_buffer_class = HerReplayBuffer)
 print(model.policy)
 
 # model = PPOAE(ActorCriticWithAePolicy, env, policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args.LEARNING_RATE), learning_rate_ae=exp_schedule(args.LEARNING_RATE_AE),\
@@ -127,4 +141,4 @@ model.set_logger(new_logger)
 # print("Using device: ", utils.get_device())
 
 # env.reset()
-model.learn(10000000, callback=[custom_callback, eval_callback], progress_bar = False)
+model.learn(10000000, callback=[custom_callback, eval_callback], progress_bar=False)

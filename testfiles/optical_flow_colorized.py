@@ -1,4 +1,3 @@
-
 import os
 import sys
 
@@ -10,8 +9,6 @@ import cv2
 import random
 import argparse
 from pruning_sb3.args.args_test import args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, optical_flow_create_shared_vars, \
-    set_args, organize_args, add_arg_to_env
 import multiprocessing as mp
 from pruning_sb3.pruning_gym.optical_flow import OpticalFlow
 import matplotlib.pyplot as plt
@@ -37,6 +34,8 @@ from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from stable_baselines3.common import utils
 from pruning_sb3.pruning_gym.tree import Tree
 import torchvision.transforms.functional as F
+
+
 # def plot(imgs, **imshow_kwargs):
 #     if not isinstance(imgs[0], list):
 #         # Make a 2d grid even if there's just 1 row
@@ -76,6 +75,7 @@ def get_key_pressed(env, relevant=None):
         pressed_keys.append(key)
     return pressed_keys
 
+
 def plot(imgs, **imshow_kwargs):
     if not isinstance(imgs[0], list):
         # Make a 2d grid even if there's just 1 row
@@ -92,6 +92,7 @@ def plot(imgs, **imshow_kwargs):
             ax.set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
     plt.savefig("C:\\Users\\abhin\\OneDrive\\Pictures\\Screenshots\\of_7.png")
     plt.tight_layout()
+
 
 # Create the ArgumentParser object
 parser = argparse.ArgumentParser()
@@ -202,9 +203,10 @@ if __name__ == "__main__":
             val = np.array([0., 0., 0., 0., 0., 0.])
         # print(val)
         import torch
+
         observation, reward, terminated, truncated, infos = env.step(val)
-        img = torch.tensor(np.moveaxis(observation['rgb'], -1,0)).unsqueeze(0)
-        img_prev = torch.tensor(np.moveaxis(observation['prev_rgb'], -1,0)).unsqueeze(0)
+        img = torch.tensor(np.moveaxis(observation['rgb'], -1, 0)).unsqueeze(0)
+        img_prev = torch.tensor(np.moveaxis(observation['prev_rgb'], -1, 0)).unsqueeze(0)
         print(img.shape, img_prev.shape)
         flow = of.calculate_optical_flow(img, img_prev)
 
