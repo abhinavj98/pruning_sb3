@@ -118,25 +118,27 @@ class AutoEncoder(BaseFeaturesExtractor):
             nn.Linear(72, 7 * 7 * 32),
             nn.ReLU())
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(32, 32, 3, padding=1, stride=1),  # 32. 14, 14
+            nn.ConvTranspose2d(32, 32, 3, padding=1, stride=1),  # 32. 7, 7
             nn.ReLU(),
             nn.ConvTranspose2d(32, 32, 2, stride=2),  # 32. 14, 14
             nn.ReLU(),
-            nn.ConvTranspose2d(32, 16, 3, padding=1, stride=1),  # b, 16, 28, 28
+            nn.ConvTranspose2d(32, 16, 3, padding=1, stride=1),  # b, 16, 14, 14
             nn.ReLU(),
             nn.ConvTranspose2d(16, 16, 2, stride=2),  # b, 16, 28, 28
             nn.ReLU(),
-            nn.ConvTranspose2d(16, 16, 3, padding=1, stride=1),  # 32. 14, 14
+            nn.ConvTranspose2d(16, 16, 3, padding=1, stride=1),  # 16. 28, 28
             nn.ReLU(),
             nn.ConvTranspose2d(16, 8, 2, stride=2),  # b, 8, 56, 56
             nn.ReLU(),
-            nn.ConvTranspose2d(8, 8, 3, padding=1, stride=1),  # 32. 14, 14
+            nn.ConvTranspose2d(8, 8, 3, padding=1, stride=1),  # 8. 56, 56
             nn.ReLU(),
-            nn.ConvTranspose2d(8, 8, 2, stride=2),  # b, 16, 112, 112
+            nn.ConvTranspose2d(8, 8, 2, stride=2),  # b, 8, 112, 112
             nn.ReLU(),
-            nn.Conv2d(8, 3, 3, padding=1),  # b, 3, 224, 224
+            nn.ConvTranspose2d(8, 4, 3, padding=1, stride=1),  # b, 4, 112, 112
             nn.ReLU(),
-            nn.Conv2d(3, 3, 3, padding=1),  # b, 3, 224, 224
+            nn.ConvTranspose2d(4, 4, 2, stride=2),  # b, 4, 224, 224
+            nn.ReLU(),
+            nn.Conv2d(4, 3, 3, padding=1),  # b, 3, 224, 224
             nn.ReLU(),
             nn.Conv2d(3, in_channels, 3, padding=1),  # b, 1, 224, 224
         )
