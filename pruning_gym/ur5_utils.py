@@ -16,7 +16,7 @@ from collections import namedtuple
 # through the env. UR5 class only needs access to pybullet.
 class UR5:
     def __init__(self, con, robot_urdf_path: str, pos=[0, 0, 0], orientation=[0, 0, 0, 1],
-                 randomize_pose=False) -> None:
+                 randomize_pose=False, verbose = 1) -> None:
         assert isinstance(robot_urdf_path, str)
 
         self.con = con
@@ -46,6 +46,7 @@ class UR5:
         self.robot_urdf_path = robot_urdf_path
         self.camera_base_offset = np.array(
             [0.063179, 0.077119, 0.0420027])
+        self.verbose = verbose
 
         self.setup_ur5_arm()  # Changes pos and orientation if randomize is True
 
@@ -122,6 +123,7 @@ class UR5:
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 14, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 8, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 9, 0)
+        #TODO: Add collision filter for tree and UR5. But not tree collision objects.
 
     def unset_collision_filter(self):
         # TO SET CUTTER DISABLE COLLISIONS WITH SELF
@@ -220,28 +222,58 @@ class UR5:
         joints = tuple((i[0] for i in j))
         return joints  # type: ignore
 
-    def check_collisions(self, tree, tree_support) -> Tuple[bool, dict]:
+    def check_collisions(self, collision_objects, tree_support) -> Tuple[bool, dict]:
         """Check if there are any collisions between the robot and the environment
         Returns: Dictionary with information about collisions (Acceptable and Unacceptable)
         """
-        collisions_acceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=tree)
-        collisions_unacceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=tree_support)
-        self_collision = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=self.ur5_robot)
-        collisions_unacceptable = collisions_unacceptable + self_collision
         collision_info = {"collisions_acceptable": False, "collisions_unacceptable": False}
-        for i in range(len(collisions_unacceptable)):
-            # print("collision")
-            if collisions_unacceptable[i][-6] < 0:
-                collision_info["collisions_unacceptable"] = True
-                # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
-                return True, collision_info
 
-        for i in range(len(collisions_acceptable)):
-            # print("collision")
-            if collisions_acceptable[i][-6] < 0:
-                collision_info["collisions_acceptable"] = True
-                # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
-                return True, collision_info
+        collision_acceptable_list = ['SPUR', 'WATER_BRANCH']
+        collision_unacceptable_list = ['TRUNK', 'BRANCH']
+        print(collision_objects.keys())
+        for type in collision_acceptable_list:
+            for obj_id in collision_objects[type]:
+                collisions_acceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=obj_id)
+                if collisions_acceptable:
+                    for i in range(len(collisions_acceptable)):
+                        if collisions_acceptable[i][-6] < 0:
+                            collision_info["collisions_acceptable"] = True
+                            break
+                if collision_info["collisions_acceptable"]:
+                    break
+            if collision_info["collisions_acceptable"]:
+                break
+
+
+
+        for type in collision_unacceptable_list:
+            for obj_id in collision_objects[type]:
+                collisions_unacceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=obj_id)
+                for i in range(len(collisions_unacceptable)):
+                    if collisions_unacceptable[i][-6] < 0:
+                        collision_info["collisions_unacceptable"] = True
+                        break
+                if collision_info["collisions_unacceptable"]:
+                    break
+            if collision_info["collisions_unacceptable"]:
+                break
+
+        if not collision_info["collisions_unacceptable"]:
+            collisions_env = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=tree_support)
+            collisons_self = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=self.ur5_robot)
+            collisions_unacceptable = collisions_env + collisons_self
+            for i in range(len(collisions_unacceptable)):
+                # print("collision")
+                if collisions_unacceptable[i][-6] < 0:
+                    collision_info["collisions_unacceptable"] = True
+                    # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
+                    break
+        if self.verbose > 1:
+            print(f"DEBUG: {collision_info}")
+
+        if collision_info["collisions_acceptable"] or collision_info["collisions_unacceptable"]:
+            return True, collision_info
+
         return False, collision_info
 
     def check_success_collision(self, body_b) -> bool:

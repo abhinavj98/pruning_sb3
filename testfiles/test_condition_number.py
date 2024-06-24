@@ -66,10 +66,13 @@ if __name__ == "__main__":
     set_goal_callback.init_callback(model)
     env.action_scale = 1
     # env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485, -0.7777109569760938, 3.210501267258541))
+    infos = [{}]
+    infos[0]['TimeLimit.truncated'] = True
+
+    set_goal_callback.update_locals(locals())
     env.reset()
-    for _ in range(100):
-        env.pyb.con.stepSimulation()
-    # env.reset()
+    set_goal_callback._update_tree_properties()
+
     val = np.array([0, 0, 0, 0, 0, 0])
     # Use keyboard to move the robot
     while True:
@@ -77,25 +80,25 @@ if __name__ == "__main__":
         action = get_key_pressed(env)
         # if action is wasd, then move the robot
         if ord('a') in action:
-            val = np.array([0.01, 0, 0, 0, 0, 0])
+            val = np.array([0.1, 0, 0, 0, 0, 0])
         elif ord('d') in action:
-            val = np.array([-0.01, 0, 0, 0, 0, 0])
+            val = np.array([-0.1, 0, 0, 0, 0, 0])
         elif ord('s') in action:
-            val = np.array([0, 0.01, 0, 0, 0, 0])
+            val = np.array([0, 0.1, 0, 0, 0, 0])
         elif ord('w') in action:
-            val = np.array([0, -0.01, 0, 0, 0, 0])
+            val = np.array([0, -0.1, 0, 0, 0, 0])
         elif ord('q') in action:
-            val = np.array([0, 0, 0.01, 0, 0, 0])
+            val = np.array([0, 0, 0.1, 0, 0, 0])
         elif ord('e') in action:
-            val = np.array([0, 0, -0.01, 0, 0, 0])
+            val = np.array([0, 0, -0.1, 0, 0, 0])
         elif ord('z') in action:
-            val = np.array([0, 0, 0, 0.01, 0, 0])
+            val = np.array([0, 0, 0, 0.1, 0, 0])
         elif ord('c') in action:
-            val = np.array([0, 0, 0, -0.01, 0, 0])
+            val = np.array([0, 0, 0, -0.1, 0, 0])
         elif ord('x') in action:
-            val = np.array([0, 0, 0, 0, 0.01, 0])
+            val = np.array([0, 0, 0, 0, 0.1, 0])
         elif ord('v') in action:
-            val = np.array([0, 0, 0, 0, -0.01, 0])
+            val = np.array([0, 0, 0, 0, -0.1, 0])
         elif ord('r') in action:
             val = np.array([0, 0, 0, 0, 0, 0.05])
         elif ord('f') in action:
@@ -108,6 +111,6 @@ if __name__ == "__main__":
             set_goal_callback._update_tree_properties()
             # env.is_goal_state = True
         else:
-            val = np.array([0.,0.,0., 0., 0., 0.])
+            val = np.array([0.,-0.1,0, 0., 0., 0.])
         observation, reward, terminated, truncated, infos = env.step(val)
         set_goal_callback.locals = {"infos": [infos]}

@@ -18,12 +18,12 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
 
     def _init_callback(self) -> None:
         for i in range(self.training_env.num_envs):
-            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal \
+            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal, collision_meshes \
                 = self._sample_tree_and_point(i)
             self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
                                          point_pos=final_point_pos, point_branch_or=current_branch_or,
                                          tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,
-                                         point_branch_normal=current_branch_normal)
+                                         point_branch_normal=current_branch_normal, collision_meshes = collision_meshes)
 
     def _sample_tree_and_point(self, idx):
         # Sample orientation from key in or_bins
@@ -43,12 +43,12 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
             if infos[i]["TimeLimit.truncated"] or infos[i]['is_success']:
                 if self.verbose > 1:
                     print(f"DEBUG: Updating tree in env {i} via callback")
-                tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal \
+                tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal, collision_meshes \
                     = self._sample_tree_and_point(i)
                 self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=tree_urdf,
                                              point_pos=final_point_pos, point_branch_or=current_branch_or,
                                              tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,
-                                             point_branch_normal=current_branch_normal)
+                                             point_branch_normal=current_branch_normal, collision_meshes = collision_meshes) #TODO: Add collision object
 
     def _on_step(self) -> bool:
         self._update_tree_properties()  # Maybe remove infos check and pass it in an EventCallback that triggers whenever episode terminates

@@ -9,6 +9,7 @@ import pybullet
 import pywavefront
 from nptyping import NDArray, Shape, Float
 from pruning_sb3.pruning_gym.helpers import compute_perpendicular_projection_vector
+from collections import defaultdict
 
 
 # from memory_profiler import profile
@@ -61,7 +62,10 @@ class Tree:
 
         # Load the tree object
         tree_obj = pywavefront.Wavefront(obj_path, create_materials=True, collect_faces=True)
-        labelled_tree_obj = pywavefront.Wavefront(labelled_obj_path, create_materials=True, collect_faces=True)
+
+        labelled_vertices, labelled_faces, labelled_vertex_colors, labelled_tree_obj = self.parse_labelled_tree(
+            labelled_obj_path)
+        # labelled_tree_obj = pywavefront.Wavefront(labelled_obj_path, create_materials=True, collect_faces=True) #TODO: parse labelled tree obj
 
         # Tree specific parameters
         self.scale = scale
@@ -112,19 +116,24 @@ class Tree:
             self.get_all_points(tree_obj)
             self.filter_outliers()
             self.filter_trunk_points()
+            self.collision_meshes = self.get_collision_meshes(labelled_vertices, labelled_faces,
+                                                                labelled_vertex_colors)  # TODO: Implement this function
+
             # self.filter_points_below_base()
 
             # dump reachable points to file using pickle
             with open(pkl_path, 'wb') as f:
-                pickle.dump((self.pos, self.orientation, self.vertex_and_projection), f)
+                pickle.dump((self.pos, self.orientation, self.vertex_and_projection, self.collision_meshes), f)
 
             print('Saved points to pickle file ', self.urdf_path[:-5] + '_points.pkl')
             print("Number of points: ", len(self.vertex_and_projection))
 
+        # Make different meshes for each label
         # make bins
         self.or_bins = self.create_bins(18, 36)
         # Go through vertex_and_projection and assign to bins
         self.populate_bins(self.vertex_and_projection)
+
         del self.vertex_and_projection
 
         # print("Position: ", self.pos, "Orientation: ", self.orientation)
@@ -137,6 +146,92 @@ class Tree:
         #     os.remove(pkl_path)
         #     self.__init__(env, pyb, urdf_path, obj_path, labelled_obj_path, self.init_pos, self.init_orientation, num_points, scale,
         #                   curriculum_distances, curriculum_level_steps, randomize_pose=randomize_pose)
+
+    def parse_labelled_tree(self, file_path):
+        scene = pywavefront.Wavefront(file_path, collect_faces=True)
+        vertices = scene.vertices
+        vertices = [vertex[:3] for vertex in vertices]
+        faces = scene.mesh_list[0].faces
+        vertex_colors = []
+
+        for line in open(file_path, 'r'):
+            if line.startswith('v '):
+                color = line.split()[4:]
+                vertex_colors.append(tuple(map(float, color)))
+
+        return vertices, faces, vertex_colors, scene
+
+    def group_by_color(self, vertices, faces, vertex_colors):
+        """Group vertices and faces by color."""
+        color_groups = defaultdict(lambda: {'vertices': [], 'faces': []})
+
+        for i, (vertex, color) in enumerate(zip(vertices, vertex_colors)):
+            color_groups[color]['vertices'].append((i, vertex))
+
+        for face in faces:
+            face_colors = set(vertex_colors[vi] for vi in face)
+            if len(face_colors) == 1:
+                color = face_colors.pop()
+                color_groups[color]['faces'].append(face)
+
+        return color_groups
+
+    def create_mesh_data(self, color_groups):
+        """Create mesh data for each color group."""
+        mesh_data = {}
+
+        for color, group in color_groups.items():
+            vertices = []
+            indices = []
+            vertex_map = {}
+
+            for i, (index, vertex) in enumerate(group['vertices']):
+                vertex_map[index] = i
+                vertices.append(vertex)
+
+            for face in group['faces']:
+                indices.append([vertex_map[vi] for vi in face])
+
+            mesh_data[color] = (vertices, indices)
+            print(f"Color: {color}, Vertices: {len(vertices)}, Faces: {len(indices)}")
+
+        return mesh_data
+
+
+    def default_collision_values(self):
+        return []
+    # def load_collision_objects(self, mesh_data, max_vertices_per_chunk=1000):
+    #     collision_objects = defaultdict(self.default_collision_values)
+    #     for color, (vertices, indices) in mesh_data.items():
+    #         if len(vertices) > 0 and len(indices) > 0:
+    #             print(f"Loading mesh for color {color}")
+    #             print(f"Number of vertices: {len(vertices)}")
+    #             print(f"Number of faces: {len(indices)}")
+    #
+    #             chunks = self.split_mesh(vertices, indices, max_vertices_per_chunk)
+    #             for chunk_index, (chunk_vertices, chunk_indices) in enumerate(chunks):
+    #                 print(f"Loading chunk {chunk_index} for color {color}")
+    #                 collision_shape_id = pybullet.createCollisionShape(
+    #                     shapeType=pybullet.GEOM_MESH,
+    #                     vertices=chunk_vertices,
+    #                     indices=[i for face in chunk_indices for i in face],
+    #                     meshScale=[1, 1, 1]
+    #                 )
+    #                 if collision_shape_id >= 0:
+    #                     label = self.label[color]
+    #                     collision_objects[label].append(collision_shape_id)
+    #                 else:
+    #                     print(f"Failed to create collision shape for color {color}, chunk {chunk_index}")
+    #         else:
+    #             print(f"Invalid mesh data for color {color}")
+    #
+    #     return collision_objects
+
+    def get_collision_meshes(self, vertices, faces, vertex_colors):
+        """Dictionary of collision objects for each label"""
+        color_groups = self.group_by_color(vertices, faces, vertex_colors)
+        mesh_data = self.create_mesh_data(color_groups)
+        return mesh_data
 
     @staticmethod
     def roundup(x):
@@ -206,7 +301,8 @@ class Tree:
                 bin_key = (bin_key[0], 175)
             elif bin_key[1] < -175:
                 bin_key = (bin_key[0], -175)
-            self.or_bins[bin_key].append((self.urdf_path, point, self.orientation, self.scale))
+            self.or_bins[bin_key].append(
+                (self.urdf_path, point, self.orientation, self.scale, self.collision_meshes))  # Add collision meshes for each tree here
 
     def label_vertex_by_color(self, labels, unlabelled_vertices, labelled_vertices):
         # create a dictionary of vertices and assign label using close enough vertex on labelled tree obj
@@ -230,6 +326,8 @@ class Tree:
             self.pos = data[0]
             self.orientation = data[1]
             self.vertex_and_projection = data[2]
+            self.collision_meshes = data[3]
+        print(self.pos, self.orientation, len(self.vertex_and_projection), len(self.collision_meshes.keys()))
         print('Loaded points from pickle file ', pkl_path)
         print("Number of points: ", len(self.vertex_and_projection))
 

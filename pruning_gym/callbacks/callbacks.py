@@ -153,8 +153,7 @@ class PruningSetGoalCallback(BaseCallback):
         if len(self.or_bins[orientation]) == 0:
             if self.verbose > 1:
                 print(f"DEBUG: No trees in orientation {orientation}")
-
-        tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
+        tree_urdf, random_point, tree_orientation, scale, collision_meshes = random.choice(self.or_bins[orientation]) #TODO: Also return collision_objects
         current_point_pos, current_branch_or, current_branch_normal, _ = random_point
         required_point_pos = random.choice(self.reachable_euclidean_grid)
 
@@ -167,7 +166,7 @@ class PruningSetGoalCallback(BaseCallback):
                 print(
                     f"DEBUG: Invalid delta pos {delta_tree_pos}, required pos {required_point_pos}, current pos {current_point_pos}, offset {offset}")
             return False, None
-        return True, (tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos, current_branch_normal)
+        return True, (tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos, current_branch_normal, collision_meshes)
 
 
 class EveryNRollouts(EventCallback):
