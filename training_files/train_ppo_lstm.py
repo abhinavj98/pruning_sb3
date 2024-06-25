@@ -23,6 +23,8 @@ from pruning_sb3.pruning_gym.helpers import linear_schedule, set_args, organize_
     get_policy_kwargs
 
 if __name__ == "__main__":
+    reset = False
+    #TODO: If reset is true, then delete bins and pkl caches
     parser = argparse.ArgumentParser()
     set_args(args, parser)
     parsed_args = vars(parser.parse_args())

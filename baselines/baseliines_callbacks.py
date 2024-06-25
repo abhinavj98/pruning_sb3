@@ -1,3 +1,6 @@
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import math
 import pickle
 import random
@@ -7,83 +10,10 @@ import gymnasium as gym
 import numpy as np
 from stable_baselines3.common.callbacks import EventCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
+from pruning_sb3.pruning_gym.callbacks.callbacks import PruningSetGoalCallback
 
 
-def fibonacci_sphere(samples=1000):
-    points = []
-    phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
-
-    for i in range(samples):
-        y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
-        radius = math.sqrt(1 - y * y)  # radius at y
-
-        theta = phi * i  # golden angle increment
-
-        x = math.cos(theta) * radius
-        z = math.sin(theta) * radius
-
-        points.append((x, y, z))
-
-    return points
-
-
-def roundup(x):
-    return math.ceil(x / 10.0) * 10
-
-
-def rounddown(x):
-    return math.floor(x / 10.0) * 10
-
-
-def get_bin_from_orientation(orientation):
-    offset = 1e-4
-    orientation = orientation / np.linalg.norm(orientation)
-    lat_angle = np.rad2deg(np.arcsin(orientation[2])) + offset
-    lon_angle = np.rad2deg(np.arctan2(orientation[1], orientation[0])) + offset
-    lat_angle_min = rounddown(lat_angle)
-    lat_angle_max = roundup(lat_angle)
-    lon_angle_min = rounddown(lon_angle)
-    lon_angle_max = roundup(lon_angle)
-    bin_key = (round((lat_angle_min + lat_angle_max) / 2), round((lon_angle_min + lon_angle_max) / 2))
-    # if bin_key[0] not in between -85 and 85 set as 85 or -85
-    # if bin_keyp[1] not in between -175 and 175 set as 175 or -175
-
-    if bin_key[0] > 85:
-        bin_key = (85, bin_key[1])
-    elif bin_key[0] < -85:
-        bin_key = (-85, bin_key[1])
-    if bin_key[1] > 175:
-        bin_key = (bin_key[0], 175)
-    elif bin_key[1] < -175:
-        bin_key = (bin_key[0], -175)
-    return bin_key
-
-
-def get_reachable_euclidean_grid(radius, resolution):
-    num_bins = int(radius / resolution) * 2
-    base_center = np.array([0, 0, 0.91])
-
-    # Calculate the centers of the bins
-    centers = np.zeros((num_bins, num_bins, num_bins, 3))
-    for i in range(-num_bins // 2, num_bins // 2):
-        for j in range(-num_bins // 2, num_bins // 2):
-            for k in range(-num_bins // 2, num_bins // 2):
-                # Calculate the center of the bin
-                centers[i, j, k] = [(i + 0.5) * resolution, (j + 0.5) * resolution, (k + 0.5) * resolution]
-
-    # Filter out the bins that are outside the semi-sphere or below the 45-degree line in the z direction
-    valid_centers = []
-    for i in range(-num_bins // 2, num_bins // 2):
-        for j in range(-num_bins // 2, num_bins // 2):
-            for k in range(-num_bins // 2, num_bins // 2):
-                x, y, z = centers[i, j, k]
-                if x ** 2 + y ** 2 + z ** 2 <= radius ** 2 and y < -0.7 and z > -0.05:  # and z <= np.tan(np.radians(45)) * np.sqrt(x**2 + y**2):
-                    valid_centers.append((x + base_center[0], y + base_center[1], z + base_center[2]))
-
-    # valid_centers = np.array(valid_centers)
-    return valid_centers
-
-
+#TODO: Remove after refactoring
 class RRTCallback(EventCallback):
     """
     Callback for evaluating an agent.
