@@ -67,12 +67,12 @@ args = {
         },
         'pointing_orientation_reward_scale': {
             'type': float,
-            'default': 2,
+            'default': 8,
             'help': 'scaling factor for the orientation reward'
         },
         'perpendicular_orientation_reward_scale': {
             'type': float,
-            'default': 6,
+            'default': 8,
             'help': 'scaling factor for the orientation reward'
         },
         # Gym envirionment parameters
@@ -90,7 +90,7 @@ args = {
 
         'action_scale': {
             'type': float,
-            'default': 0.2,
+            'default': 0.1,
             'help': 'scaling factor for the action space'
         },
         'action_dim': {

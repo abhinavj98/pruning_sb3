@@ -102,7 +102,7 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
 
     def _sample_tree_and_point(self, idx):
         if self.verbose > 0:
-            print("INFO: Sampling tree and point")
+            print("DEBUG: Sampling tree and point")
 
         if self.dataset is None:
             if self.type == "uniform":

@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parsed_args = vars(parser.parse_args())
     args_global, args_train, args_test, args_record, args_callback, args_policy, args_env, args_eval, parsed_args_dict = organize_args(
         parsed_args)
-    verbose = 1
+    verbose = args_callback['verbose']
 
     load_timestep = args_global['load_timestep']
 
@@ -80,25 +80,25 @@ if __name__ == "__main__":
         action = get_key_pressed(env)
         # if action is wasd, then move the robot
         if ord('a') in action:
-            val = np.array([0.1, 0, 0, 0, 0, 0])
+            val = np.array([0.01, 0, 0, 0, 0, 0])
         elif ord('d') in action:
-            val = np.array([-0.1, 0, 0, 0, 0, 0])
+            val = np.array([-0.01, 0, 0, 0, 0, 0])
         elif ord('s') in action:
-            val = np.array([0, 0.1, 0, 0, 0, 0])
+            val = np.array([0, 0.01, 0, 0, 0, 0])
         elif ord('w') in action:
-            val = np.array([0, -0.1, 0, 0, 0, 0])
+            val = np.array([0, -0.01, 0, 0, 0, 0])
         elif ord('q') in action:
-            val = np.array([0, 0, 0.1, 0, 0, 0])
+            val = np.array([0, 0, 0.01, 0, 0, 0])
         elif ord('e') in action:
-            val = np.array([0, 0, -0.1, 0, 0, 0])
+            val = np.array([0, 0, -0.01, 0, 0, 0])
         elif ord('z') in action:
-            val = np.array([0, 0, 0, 0.1, 0, 0])
+            val = np.array([0, 0, 0, 0.01, 0, 0])
         elif ord('c') in action:
-            val = np.array([0, 0, 0, -0.1, 0, 0])
+            val = np.array([0, 0, 0, -0.01, 0, 0])
         elif ord('x') in action:
-            val = np.array([0, 0, 0, 0, 0.1, 0])
+            val = np.array([0, 0, 0, 0, 0.01, 0])
         elif ord('v') in action:
-            val = np.array([0, 0, 0, 0, -0.1, 0])
+            val = np.array([0, 0, 0, 0, -0.01, 0])
         elif ord('r') in action:
             val = np.array([0, 0, 0, 0, 0, 0.05])
         elif ord('f') in action:
@@ -111,6 +111,6 @@ if __name__ == "__main__":
             set_goal_callback._update_tree_properties()
             # env.is_goal_state = True
         else:
-            val = np.array([0.,-0.1,0, 0., 0., 0.])
+            val = np.array([0.,0.,0, 0., 0., 0.])
         observation, reward, terminated, truncated, infos = env.step(val)
         set_goal_callback.locals = {"infos": [infos]}

@@ -230,30 +230,21 @@ class UR5:
 
         collision_acceptable_list = ['SPUR', 'WATER_BRANCH']
         collision_unacceptable_list = ['TRUNK', 'BRANCH']
-        print(collision_objects.keys())
         for type in collision_acceptable_list:
-            for obj_id in collision_objects[type]:
-                collisions_acceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=obj_id)
-                if collisions_acceptable:
-                    for i in range(len(collisions_acceptable)):
-                        if collisions_acceptable[i][-6] < 0:
-                            collision_info["collisions_acceptable"] = True
-                            break
-                if collision_info["collisions_acceptable"]:
-                    break
+            collisions_acceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=collision_objects[type])
+            if collisions_acceptable:
+                for i in range(len(collisions_acceptable)):
+                    if collisions_acceptable[i][-6] < 0:
+                        collision_info["collisions_acceptable"] = True
+                        break
             if collision_info["collisions_acceptable"]:
                 break
 
-
-
         for type in collision_unacceptable_list:
-            for obj_id in collision_objects[type]:
-                collisions_unacceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=obj_id)
-                for i in range(len(collisions_unacceptable)):
-                    if collisions_unacceptable[i][-6] < 0:
-                        collision_info["collisions_unacceptable"] = True
-                        break
-                if collision_info["collisions_unacceptable"]:
+            collisions_unacceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=collision_objects[type])
+            for i in range(len(collisions_unacceptable)):
+                if collisions_unacceptable[i][-6] < 0:
+                    collision_info["collisions_unacceptable"] = True
                     break
             if collision_info["collisions_unacceptable"]:
                 break
@@ -263,10 +254,8 @@ class UR5:
             collisons_self = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=self.ur5_robot)
             collisions_unacceptable = collisions_env + collisons_self
             for i in range(len(collisions_unacceptable)):
-                # print("collision")
                 if collisions_unacceptable[i][-6] < 0:
                     collision_info["collisions_unacceptable"] = True
-                    # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
                     break
         if self.verbose > 1:
             print(f"DEBUG: {collision_info}")
@@ -283,11 +272,12 @@ class UR5:
         collisions_success = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=body_b,
                                                        linkIndexA=self.success_link_index)
         for i in range(len(collisions_success)):
-            # print("collision")
             if collisions_success[i][-6] < 0:
-                # collision_info["collisions_unacceptable"] = True
-                # print("[Collision detected!] {}, {}".format(collisions[i][-6], collisions[i][3], collisions[i][4]))
+                if self.verbose > 1:
+                    print("DEBUG: Success Collision")
                 return True
+
+
         return False
 
     def calculate_ik(self, position: Tuple[float, float, float],

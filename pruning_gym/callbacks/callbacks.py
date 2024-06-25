@@ -1,28 +1,20 @@
-# TODO: Fix this file by subclassing
-
-import copy
-import math
 import os
-import pickle
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
+import math
 import random
 from abc import abstractmethod
-from typing import Any, Dict, List, Optional, Union
-
-import cv2
-import gymnasium as gym
-
 import numpy as np
-import pandas as pd
-import torch as th
 from stable_baselines3.common.callbacks import BaseCallback, EventCallback
-from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.logger import Video
-from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
-
+from pruning_sb3.pruning_gym.helpers import roundup, rounddown
 
 class PruningSetGoalCallback(BaseCallback):
     def __init__(self, verbose=0):
         super(PruningSetGoalCallback, self).__init__(verbose)
+        self.or_bins = None
+        self.delta_pos_max = None
+        self.delta_pos_min = None
+        self.reachable_euclidean_grid = None
 
     @abstractmethod
     def _sample_tree_and_point(self, idx):
@@ -115,24 +107,16 @@ class PruningSetGoalCallback(BaseCallback):
         return points
 
     @staticmethod
-    def roundup(x):
-        return math.ceil(x / 10.0) * 10
-
-    @staticmethod
-    def rounddown(x):
-        return math.floor(x / 10.0) * 10
-
-    @staticmethod
     def get_bin_from_orientation(orientation):
         offset = 1e-4
         orientation = orientation / np.linalg.norm(orientation)
         lat_angle = np.rad2deg(np.arcsin(orientation[2])) + offset
         lon_angle = np.rad2deg(np.arctan2(orientation[1], orientation[0])) + offset
 
-        lat_angle_min = PruningSetGoalCallback.rounddown(lat_angle)
-        lat_angle_max = PruningSetGoalCallback.roundup(lat_angle)
-        lon_angle_min = PruningSetGoalCallback.rounddown(lon_angle)
-        lon_angle_max = PruningSetGoalCallback.roundup(lon_angle)
+        lat_angle_min = rounddown(lat_angle)
+        lat_angle_max = roundup(lat_angle)
+        lon_angle_min = rounddown(lon_angle)
+        lon_angle_max = roundup(lon_angle)
 
         bin_key = (round((lat_angle_min + lat_angle_max) / 2), round((lon_angle_min + lon_angle_max) / 2))
 
@@ -153,7 +137,7 @@ class PruningSetGoalCallback(BaseCallback):
         if len(self.or_bins[orientation]) == 0:
             if self.verbose > 1:
                 print(f"DEBUG: No trees in orientation {orientation}")
-        tree_urdf, random_point, tree_orientation, scale, collision_meshes = random.choice(self.or_bins[orientation]) #TODO: Also return collision_objects
+        tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
         current_point_pos, current_branch_or, current_branch_normal, _ = random_point
         required_point_pos = random.choice(self.reachable_euclidean_grid)
 
@@ -164,9 +148,9 @@ class PruningSetGoalCallback(BaseCallback):
         if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
             if self.verbose > 1:
                 print(
-                    f"DEBUG: Invalid delta pos {delta_tree_pos}, required pos {required_point_pos}, current pos {current_point_pos}, offset {offset}")
+                    f"DEBUG: Invalid delta pos {delta_tree_pos}, required pos {required_point_pos}, current pos {current_point_pos}, offset {offset}, tree{tree_urdf}")
             return False, None
-        return True, (tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos, current_branch_normal, collision_meshes)
+        return True, (tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, delta_tree_pos, current_branch_normal)
 
 
 class EveryNRollouts(EventCallback):

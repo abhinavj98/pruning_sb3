@@ -435,7 +435,6 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
                 # Value loss using the TD(gae_lambda) target
                 # Mask padded sequences
-                # TODO: depth proxy no more in obs
                 ae_l2_loss = self.mse_loss(depth_proxy, depth_proxy_recon)
                 ae_losses.append(ae_l2_loss.item() * self.ae_coeff)
                 value_loss = th.mean(((rollout_data.returns - values_pred) ** 2)[mask])

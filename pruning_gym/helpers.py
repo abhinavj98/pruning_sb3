@@ -12,7 +12,7 @@ import wandb
 from nptyping import NDArray, Shape, Float
 
 from .optical_flow import OpticalFlow
-
+import math
 
 def init_wandb(args, name):
     if os.path.exists("../keys.json"):
@@ -84,7 +84,6 @@ def set_seed(seed: int = 42) -> None:
 
 
 def optical_flow_create_shared_vars(num_envs: int = 1):
-    # TODO = make this torch multiprocessing
     manager = mp.Manager()
 
     # queue = multiprocessing.Queue()
@@ -205,3 +204,9 @@ def get_policy_kwargs(args_policy, args_env, features_extractor_class):
     }
 
     return policy_kwargs
+
+def roundup(x):
+    return math.ceil(x / 10.0) * 10
+
+def rounddown(x):
+    return math.floor(x / 10.0) * 10

@@ -64,8 +64,6 @@ class pyb_utils:
         return wall_id
 
     def create_background(self) -> None:
-        # wall_folder = os.path.join('models', 'wall_textures')
-        # TODO: Replace all static paths with os.path.join
         wall_texture_path = os.path.join(MESHES_AND_URDF_PATH, 'textures', 'leaves-dead.png')
         self.wall_texture = self.con.loadTexture(wall_texture_path)
 

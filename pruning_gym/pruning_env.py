@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # from memory_profiler import profile
 from typing import Optional, Tuple
 import random
-
+from pruning_sb3.pruning_gym import label
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
@@ -168,12 +168,7 @@ class PruningEnv(gym.Env):
 
         })
 
-        self.label = {
-            (0.117647, 0.235294, 0.039216): "SPUR",
-            (0.313725, 0.313725, 0.313725): "TRUNK",
-            (0.254902, 0.176471, 0.058824): "BRANCH",
-            (0.235294, 0.000000, 0.000000): "WATER_BRANCH",
-        }
+        self.label = label
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
 
         self.sum_reward = 0.0  # Pass this to reward class
@@ -261,9 +256,8 @@ class PruningEnv(gym.Env):
         self.prev_observation_info: dict = dict()
 
     def set_tree_properties(self, tree_urdf, point_pos, point_branch_or, tree_orientation, tree_scale, tree_pos,
-                            point_branch_normal, collision_meshes):
+                            point_branch_normal):
 
-        #TODO: Add collision object
         self.tree_urdf = tree_urdf
         self.tree_goal_pos = point_pos
         self.tree_goal_or = point_branch_or
@@ -273,7 +267,7 @@ class PruningEnv(gym.Env):
         self.tree_goal_normal = point_branch_normal
         if self.tree_id is not None:
             self.inactivate_tree(self.pyb)
-            self.remove_collision_objects()
+
 
         #Remove collision objects
         # Make collision shape centered at tree_goal_pos and tree_goal_normal
@@ -291,62 +285,61 @@ class PruningEnv(gym.Env):
                                     lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
                                     lineWidth=400)
         self.activate_tree(self.pyb)
-        self.collision_object_ids = self.load_collision_objects(collision_meshes)
 
 
-    def split_mesh(self, vertices, indices, max_vertices_per_chunk):
-        chunks = []
-        num_chunks = (len(vertices) + max_vertices_per_chunk - 1) // max_vertices_per_chunk
+    # def split_mesh(self, vertices, indices, max_vertices_per_chunk):
+    #     chunks = []
+    #     num_chunks = (len(vertices) + max_vertices_per_chunk - 1) // max_vertices_per_chunk
+    #
+    #     for chunk_index in range(num_chunks):
+    #         chunk_vertices = vertices[chunk_index * max_vertices_per_chunk: (chunk_index + 1) * max_vertices_per_chunk]
+    #         chunk_indices = []
+    #
+    #         vertex_map = {v: i for i, v in enumerate(range(chunk_index * max_vertices_per_chunk,
+    #                                                        min((chunk_index + 1) * max_vertices_per_chunk,
+    #                                                            len(vertices))))}
+    #
+    #         for face in indices:
+    #             if all(v in vertex_map for v in face):
+    #                 chunk_indices.append([vertex_map[v] for v in face])
+    #
+    #         if chunk_vertices and chunk_indices:
+    #             chunks.append((chunk_vertices, chunk_indices))
+    #
+    #     return chunks
 
-        for chunk_index in range(num_chunks):
-            chunk_vertices = vertices[chunk_index * max_vertices_per_chunk: (chunk_index + 1) * max_vertices_per_chunk]
-            chunk_indices = []
-
-            vertex_map = {v: i for i, v in enumerate(range(chunk_index * max_vertices_per_chunk,
-                                                           min((chunk_index + 1) * max_vertices_per_chunk,
-                                                               len(vertices))))}
-
-            for face in indices:
-                if all(v in vertex_map for v in face):
-                    chunk_indices.append([vertex_map[v] for v in face])
-
-            if chunk_vertices and chunk_indices:
-                chunks.append((chunk_vertices, chunk_indices))
-
-        return chunks
-
-    def load_collision_objects(self, mesh_data, max_vertices_per_chunk=1000):
-        collision_objects = defaultdict(lambda : [])
-        for color, (vertices, indices) in mesh_data.items():
-            if len(vertices) > 0 and len(indices) > 0:
-                if self.verbose > 1:
-                    print(f"DEBUG: Loading mesh for color {color}")
-                    print(f"DEBUG: Number of vertices: {len(vertices)}")
-                    print(f"DEBUG: Number of faces: {len(indices)}")
-
-                chunks = self.split_mesh(vertices, indices, max_vertices_per_chunk)
-                for chunk_index, (chunk_vertices, chunk_indices) in enumerate(chunks):
-                    if self.verbose > 1:
-                        print(f"DEBUG: Loading chunk {chunk_index} for color {color}")
-                    collision_shape_id = self.pyb.con.createCollisionShape(
-                        shapeType=self.pyb.con.GEOM_MESH,
-                        vertices=chunk_vertices,
-                        indices=[i for face in chunk_indices for i in face],
-                        meshScale=[1, 1, 1]
-                    )
-                    body_id = self.pyb.con.createMultiBody(
-                        baseCollisionShapeIndex=collision_shape_id,
-                        basePosition=self.tree_pos,  # Set the initial position
-                        baseOrientation=self.tree_orientation
-                    )
-                    self.pyb.con.changeVisualShape(body_id, -1, rgbaColor=[1, 1, 1, 0])
-                    if collision_shape_id >= 0:
-                        label = self.label[color]
-                        collision_objects[label].append(body_id)
-                    else:
-                        print(f"Failed to create collision shape for color {color}, chunk {chunk_index}")
-            else:
-                print(f"Invalid mesh data for color {color}")
+    # def load_collision_objects(self, mesh_data, max_vertices_per_chunk=1000):
+    #     collision_objects = defaultdict(lambda : [])
+    #     for color, (vertices, indices) in mesh_data.items():
+    #         if len(vertices) > 0 and len(indices) > 0:
+    #             if self.verbose > 1:
+    #                 print(f"DEBUG: Loading mesh for color {color}")
+    #                 print(f"DEBUG: Number of vertices: {len(vertices)}")
+    #                 print(f"DEBUG: Number of faces: {len(indices)}")
+    #
+    #             chunks = self.split_mesh(vertices, indices, max_vertices_per_chunk)
+    #             for chunk_index, (chunk_vertices, chunk_indices) in enumerate(chunks):
+    #                 if self.verbose > 1:
+    #                     print(f"DEBUG: Loading chunk {chunk_index} for color {color}")
+    #                 collision_shape_id = self.pyb.con.createCollisionShape(
+    #                     shapeType=self.pyb.con.GEOM_MESH,
+    #                     vertices=chunk_vertices,
+    #                     indices=[i for face in chunk_indices for i in face],
+    #                     meshScale=[1, 1, 1]
+    #                 )
+    #                 body_id = self.pyb.con.createMultiBody(
+    #                     baseCollisionShapeIndex=collision_shape_id,
+    #                     basePosition=self.tree_pos,  # Set the initial position
+    #                     baseOrientation=self.tree_orientation
+    #                 )
+    #                 self.pyb.con.changeVisualShape(body_id, -1, rgbaColor=[1, 1, 1, 0])
+    #                 if collision_shape_id >= 0:
+    #                     label = self.label[color]
+    #                     collision_objects[label].append(body_id)
+    #                 else:
+    #                     print(f"Failed to create collision shape for color {color}, chunk {chunk_index}")
+    #         else:
+    #             print(f"Invalid mesh data for color {color}")
 
             # collision_objects_ids = {}
             # for color, collision_shape_id in collision_objects.items():
@@ -362,13 +355,13 @@ class PruningEnv(gym.Env):
             #
             #     self.pyb.con.changeVisualShape(id, -1, rgbaColor=[1, 1, 1, 0])
 
-        return collision_objects
+        # return collision_objects
 
-    def remove_collision_objects(self):
-        for color, collision_objects in self.collision_object_ids.items():
-            for id in collision_objects:
-                self.pyb.con.removeBody(id)
-        self.collision_object_ids = {'SPUR': [], 'TRUNK': [], 'BRANCH': [], 'WATER_BRANCH': []}
+    # def remove_collision_objects(self):
+    #     for color, collision_objects in self.collision_object_ids.items():
+    #         for id in collision_objects:
+    #             self.pyb.con.removeBody(id)
+    #     self.collision_object_ids = {'SPUR': [], 'TRUNK': [], 'BRANCH': [], 'WATER_BRANCH': []}
 
     # def load_collision_objects(self, collision_objects):
     #     collision_objects_ids = {}
@@ -492,11 +485,16 @@ class PruningEnv(gym.Env):
                                          globalScaling=1)
         self.tree_id = pyb.con.loadURDF(self.tree_urdf, self.tree_pos, self.tree_orientation,
                                         globalScaling=self.tree_scale)
+        for i in self.label.values():
+            label_urdf_path = os.path.join(os.path.dirname(self.tree_urdf)+'_labelled_split', os.path.basename(self.tree_urdf).split(".")[0]+'_'+f"{i}.urdf")
+            self.collision_object_ids[i] = pyb.con.loadURDF(label_urdf_path, self.tree_pos, self.tree_orientation,
+                                                            globalScaling=self.tree_scale)
+
+
 
 
         #Do not collide with UR5
         for i in range(self.ur5.num_joints):
-            print("Disabling collision between UR5 and tree", i)
             pyb.con.setCollisionFilterPair(self.tree_id, self.ur5.ur5_robot, 0, i, 0)
 
     def inactivate_tree(self, pyb):
@@ -504,8 +502,10 @@ class PruningEnv(gym.Env):
         # assert self.supports is not None
         pyb.con.removeBody(self.tree_id)
         pyb.con.removeBody(self.supports)
+        for i in self.collision_object_ids.values():
+            pyb.con.removeBody(i)
         #Remove collision objects
-        self.remove_collision_objects()
+
         # self.tree_id = None
         # self.supports = None
 
@@ -835,13 +835,16 @@ class PruningEnv(gym.Env):
     def is_state_successful(self, achieved_pos, desired_pos, orientation_perp_value, orientation_point_value):
         terminated = False
         # TODO: Success only if the collision is in the branch plane
-        is_success_collision = self.ur5.check_success_collision(self.tree_id)
+        is_success_collision_spur = self.ur5.check_success_collision(self.collision_object_ids['SPUR'])
+        is_success_collision_water_branch = self.ur5.check_success_collision(self.collision_object_ids['WATER_BRANCH'])
+        is_success_collision = is_success_collision_spur or is_success_collision_water_branch
         dist_from_target = np.linalg.norm(achieved_pos - desired_pos)
         if is_success_collision and dist_from_target < self.distance_threshold:
             if (orientation_perp_value > self.angle_threshold_perp_cosine) and (
                     orientation_point_value > self.angle_threshold_point_cosine):
                 terminated = True
-                print("Success")
+                if self.verbose > 1:
+                    print("DEBUG: Task successful")
         return terminated
 
     def log_collision_info(self, collision_info):
