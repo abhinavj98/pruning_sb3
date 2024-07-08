@@ -18,6 +18,7 @@ class pyb_utils:
         self.near_val = 0.01
         self.far_val = 100
         self.env = env
+        self.step_time = 1 / 4
 
         self.con = None
         # Debug parameters
@@ -26,6 +27,8 @@ class pyb_utils:
 
         self.setup_pybullet()
 
+        # logId = self.con.startStateLogging(self.con.STATE_LOGGING_PROFILE_TIMINGS, "timings.json")
+
     def setup_pybullet(self) -> None:
         # New class for pybullet
         if self.renders:
@@ -33,7 +36,7 @@ class pyb_utils:
         else:
             self.con = bc.BulletClient(connection_mode=pybullet.DIRECT)
 
-        self.con.setTimeStep(120. / 240.)
+        self.con.setTimeStep(self.step_time)
         # self.enable_gravity()
         self.con.setRealTimeSimulation(False)
         self.proj_mat = self.con.computeProjectionMatrixFOV(

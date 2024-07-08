@@ -87,7 +87,9 @@ class UR5:
             jointUpperLimit = info[9]
             jointMaxForce = info[10]
             jointMaxVelocity = info[11]
-            # print("Joint Name: ", jointName, "Joint ID: ", jointID)
+            if self.verbose > 1:
+                print("Joint Name: ", jointName, "Joint ID: ", jointID)
+
             controllable = True if jointName in self.control_joints else False
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
                                    jointMaxVelocity, controllable)  # type: ignore
@@ -96,7 +98,6 @@ class UR5:
                 self.con.setJointMotorControl2(self.ur5_robot, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0,
                                                force=0)
             self.joints[info.name] = info
-
         # self.set_collision_filter()
         self.init_joint_angles = (-np.pi / 2, -np.pi * 2 / 3, np.pi * 2 / 3, -np.pi, -np.pi / 2,
                                   np.pi)  # (-np.pi/2, -np.pi/6, np.pi*2/3, -np.pi*3/2, -np.pi/2, np.pi)#
@@ -112,6 +113,20 @@ class UR5:
         self.achieved_pos = np.array(self.get_current_pose(self.end_effector_index)[0])
         base_pos, base_or = self.get_current_pose(self.base_index)
         self.set_collision_filter()
+
+    def reset_ur5_arm(self) -> None:
+        if self.ur5_robot is None:
+            return
+
+        for i, name in enumerate(self.control_joints):
+            joint_id = self.joints[name].id
+            self.con.resetJointState(self.ur5_robot, joint_id, self.init_joint_angles[i], targetVelocity=0)
+
+    def set_joint_angles_no_collision(self, joint_angles: Tuple[float, float, float, float, float, float]) -> None:
+        for i, name in enumerate(self.control_joints):
+            joint = self.joints[name]
+            # print(name, joint_angles[i])
+            self.con.resetJointState(self.ur5_robot, joint.id, joint_angles[i], targetVelocity=0)
 
     def set_collision_filter(self):
         # TO SET CUTTER DISABLE COLLISIONS WITH SELF
@@ -132,6 +147,17 @@ class UR5:
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 10, 11, 1)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 7, 11, 1)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 6, 11, 1)
+
+    def set_collision_filter_tree(self, collision_objects):
+        for i in collision_objects.values():
+            for j in range(self.num_joints):
+                self.con.setCollisionFilterPair(self.ur5_robot, i, j, 0, 0)
+
+    def unset_collision_filter_tree(self, collision_objects):
+        for i in collision_objects.values():
+            for j in range(self.num_joints):
+                self.con.setCollisionFilterPair(self.ur5_robot, i, j, 0, 1)
+
 
     def disable_self_collision(self):
         for i in range(self.num_joints):
@@ -222,14 +248,14 @@ class UR5:
         joints = tuple((i[0] for i in j))
         return joints  # type: ignore
 
-    def check_collisions(self, collision_objects, tree_support) -> Tuple[bool, dict]:
+    def check_collisions(self, collision_objects) -> Tuple[bool, dict]:
         """Check if there are any collisions between the robot and the environment
         Returns: Dictionary with information about collisions (Acceptable and Unacceptable)
         """
         collision_info = {"collisions_acceptable": False, "collisions_unacceptable": False}
 
         collision_acceptable_list = ['SPUR', 'WATER_BRANCH']
-        collision_unacceptable_list = ['TRUNK', 'BRANCH']
+        collision_unacceptable_list = ['TRUNK', 'BRANCH', 'SUPPORT']
         for type in collision_acceptable_list:
             collisions_acceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=collision_objects[type])
             if collisions_acceptable:
@@ -250,9 +276,8 @@ class UR5:
                 break
 
         if not collision_info["collisions_unacceptable"]:
-            collisions_env = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=tree_support)
             collisons_self = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=self.ur5_robot)
-            collisions_unacceptable = collisions_env + collisons_self
+            collisions_unacceptable = collisons_self
             for i in range(len(collisions_unacceptable)):
                 if collisions_unacceptable[i][-6] < 0:
                     collision_info["collisions_unacceptable"] = True
@@ -298,7 +323,7 @@ class UR5:
     def get_current_pose(self, index: int) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """Returns current pose of the end effector. Pos wrt end effector, orientation wrt world"""
         link_state: Tuple = self.con.getLinkState(self.ur5_robot, index, computeForwardKinematics=True)
-        position, orientation = link_state[4], link_state[5]  # Position wrt end effector, orientation wrt COM
+        position, orientation = link_state[4], link_state[5]
         return position, orientation
 
     def get_current_vel(self, index: int) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:

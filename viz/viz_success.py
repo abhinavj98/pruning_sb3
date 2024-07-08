@@ -322,31 +322,33 @@ def plot_bar(df, label, save=False):
 
 # Step 1: Read the csv file
 df_policy = pd.read_csv('results_data/policy_uniform.csv')
-df_rrt = pd.read_csv('results_data/rrt_uniform.csv')
+df_rrt = pd.read_csv('rrt_results.csv')
 orientations = df_policy[['or_x', 'or_y', 'or_z']]
 dataset = []
 
-# num_latitude_bins = 18
-# num_longitude_bins = 36
-# bins = create_bins(num_latitude_bins, num_longitude_bins)
-# idx_name = 'is_success'
-# title = 'Success Rate (RRT)'
-# df_rrt[title] = df_rrt[idx_name]
-# bins = populate_bins(bins, df_rrt, title)
-#
-# #For each bin, calculate the average perpendicular cosine sim error and display it
-# perp_bins = {}
-# print((bins.values()))
-# for key in bins.keys():
-#     perp_bins[key] = np.mean(np.array(bins[key]))
+num_latitude_bins = 18
+num_longitude_bins = 36
+bins = create_bins(num_latitude_bins, num_longitude_bins)
+idx_name = 'is_success'
+title = 'Success Rate (RRT)'
+df_rrt[title] = df_rrt[idx_name]
+bins = populate_bins(bins, df_rrt, title)
+
+#For each bin, calculate the average perpendicular cosine sim error and display it
+perp_bins = {}
+print((bins.values()))
+for key in bins.keys():
+    perp_bins[key] = np.mean(np.array(bins[key]))
 # Assign each latitude and longitude to a bin
 # print(perp_bins)
-# visualize_2d(perp_bins, 'is_success')
-# print is_success rate
-# print(df_rrt['is_success'].value_counts()/len(df_rrt))
+visualize_2d(perp_bins, 'is_success', 'asd')
+# # print is_success rate
+
+print(df_rrt['is_success'].value_counts()/len(df_rrt))
 # print(df_rrt['is_success'].value_counts()/len(df_policy))
 # get count of fail modes
-# print(df_rrt.groupby(df_rrt['fail_mode']).count())
+print(df_rrt.groupby(df_rrt['fail_mode']).count())
+print(df_rrt)
 # df_a = pd.DataFrame({'success':[len(df_rrt[df_rrt['is_success']==True])/len(df_rrt), len(df_policy[df_policy['is_success']==True])/len(df_policy)]})
 # df_success = pd.DataFrame({'Success Rate': df_a['success'], 'Environment': ['RRT'] + ['Policy']})
 # print(df_success)
@@ -354,6 +356,6 @@ dataset = []
 # print(df_rrt.keys(), df_policy.keys())
 # print(df_rrt['time_find_end_config'].mean(), df_rrt['time_total'].mean())
 # print(df_policy['time'].mean(), df_policy['time'].std())
-print(len(df_policy[df_policy['acceptable_collision'] > 0.]), len(df_policy[df_policy['unacceptable_collision'] > 0.]))
-print(len(df_policy[(df_policy['unacceptable_collision'] > 0.) & (df_policy['is_success'] == 1.)]))
-print(len(df_policy[df_policy['unacceptable_collision'] > 0]))
+# print(len(df_policy[df_policy['acceptable_collision'] > 0.]), len(df_policy[df_policy['unacceptable_collision'] > 0.]))
+# print(len(df_policy[(df_policy['unacceptable_collision'] > 0.) & (df_policy['is_success'] == 1.)]))
+# print(len(df_policy[df_policy['unacceptable_collision'] > 0]))

@@ -12,6 +12,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from nptyping import NDArray, Shape, Float
+import imageio
 
 from .tree import Tree
 from .ur5_utils import UR5
@@ -27,7 +28,7 @@ from pybullet_planning.interfaces.planner_interface.joint_motion_planning import
     get_distance_fn
 from pybullet_planning.interfaces.robots import get_collision_fn
 import time
-
+import pandas as pd
 
 class PruningEnv(gym.Env):
     """
@@ -105,7 +106,6 @@ class PruningEnv(gym.Env):
         self.tree_urdf_path = tree_urdf_path
         self.tree_obj_path = tree_obj_path
         self.tree_labelled_path = tree_labelled_path
-        self.supports = None
         self.tree_id = None
         # Gym variables
         self.name = name
@@ -125,7 +125,7 @@ class PruningEnv(gym.Env):
         self.cam_tilt = 0
         self.cam_xyz_offset = np.zeros(3)
         self.verbose = verbose
-        self.collision_object_ids = {'SPUR': [], 'TRUNK': [], 'BRANCH': [], 'WATER_BRANCH': []}
+        self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None, 'SUPPORT': None,}
 
         # Reward variables
         self.reward = Reward(movement_reward_scale, distance_reward_scale, pointing_orientation_reward_scale,
@@ -167,10 +167,13 @@ class PruningEnv(gym.Env):
             'critic_pointing_cosine_sim': spaces.Box(low=-0., high=1., shape=(1,), dtype=np.float32),
 
         })
-
+        self.control_time = 1./2
+        self.num_control_simulation_steps = int(self.control_time/self.pyb.step_time) #2Hz
+        if self.verbose > 0:
+            print("INFO: Control freq is ", self.control_time)
+            print("INFO: Num control simulation steps is ", self.num_control_simulation_steps)
         self.label = label
         self.action_space = spaces.Box(low=-1., high=1., shape=(self.action_dim,), dtype=np.float32)
-
         self.sum_reward = 0.0  # Pass this to reward class
 
         self.use_ik = use_ik
@@ -180,6 +183,8 @@ class PruningEnv(gym.Env):
         self.episode_counter = 0
         self.randomize_tree_count = 5
         self.distance_threshold = distance_threshold
+        self.angle_threshold_perp = angle_threshold_perp
+        self.angle_threshold_point = angle_threshold_point
         self.angle_threshold_perp_cosine = np.cos(angle_threshold_perp)
         self.angle_threshold_point_cosine = np.cos(angle_threshold_point)
 
@@ -224,24 +229,6 @@ class PruningEnv(gym.Env):
                                                      curriculum_distances=curriculum_distances,
                                                      curriculum_level_steps=curriculum_level_steps,
                                                      randomize_pose=randomize_tree_pose)
-            # load trees from shared memory
-
-        # for tree in self.trees:
-        #     self.tree = tree
-        #     self.activate_tree(self.pyb)
-        #     # tree.make_curriculum()
-        #     self.pyb.visualize_points(tree.vertex_and_projection, "reachable")
-        #     input()
-        #     self.inactivate_tree(self.pyb)
-        #     self.pyb.remove_debug_items("step")
-
-        # for tree in self.trees:
-        #     self.tree = tree
-        #     self.activate_tree(self.pyb)
-        #     self.pyb.visualize_points(self.tree.curriculum_points[0], "curriculum")
-        #     input()
-        #     self.inactivate_tree(self.pyb)
-        #     self.pyb.remove_debug_items("step")
 
         # Init and final logging
         self.init_distance = 0
@@ -284,100 +271,8 @@ class PruningEnv(gym.Env):
         _ = self.pyb.add_debug_item('line', 'reset', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
                                     lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
                                     lineWidth=400)
+
         self.activate_tree(self.pyb)
-
-
-    # def split_mesh(self, vertices, indices, max_vertices_per_chunk):
-    #     chunks = []
-    #     num_chunks = (len(vertices) + max_vertices_per_chunk - 1) // max_vertices_per_chunk
-    #
-    #     for chunk_index in range(num_chunks):
-    #         chunk_vertices = vertices[chunk_index * max_vertices_per_chunk: (chunk_index + 1) * max_vertices_per_chunk]
-    #         chunk_indices = []
-    #
-    #         vertex_map = {v: i for i, v in enumerate(range(chunk_index * max_vertices_per_chunk,
-    #                                                        min((chunk_index + 1) * max_vertices_per_chunk,
-    #                                                            len(vertices))))}
-    #
-    #         for face in indices:
-    #             if all(v in vertex_map for v in face):
-    #                 chunk_indices.append([vertex_map[v] for v in face])
-    #
-    #         if chunk_vertices and chunk_indices:
-    #             chunks.append((chunk_vertices, chunk_indices))
-    #
-    #     return chunks
-
-    # def load_collision_objects(self, mesh_data, max_vertices_per_chunk=1000):
-    #     collision_objects = defaultdict(lambda : [])
-    #     for color, (vertices, indices) in mesh_data.items():
-    #         if len(vertices) > 0 and len(indices) > 0:
-    #             if self.verbose > 1:
-    #                 print(f"DEBUG: Loading mesh for color {color}")
-    #                 print(f"DEBUG: Number of vertices: {len(vertices)}")
-    #                 print(f"DEBUG: Number of faces: {len(indices)}")
-    #
-    #             chunks = self.split_mesh(vertices, indices, max_vertices_per_chunk)
-    #             for chunk_index, (chunk_vertices, chunk_indices) in enumerate(chunks):
-    #                 if self.verbose > 1:
-    #                     print(f"DEBUG: Loading chunk {chunk_index} for color {color}")
-    #                 collision_shape_id = self.pyb.con.createCollisionShape(
-    #                     shapeType=self.pyb.con.GEOM_MESH,
-    #                     vertices=chunk_vertices,
-    #                     indices=[i for face in chunk_indices for i in face],
-    #                     meshScale=[1, 1, 1]
-    #                 )
-    #                 body_id = self.pyb.con.createMultiBody(
-    #                     baseCollisionShapeIndex=collision_shape_id,
-    #                     basePosition=self.tree_pos,  # Set the initial position
-    #                     baseOrientation=self.tree_orientation
-    #                 )
-    #                 self.pyb.con.changeVisualShape(body_id, -1, rgbaColor=[1, 1, 1, 0])
-    #                 if collision_shape_id >= 0:
-    #                     label = self.label[color]
-    #                     collision_objects[label].append(body_id)
-    #                 else:
-    #                     print(f"Failed to create collision shape for color {color}, chunk {chunk_index}")
-    #         else:
-    #             print(f"Invalid mesh data for color {color}")
-
-            # collision_objects_ids = {}
-            # for color, collision_shape_id in collision_objects.items():
-            #     print(f"Creating multi-body for color {color}")
-            #     id = self.pyb.con.createMultiBody(
-            #         baseCollisionShapeIndex=collision_shape_id,
-            #         basePosition=[0, 0, 0],  # Set the initial position
-            #     )
-            #     try:
-            #         collision_objects_ids[color].append(id)
-            #     except KeyError:
-            #         collision_objects_ids[color] = [id]
-            #
-            #     self.pyb.con.changeVisualShape(id, -1, rgbaColor=[1, 1, 1, 0])
-
-        # return collision_objects
-
-    # def remove_collision_objects(self):
-    #     for color, collision_objects in self.collision_object_ids.items():
-    #         for id in collision_objects:
-    #             self.pyb.con.removeBody(id)
-    #     self.collision_object_ids = {'SPUR': [], 'TRUNK': [], 'BRANCH': [], 'WATER_BRANCH': []}
-
-    # def load_collision_objects(self, collision_objects):
-    #     collision_objects_ids = {}
-    #     for color, collision_shape_id in collision_objects.items():
-    #         print(f"Creating multi-body for color {color}")
-    #         id = self.pyb.con.createMultiBody(
-    #             baseCollisionShapeIndex=collision_shape_id,
-    #             basePosition=[0, 0, 0],  # Set the initial position
-    #         )
-    #         try:
-    #             collision_objects_ids[color].append(id)
-    #         except KeyError:
-    #             collision_objects_ids[color] = [id]
-    #
-    #         self.pyb.con.changeVisualShape(id, -1, rgbaColor=[1, 1, 1, 0])
-    #     return collision_objects_ids
 
 
     def reset_env_variables(self) -> None:
@@ -420,21 +315,22 @@ class PruningEnv(gym.Env):
             self.inactivate_tree(self.pyb)
 
         # Function for remove body
-        self.ur5.remove_ur5_robot()
+        # self.ur5.remove_ur5_robot()
         self.pyb.remove_debug_items("reset")
         self.pyb.remove_debug_items("step")
-        self.pyb.con.resetSimulation()
+        # self.pyb.con.resetSimulation()
 
         self.set_curriculum_level(self.episode_counter, self.curriculum_level_steps)  # This will not work now
 
         # Create new ur5 arm body
         self.pyb.create_background()
-        self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
+        # self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
+        self.ur5.reset_ur5_arm()
         # Sample new point
         # Jitter the camera pose
         self.set_camera_pose()
 
-        for i in range(100):
+        for i in range(50):
             self.pyb.con.stepSimulation()
 
         self.activate_tree(self.pyb)
@@ -480,13 +376,17 @@ class PruningEnv(gym.Env):
             print("DEBUG: Activating tree")
             print('DEBUG: Loading tree from ', self.tree_urdf)
 
-        self.supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [self.tree_pos[0], self.tree_pos[1] - 0.05, 0.0],
+        supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [self.tree_pos[0], self.tree_pos[1] - 0.05, 0.0],
                                          list(pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                          globalScaling=1)
+        self.collision_object_ids['SUPPORT'] = supports
         self.tree_id = pyb.con.loadURDF(self.tree_urdf, self.tree_pos, self.tree_orientation,
                                         globalScaling=self.tree_scale)
         for i in self.label.values():
+
             label_urdf_path = os.path.join(os.path.dirname(self.tree_urdf)+'_labelled_split', os.path.basename(self.tree_urdf).split(".")[0]+'_'+f"{i}.urdf")
+            if self.verbose > 1:
+                print('DEBUG: Loading tree from ', label_urdf_path)
             self.collision_object_ids[i] = pyb.con.loadURDF(label_urdf_path, self.tree_pos, self.tree_orientation,
                                                             globalScaling=self.tree_scale)
 
@@ -498,16 +398,12 @@ class PruningEnv(gym.Env):
             pyb.con.setCollisionFilterPair(self.tree_id, self.ur5.ur5_robot, 0, i, 0)
 
     def inactivate_tree(self, pyb):
-        # assert self.tree_id is not None
-        # assert self.supports is not None
-        pyb.con.removeBody(self.tree_id)
-        pyb.con.removeBody(self.supports)
-        for i in self.collision_object_ids.values():
-            pyb.con.removeBody(i)
-        #Remove collision objects
-
-        # self.tree_id = None
-        # self.supports = None
+        if self.tree_id:
+            pyb.con.removeBody(self.tree_id)
+            for i in self.collision_object_ids.values():
+                pyb.con.removeBody(i)
+            self.tree_id = None
+            self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None, 'SUPPORT': None,}
 
     def force_time_limit(self):
         """Force time limit"""
@@ -564,10 +460,11 @@ class PruningEnv(gym.Env):
         singularity = self.ur5.set_joint_velocities(self.ur5.action)
 
         # Step simulation
-        for i in range(1):
+        for i in range(self.num_control_simulation_steps):
             self.pyb.con.stepSimulation()
+
             # print(self.pyb_con.con.getJointStateMultiDof(self.ur5.ur5_robot, self.ur5.end_effector_index))
-            # if self.renders: time.sleep(5./240.) 
+            # if self.renders: time.sleep(1./240.)
 
         # Need observations before reward
         self.set_extended_observation()
@@ -819,7 +716,7 @@ class PruningEnv(gym.Env):
         # If is successful
         self.is_goal_state = self.is_state_successful(achieved_pos, desired_pos, perp_cosine_sim, point_cosine_sim)
         reward += self.reward.calculate_termination_reward(self.is_goal_state)
-        is_collision, collision_info = self.ur5.check_collisions(self.collision_object_ids, self.supports)
+        is_collision, collision_info = self.ur5.check_collisions(self.collision_object_ids)
         reward += self.reward.calculate_acceptable_collision_reward(collision_info)
         reward += self.reward.calculate_unacceptable_collision_reward(collision_info)
 
@@ -853,25 +750,47 @@ class PruningEnv(gym.Env):
         elif collision_info['collisions_unacceptable']:
             self.collisions_unacceptable += 1
 
+
+
+    #TODO: Create new class for pruning env
     def generate_goal_pos(self):
+        # self.pyb.remove_debug_items("step")
         forward = -self.tree_goal_normal / np.linalg.norm(self.tree_goal_normal)
         up = self.tree_goal_or / np.linalg.norm(self.tree_goal_or)
         right = np.cross(forward, up)
         # Get a vector in plane of up and right using linear combination
         rotation_matrix = np.column_stack((up, right, forward))
         rotation_matrix = R.from_matrix(rotation_matrix).as_matrix()
-        rotation_axis = rotation_matrix[:, 0]
-        rotation_angle = np.random.uniform(0, 2 * np.pi)
-        random_rotation = R.from_rotvec(rotation_angle * rotation_axis).as_matrix()
+
+        rotation_axis_x = rotation_matrix[:, 0]
+        rotation_angle_x = np.random.uniform(0, 2 * np.pi)
+        random_rotation_x = R.from_rotvec(rotation_angle_x * rotation_axis_x).as_matrix()
+
+        rotation_axis_y = rotation_matrix[:, 1]
+        rotation_angle_y = np.random.uniform(0, self.angle_threshold_perp)
+        random_rotation_y = R.from_rotvec(rotation_angle_y * rotation_axis_y).as_matrix()
+        # random_rotation_y = np.eye(3)
+        rotation_axis_z = rotation_matrix[:, 2]
+        rotation_angle_z = np.random.uniform(0, self.angle_threshold_point)
+        random_rotation_z = R.from_rotvec(rotation_angle_z * rotation_axis_z).as_matrix()
+        # random_rotation_z = np.eye(3)
+
+        random_rotation = random_rotation_z @ random_rotation_y @ random_rotation_x
         rotation_matrix = random_rotation @ rotation_matrix
+        # self.pyb.visualize_rot_mat(rotation_matrix, self.tree_goal_pos)
+        # input()
         r = R.from_matrix(rotation_matrix)
         quaternion = r.as_quat()
         return quaternion, forward, rotation_matrix
 
-    def get_different_ik_results(self, num_solutions=1, total_attempts=50):
+    def get_different_ik_results(self, num_solutions=1, total_attempts=50, timing=None):
         solutions = []
         attempts = 0
         while len(solutions) < num_solutions and attempts < total_attempts:
+            start = time.time()
+            self.pyb.remove_debug_items("step")
+            self.ur5.reset_ur5_arm()
+            self.pyb.con.stepSimulation()
             collision = False
             # import time
             orientation, forward, rot = self.generate_goal_pos()
@@ -879,85 +798,192 @@ class PruningEnv(gym.Env):
             init_vec = rot @ init_vec
             goal = self.tree_goal_pos - 0.03 * init_vec
 
-            self.pyb.visualize_rot_mat(orientation, goal)
-            self.inactivate_tree(self.pyb)
-            self.inactivate_tree(self.pyb)
+            # self.pyb.visualize_rot_mat(orientation, goal)
+            # self.inactivate_tree(self.pyb)
 
-            # initial_guess = np.random.uniform(low=-np.pi/2, high=np.pi/2, size=len(self.ur5.control_joints)) + self.ur5.init_joint_angles
-            # initial_guess is joint angles at a random 10cm away from the goal
+            self.ur5.set_collision_filter_tree(self.collision_object_ids)
             offset = np.random.uniform(-0.1, 0.1, 3)
             # scale the offset to be 10cm away from the goal
             offset = 0.15 * offset / np.linalg.norm(offset)
             initial_guess = self.ur5.calculate_ik(goal + offset, orientation)
-            self.ur5.set_joint_angles(initial_guess)
-            for j in range(50):
-                self.pyb.con.stepSimulation()
+            self.ur5.set_joint_angles_no_collision(initial_guess)
+
+            self.pyb.con.stepSimulation()
+            # self.ur5.set_joint_angles(initial_guess)
+            # for j in range(50):
+            #     self.pyb.con.stepSimulation()
                 # time.sleep(0.01)
 
             joint_angles = self.ur5.calculate_ik(goal, orientation)
-            self.ur5.set_joint_angles(joint_angles)
-            # print("Set initial guress")
-            for j in range(50):
-                self.pyb.con.stepSimulation()
+            self.ur5.set_joint_angles_no_collision(joint_angles)
+            # self.ur5.set_joint_angles(joint_angles)
+            # print("Setting joint angles", joint_angles)
+            #
+            # for j in range(50):
+            #     self.pyb.con.stepSimulation()
                 # time.sleep(0.01)
-            # print("Set joint angles")
-            self.activate_tree(self.pyb)
-
+            # self.activate_tree(self.pyb)
+            # self.pyb.con.stepSimulation()
+            # print("Actual", self.ur5.get_joint_angles())
+            self.ur5.unset_collision_filter_tree(self.collision_object_ids)
             self.pyb.con.stepSimulation()
-            collision_info = self.ur5.check_collisions(self.collision_object_ids, self.supports)
-            if collision_info[0]:  # collision_info[1]['collisions_unacceptable']:
+            if not np.isclose(joint_angles, self.ur5.get_joint_angles(), atol=1e-1).all():
+                # print("Cant set joint angles")
+                # print(joint_angles, self.ur5.get_joint_angles())
+                attempts += 1
+                continue
+
+            collision_info = self.ur5.check_collisions(self.collision_object_ids)
+            if collision_info[1]['collisions_unacceptable']:
                 collision = True
-                # print("Collision")
-                # print(collision_info[1])
+                if self.verbose > 1:
+                    print("DEBUG: Collision")
 
             if not collision:
                 current_ee_pose = self.ur5.get_current_pose(self.ur5.end_effector_index)
-                if np.linalg.norm(current_ee_pose[0] - goal) < 0.05:
-                    solutions.append((joint_angles, goal, orientation))
-                # solutions.append((joint_angles, goal, orientation))
-            # print("Sleep", collision, len(solutions))
+                delta_q = self.pyb.con.getDifferenceQuaternion(current_ee_pose[1], orientation)
+                delta_angle = 2 * np.arccos(delta_q[3])
+                if np.linalg.norm(current_ee_pose[0] - goal) < 0.05 and delta_angle < 0.1:
+                    if self.verbose > 1:
+                        print("DEBUG: Found solution")
+                    yield joint_angles, goal, orientation
+                    # solutions.append((joint_angles, goal, orientation))
+                else:
+                    if self.verbose > 1:
+                        print("DEBUG: Not close enough")
 
-            # time.sleep(5)
-            self.ur5.remove_ur5_robot()
-            self.ur5.setup_ur5_arm()
-            # self.pyb.remove_debug_items("step")
+            self.ur5.reset_ur5_arm()
             attempts += 1
-        return solutions
+            end = time.time() - start
+            timing['time_find_end_config'] += end
 
-    def run_rrt_connect(self):
+        if attempts == total_attempts:
+            if self.verbose > 1:
+                print("DEBUG: No valid solutions found")
+            yield None
+            # return 0
+        # return solutions
+
+    def render_save_image(self, goal):
+        sphere = self.pyb.add_sphere(radius=0.01, pos=goal, rgba=[1, 0, 0, 1], )
+        render = np.array(self.render()) * 255
+        render = render.astype(np.uint8)
+        render = cv2.resize(render, (512, 512), interpolation=cv2.INTER_NEAREST)
+        robot_img, _ = self.pyb.get_rgbd_at_cur_pose('robot',
+                                                     self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan,
+                                                                                        tilt=self.cam_tilt,
+                                                                                        xyz_offset=self.cam_xyz_offset))
+        robot_img = robot_img * 255
+        robot_img = robot_img.astype(np.uint8)
+        robot_img = cv2.resize(robot_img, (512, 512), interpolation=cv2.INTER_NEAREST)
+        render = np.hstack((render, robot_img))
+        self.pyb.con.removeBody(sphere)
+        return render
+
+    def set_dataset(self, dataset):
+        self.dataset = dataset
+
+    def run_baseline(self, file_path, save_video=False):
+        result_df = pd.DataFrame(
+            columns=["pointx", "pointy", "pointz", "or_x", "or_y", "or_z", "or_w", "is_success", "time_total",
+                     "time_find_end_config", "time_find_path", ])
+        for i in range(len(self.dataset)):
+            print("Starting", i, len(self.dataset))
+            self.reset()
+            # callback.update_tree_properties(self.id)
+            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal \
+                = self.dataset[i]
+            self.set_tree_properties(tree_urdf=tree_urdf,
+                                     point_pos=final_point_pos, point_branch_or=current_branch_or,
+                                     tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,
+                                     point_branch_normal=current_branch_normal)
+            path, tree_info, goal_orientation, timing = self.run_rrt_connect(save_video=save_video)
+
+            goal_pos = tree_info[1]
+            goal_or = tree_info[2]
+
+            success = isinstance(path, list)
+            if success:
+                fail_mode = 1
+            else:
+                fail_mode = path
+            print("Completed", i, success, fail_mode)
+            result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
+                      "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}
+            result.update(timing)
+
+            #write to existing file
+            result = pd.DataFrame([result])
+
+            self.append_row_to_csv(result, file_path)
+            # result_df = pd.concat([result_df, result], ignore_index=True)
+
+        return
+
+    def append_row_to_csv(self, row, file_path):
+        if not pd.io.common.file_exists(file_path):
+            row.to_csv(file_path, index=False, mode='w', header=True)
+        else:
+            row.to_csv(file_path, index=False, mode='a', header=False)
+
+    def run_rrt_connect(self, save_video=False, planner="rrt_connect"):
         timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
-        start_find_end_config = time.time()
-        solutions = self.get_different_ik_results(num_solutions=5)
-        timing['time_find_end_config'] = time.time() - start_find_end_config
+        solutions = self.get_different_ik_results(num_solutions=100, total_attempts=100, timing=timing)
 
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
                      self.tree_pos, self.tree_goal_normal]
 
-        if not solutions:
-            print("No valid solutions found")
-            timing['time_find_path'] = None
-            timing['time_total'] = None
-            return 0, tree_info, None, timing
+        # if not solutions:
+        #     print("No valid solutions found")
+        #     timing['time_find_path'] = None
+        #     timing['time_total'] = None
+        #     return 0, tree_info, None, timing
 
         controllable_joints = [3, 4, 5, 6, 7, 8]
         distance_fn = get_distance_fn(self.ur5.ur5_robot, controllable_joints)
         sample_position = get_sample_fn(self.ur5.ur5_robot, controllable_joints)
         extend_fn = get_extend_fn(self.ur5.ur5_robot, controllable_joints)
-        collision_fn = get_collision_fn(self.ur5.ur5_robot, controllable_joints, [self.tree_id, self.supports])
+        collision_objects = []
+        for key, val in self.collision_object_ids.items():
+            # if key != "SPUR":
+            collision_objects.append(val)
+        collision_fn = get_collision_fn(self.ur5.ur5_robot, controllable_joints, collision_objects)
         start_find_path = time.time()
-        for i in range(len(solutions)):
-            start = self.ur5.get_joint_angles()
-            goal, goal_pos, goal_or = solutions[i]
-            self.inactivate_tree(self.pyb)
-            self.ur5.remove_ur5_robot()
-            self.ur5.setup_ur5_arm()
-            self.activate_tree(self.pyb)
+        path = None
+        for i in solutions:
+            if i is None:
+                print("No valid solutions found")
+                # timing['time_find_path'] = None
+                # timing['time_total'] = None
+                return 0, tree_info, None, timing
 
-            path = pp.rrt_connect(start, goal, distance_fn, sample_position, extend_fn, collision_fn,
-                                  max_iterations=1000)
+            self.ur5.reset_ur5_arm()
+            start = self.ur5.get_joint_angles()
+            goal, goal_pos, goal_or = i
+            if planner == "rrt_connect":
+                path = pp.rrt_connect(start, goal, distance_fn, sample_position, extend_fn, collision_fn,
+                                      max_iterations=10000)
+            elif planner == "rrt_star":
+                path = pp.rrt_star(start, goal, distance_fn, sample_position, extend_fn, collision_fn, radius = 0.1,
+                                  max_iterations=10000)
             if path is None:
                 continue
             else:
+                if save_video:
+                    frames = []
+                    self.pyb.remove_debug_items("step")
+                    self.pyb.remove_debug_items("reset")
+                    self.reset()
+                    frames.append(self.render_save_image(tree_info[1]))
+                    for j_a in path:
+                        self.ur5.set_joint_angles(j_a)
+                        for j in range(50):
+                            self.pyb.con.stepSimulation()
+                        frames.append(self.render_save_image(tree_info[1]))
+                    if self.verbose > 0:
+                        print("INFO: Saving video")
+                    imageio.mimsave("results_rrt_gifs/{}.gif".format(time.time()),
+                                    frames)
                 break
         # terminate = False
         #
@@ -968,10 +994,12 @@ class PruningEnv(gym.Env):
         #     # print(env.orienstation_point_value, env.orientation_perp_value, env.target_dist, env.check_success_collision())
         #     if terminate:
         #         print(success_info)
-        timing['time_find_path'] = time.time() - start_find_path
+        timing['time_find_path'] = time.time() - start_find_path - timing['time_find_end_config']
         timing['time_total'] = timing['time_find_end_config'] + timing['time_find_path']
         if path is None:
             print("No valid path found")
             return 2, tree_info, None, timing
 
         return (path, tree_info, goal_or, timing)
+
+

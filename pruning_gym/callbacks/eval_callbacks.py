@@ -66,21 +66,23 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
             print("INFO: Making uniform dataset")
         num_points = self.num_orientations
         orientations = self.fibonacci_sphere(samples=num_points)
+        print("Orientations: ", len(orientations))
         or_list = [self.get_bin_from_orientation(x) for x in orientations]
-        num_bins = len(set(or_list))
+        num_bins = len(or_list)
         num_points_per_or = self.num_points_per_or
 
         dataset = []
         for i in range(num_bins):
             for j in range(num_points_per_or):
                 point_sampled = False
+                orientation = or_list[i % num_bins]
+
                 while not point_sampled:
-                    orientation = or_list[i % num_bins]
                     point_sampled, point = self.maybe_sample_point(orientation)
                 dataset.append(point)
 
         if self.verbose > 1:
-            print("DEBUG: Length of dataset: ", len(dataset))
+            print("DEBUG: Length of dataset: ", len(dataset), self.num_orientations*self.num_points_per_or)
         return dataset
 
     def _init_callback(self) -> None:
@@ -100,15 +102,22 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
             self.current_index = [(len(self.dataset)) // self.training_env.num_envs * i for i in
                                   range(self.training_env.num_envs)]
 
+
+    def make_dataset(self):
+        if self.type == "uniform":
+            self.dataset = self.make_uniform_dataset()
+            if self.verbose > 0:
+                print("INFO: Dataset made", len(self.dataset))
+        elif self.type == "analysis":
+            self.dataset = self.make_analysis_dataset()
+            if self.verbose > 0:
+                print("INFO: Dataset made", len(self.dataset))
     def _sample_tree_and_point(self, idx):
         if self.verbose > 0:
             print("DEBUG: Sampling tree and point")
 
         if self.dataset is None:
-            if self.type == "uniform":
-                self.dataset = self.make_uniform_dataset()
-            elif self.type == "analysis":
-                self.dataset = self.make_analysis_dataset()
+            self.make_dataset()
             self.current_index = [(len(self.dataset)) // self.training_env.num_envs * i for i in
                                   range(self.training_env.num_envs)]
 
