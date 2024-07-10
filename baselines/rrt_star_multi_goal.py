@@ -7,7 +7,7 @@ EPSILON = 1e-6
 PRINT_FREQUENCY = 100
 
 def rrt_star_multi_goal(start, goal_fn, distance_fn, sample_fn, extend_fn, collision_fn, radius, is_goal_fn,
-             max_time=INF, max_iterations=INF, goal_probability=.2, informed=True, verbose=False, draw_fn=None):
+             max_time=INF, max_iterations=INF, goal_probability=.2, informed=False, verbose=False, draw_fn=None):
     """
     Modifications to RRT* to handle a variety of goals. Replace goal configuration with a goal sampling function.
     :param start: Start configuration - conf

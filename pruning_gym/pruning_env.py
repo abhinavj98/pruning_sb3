@@ -28,7 +28,7 @@ from pybullet_planning.interfaces.planner_interface.joint_motion_planning import
     get_distance_fn
 from pybullet_planning.interfaces.robots import get_collision_fn
 from pybullet_planning.motion_planners.smoothing import smooth_path
-from pruning_sb3.baselines.rrt_star_multi_goal import informed_rrt_star_multi_goal
+from pruning_sb3.baselines.rrt_star_multi_goal import informed_rrt_star_multi_goal, rrt_star_multi_goal
 import time
 import pandas as pd
 from enum import Enum
@@ -895,6 +895,7 @@ class PruningEnvRRT(PruningEnv):
             if self.verbose > 1:
                 print("DEBUG: No valid solutions found")
             yield None
+            return
             # return 0
         # return solutions
 
@@ -934,7 +935,9 @@ class PruningEnvRRT(PruningEnv):
             if planner == "rrt_connect":
                 path, tree_info, goal_orientation, timing = self.run_rrt_connect(save_video=save_video)
             elif planner == "informed_rrt_star":
-                path, tree_info, goal_orientation, timing = self.run_informed_rrt_star(save_video=save_video)
+                path, tree_info, goal_orientation, timing = self.run_rrt_star(save_video=save_video, informed = True)
+            elif planner == "rrt_star":
+                path, tree_info, goal_orientation, timing = self.run_rrt_star(save_video=save_video, informed = False)
             else:
                 raise ValueError("Planner not found")
 
@@ -955,7 +958,7 @@ class PruningEnvRRT(PruningEnv):
             result = pd.DataFrame([result])
             self.append_row_to_csv(result, file_path)
             # result_df = pd.concat([result_df, result], ignore_index=True)
-        yield None
+        return
 
     def append_row_to_csv(self, row, file_path):
         if not pd.io.common.file_exists(file_path):
@@ -963,7 +966,8 @@ class PruningEnvRRT(PruningEnv):
         else:
             row.to_csv(file_path, index=False, mode='a', header=False)
 
-    def run_informed_rrt_star(self, save_video=False):
+    def run_rrt_star(self, save_video=False, informed = True):
+        planner = "informed_rrt_star" if informed else "rrt_star"
         timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
                      self.tree_pos, self.tree_goal_normal]
@@ -979,11 +983,15 @@ class PruningEnvRRT(PruningEnv):
             collision_objects.append(val)
         collision_fn = get_collision_fn(self.ur5.ur5_robot, controllable_joints, collision_objects)
         start_find_path = time.time()
-        path = informed_rrt_star_multi_goal(self.ur5.get_joint_angles(), goal_fn, distance_fn, sample_position,
-                                            extend_fn, collision_fn, radius=0.1, is_goal_fn = is_goal_fn, max_iterations=500)
+        if informed:
+            path = informed_rrt_star_multi_goal(self.ur5.get_joint_angles(), goal_fn, distance_fn, sample_position,
+                                            extend_fn, collision_fn, radius=0.1, is_goal_fn = is_goal_fn, max_iterations=500, informed = True)
+        else:
+            path = rrt_star_multi_goal(self.ur5.get_joint_angles(), goal_fn, distance_fn, sample_position,
+                            extend_fn, collision_fn, radius=0.1, is_goal_fn = is_goal_fn, max_iterations=500, informed = False)
         if path is not None:
             if save_video:
-                self.baseline_save_video(path, "informed_rrt_star", tree_info[1])
+                self.baseline_save_video(path, planner, tree_info[1])
         timing['time_find_path'] = time.time() - start_find_path - timing['time_find_end_config']
         timing['time_total'] = timing['time_find_end_config'] + timing['time_find_path']
         if path is None:
