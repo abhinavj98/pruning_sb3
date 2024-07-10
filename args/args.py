@@ -301,5 +301,32 @@ args = {
             'type': int,
             'default': 0,
         }
+    },
+    'args_baseline': {
+        'planner': {
+            'type': str,
+            'default': 'rrt_connect',
+            'help': 'planner to use (rrt_connect, informed_rrt_star)'
+        },
+        'dataset_type': {
+            'type': str,
+            'default': 'uniform',
+            'help': 'type of dataset to use (uniform, analysis)'
+        },
+        'results_save_path': {
+            'type': str,
+            'default': 'results.csv',
+            'help': 'path to save the results'
+        },
+        'save_video': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to save the video'
+        },
+        'smooth_path': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to smooth the path'
+        },
     }
 }

@@ -133,7 +133,7 @@ def set_args(arg_dict, parser, name='main'):
 def organize_args(args_dict):
     parse_args_dict = {}
     args_classes = ['args_global', 'args_train', 'args_test', 'args_record', 'args_callback', 'args_policy', 'args_env',
-                    'args_eval']
+                    'args_eval', 'args_baseline']
     for arg_name in args_classes:
         parse_args_dict[arg_name] = {}
     for arg_name, arg_params in args_dict.items():
@@ -145,11 +145,12 @@ def organize_args(args_dict):
     args_train = dict(parse_args_dict['args_env'], **parse_args_dict['args_train'])
     args_test = dict(parse_args_dict['args_env'], **parse_args_dict['args_test'])
     args_record = dict(args_test, **parse_args_dict['args_record'])
+    args_baseline = parse_args_dict['args_baseline']
     args_policy = parse_args_dict['args_policy']
     args_callback = parse_args_dict['args_callback']
     args_env = parse_args_dict['args_env']
     args_eval = parse_args_dict['args_eval']
-    return args_global, args_train, args_test, args_record, args_callback, args_policy, args_env, args_eval, parse_args_dict
+    return args_global, args_train, args_test, args_record, args_callback, args_policy, args_env, args_eval, args_baseline, parse_args_dict
 
 
 def add_arg_to_env(key, val, env_name, parsed_args_dict):

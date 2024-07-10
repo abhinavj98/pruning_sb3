@@ -30,18 +30,19 @@ class PruningRRTSetGoalCallback(PruningEvalSetGoalCallback):
     def training_env(self, value):
         self._training_env = value
 class GenerateResults:
-    def __init__(self, env, set_goal_callback, save_video=False):
+    def __init__(self, env, set_goal_callback, planner, save_video=False):
         self.set_goal_callback = set_goal_callback
         self.set_goal_callback.init_callback(env)
         self.save_video = save_video
+        self.planner = planner
         self.result_df = pd.DataFrame(
             columns=["pointx", "pointy", "pointz", "or_x", "or_y", "or_z", "or_w", "is_success", "time_total",
                      "time_find_end_config", "time_find_path", ])
 
-    def run(self, callback):
+    def run(self, file_path):
         num_points = len(self.set_goal_callback.dataset)//self.set_goal_callback.training_env.num_envs
         print("Running", num_points, "points")
-        ret = self.set_goal_callback.training_env.env_method("run_baseline", file_path = "rrt_results.csv", save_video = self.save_video)
+        ret = self.set_goal_callback.training_env.env_method("run_baseline", planner = self.planner, file_path = file_path, save_video = self.save_video)
         # for i in ret:
         #     self.result_df = pd.concat([self.result_df, i])
         #
