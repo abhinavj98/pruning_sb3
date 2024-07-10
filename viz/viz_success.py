@@ -322,7 +322,7 @@ def plot_bar(df, label, save=False):
 
 # Step 1: Read the csv file
 df_policy = pd.read_csv('results_data/policy_uniform.csv')
-df_rrt = pd.read_csv('rrt_results.csv')
+df_rrt = pd.read_csv('rrt_results_no_collision.csv')
 orientations = df_policy[['or_x', 'or_y', 'or_z']]
 dataset = []
 

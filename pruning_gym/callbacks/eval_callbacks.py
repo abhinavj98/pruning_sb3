@@ -10,7 +10,7 @@ from pruning_sb3.pruning_gym.callbacks.callbacks import PruningSetGoalCallback
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import VecEnv, DummyVecEnv
-
+import random
 
 class PruningEvalSetGoalCallback(PruningSetGoalCallback):
     def __init__(self, or_bins, type, dataset, num_orientations, num_points_per_or, verbose=0):
@@ -118,6 +118,8 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
 
         if self.dataset is None:
             self.make_dataset()
+            #Shuffle dataset
+            random.shuffle(self.dataset)
             self.current_index = [(len(self.dataset)) // self.training_env.num_envs * i for i in
                                   range(self.training_env.num_envs)]
 
