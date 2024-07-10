@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
+from pruning_sb3.pruning_gym.pruning_env import PruningEnvRRT
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 from pruning_sb3.args.args import \
@@ -28,6 +29,7 @@ if __name__ == "__main__":
     or_bins = make_or_bins(args_train, "train")
 
     env = make_vec_env(PruningEnv, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
+    env = make_vec_env(PruningEnvRRT, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
 
 
 
