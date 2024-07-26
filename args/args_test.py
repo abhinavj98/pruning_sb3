@@ -37,7 +37,7 @@ args = {
         # Reward parameters
         'movement_reward_scale': {
             'type': float,
-            'default': 4,
+            'default': 5,
             'help': 'scaling factor for the movement reward'
         },
         'distance_reward_scale': {
@@ -52,34 +52,34 @@ args = {
         },
         'terminate_reward_scale': {
             'type': float,
-            'default': 1,
+            'default': 2,
             'help': 'scaling factor for the terminate reward'
         },
         'collision_reward_scale': {
             'type': float,
-            'default': -0.0005,
+            'default': -0.005,
             'help': 'scaling factor for the collision reward'
         },
         'slack_reward_scale': {
             'type': float,
-            'default': -0.002,
+            'default': -0.01,
             'help': 'scaling factor for the slack reward'
         },
         'pointing_orientation_reward_scale': {
             'type': float,
-            'default': 2,
+            'default': 8,
             'help': 'scaling factor for the orientation reward'
         },
         'perpendicular_orientation_reward_scale': {
             'type': float,
-            'default': 3,
+            'default': 8,
             'help': 'scaling factor for the orientation reward'
         },
         # Gym envirionment parameters
 
         'max_steps': {
             'type': int,
-            'default': 10,
+            'default': 120,
             'help': 'maximum number of steps per episode'
         },
         'use_ik': {

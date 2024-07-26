@@ -10,7 +10,8 @@ import numpy as np
 import torch as th
 import wandb
 from nptyping import NDArray, Shape, Float
-
+import re
+import ast
 from .optical_flow import OpticalFlow
 import math
 
@@ -206,6 +207,33 @@ def get_policy_kwargs(args_policy, args_env, features_extractor_class):
 
     return policy_kwargs
 
+def convert_string(data_str):
+    # Find all array parts and replace them with placeholders
+    array_pattern = re.compile(r'array\((.*?)\)', re.DOTALL)
+    arrays = array_pattern.findall(data_str)
+    array_map = {}
+    for i, array_str in enumerate(arrays):
+        placeholder = f'__ARRAY_PLACEHOLDER_{i}__'
+        data_str = data_str.replace(f'array({array_str})', f'"{placeholder}"')
+        array_str = array_str.replace('\n', '')
+        array_map[placeholder] = np.array(ast.literal_eval(array_str))
+    # print(data_str)
+    # Use ast.literal_eval to evaluate the modified string
+    data_list = ast.literal_eval(data_str)
+
+    # Function to replace placeholders with actual NumPy arrays
+    def replace_placeholders(item):
+        if isinstance(item, str) and item in array_map:
+            return array_map[item]
+        return item
+
+    # Apply replacement function to each element
+    if isinstance(data_list, list):
+        data_list = [replace_placeholders(item) for item in data_list]
+    elif isinstance(data_list, tuple):
+        data_list = tuple(replace_placeholders(item) for item in data_list)
+
+    return data_list
 def roundup(x):
     return math.ceil(x / 10.0) * 10
 

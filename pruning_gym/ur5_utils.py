@@ -327,7 +327,7 @@ class UR5:
         return position, orientation
 
     def get_current_vel(self, index: int) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
-        """Returns current pose of the end effector. Pos wrt end effector, orientation wrt world"""
+        """Returns current pose of the end effector."""
         link_state: Tuple = self.con.getLinkState(self.ur5_robot, index, computeLinkVelocity=True,
                                                   computeForwardKinematics=True)
         trans, ang = link_state[6], link_state[7]

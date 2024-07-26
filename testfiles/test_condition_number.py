@@ -15,7 +15,7 @@ from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from stable_baselines3.common import utils
 from pruning_sb3.pruning_gym.tree import Tree
-
+import time
 
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
@@ -76,33 +76,36 @@ if __name__ == "__main__":
     val = np.array([0, 0, 0, 0, 0, 0])
     # Use keyboard to move the robot
     while True:
+
+        loc, orientation = env.ur5.get_current_pose(env.ur5.end_effector_index)
+        orientation = np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
         # Read keyboard input using python input
         action = get_key_pressed(env)
         # if action is wasd, then move the robot
         if ord('a') in action:
-            val = np.array([0.01, 0, 0, 0, 0, 0])
+            val = np.array([0.1, 0, 0, 0, 0, 0])
         elif ord('d') in action:
-            val = np.array([-0.01, 0, 0, 0, 0, 0])
+            val = np.array([-0.1, 0, 0, 0, 0, 0])
         elif ord('s') in action:
-            val = np.array([0, 0.01, 0, 0, 0, 0])
+            val = np.array([0, 0.1, 0, 0, 0, 0])
         elif ord('w') in action:
-            val = np.array([0, -0.01, 0, 0, 0, 0])
+            val = np.array([0, -0.1, 0, 0, 0, 0])
         elif ord('q') in action:
-            val = np.array([0, 0, 0.01, 0, 0, 0])
+            val = np.array([0, 0, 0.1, 0, 0, 0])
         elif ord('e') in action:
-            val = np.array([0, 0, -0.01, 0, 0, 0])
+            val = np.array([0, 0, -0.1, 0, 0, 0])
         elif ord('z') in action:
-            val = np.array([0, 0, 0, 0.01, 0, 0])
+            val = np.array([0, 0, 0, 0.1, 0, 0])
         elif ord('c') in action:
-            val = np.array([0, 0, 0, -0.01, 0, 0])
+            val = np.array([0, 0, 0, -0.1, 0, 0])
         elif ord('x') in action:
-            val = np.array([0, 0, 0, 0, 0.01, 0])
+            val = np.array([0, 0, 0, 0, 0.1, 0])
         elif ord('v') in action:
-            val = np.array([0, 0, 0, 0, -0.01, 0])
+            val = np.array([0, 0, 0, 0, -0.1, 0])
         elif ord('r') in action:
-            val = np.array([0, 0, 0, 0, 0, 0.05])
+            val = np.array([0, 0, 0, 0, 0, 0.5])
         elif ord('f') in action:
-            val = np.array([0, 0, 0, 0, 0, -0.05])
+            val = np.array([0, 0, 0, 0, 0, -0.5])
         elif ord('t') in action:
             # env.force_time_limit()
             infos = {}
@@ -112,5 +115,18 @@ if __name__ == "__main__":
             # env.is_goal_state = True
         else:
             val = np.array([0.,0.,0, 0., 0., 0.])
+
+        # global_velocity = np.dot(orientation, val[:3])
+        # global_angular_velocity = np.dot(orientation, val[3:])
+        #
+        # val =  np.hstack((global_velocity, global_angular_velocity))
+
         observation, reward, terminated, truncated, infos = env.step(val)
         set_goal_callback.locals = {"infos": [infos]}
+        # print(np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3))
+        trans, ang = env.ur5.get_current_vel(env.ur5.end_effector_index)
+        print("Current velocity in ee frame", np.dot(orientation.T,trans))
+        print("Current angular velocity in ee frame", np.dot(orientation.T,ang))
+        env.pyb.visualize_rot_mat(orientation, loc)
+        time.sleep(0.1)
+

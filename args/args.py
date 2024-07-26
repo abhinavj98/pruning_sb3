@@ -323,10 +323,15 @@ args = {
             'default': False,
             'help': 'whether to save the video'
         },
-        'smooth_path': {
+        'shortcutting': {
             'action': "store_true",
             'default': False,
             'help': 'whether to smooth the path'
+        },
+        'load_file_path': {
+            'type': str,
+            'default': 'results.csv',
+            'help': 'path to load the results to smooth'
         },
     }
 }
