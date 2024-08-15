@@ -33,6 +33,7 @@ import time
 import pandas as pd
 from enum import Enum
 
+from scipy.stats import vonmises
 
 class PruningEnv(gym.Env):
     """
@@ -808,10 +809,39 @@ class PruningEnvRRT(PruningEnv):
         right = np.cross(forward, up)
         # Get a vector in plane of up and right using linear combination
         rotation_matrix = np.column_stack((up, right, forward))
+        branch_normal = self.tree_goal_normal / np.linalg.norm(self.tree_goal_normal)
+        branch_parallel = self.tree_goal_or / np.linalg.norm(self.tree_goal_or)
+        forward = np.cross(branch_parallel, branch_normal)
+        # Get a vector in plane of forward and right using linear combination
+        rotation_matrix = np.column_stack((branch_parallel, branch_normal, forward))
         rotation_matrix = R.from_matrix(rotation_matrix).as_matrix()
 
         rotation_axis_x = rotation_matrix[:, 0]
         rotation_angle_x = np.random.uniform(0, 2 * np.pi)
+        #How much to rotate about this axis to make same as branch normal?
+        #self.ur5.init_pos_ee[1] as rotation matrix
+        rot_ee = self.pyb.con.getMatrixFromQuaternion(self.ur5.init_pos_ee[1])
+        rot_ee = np.array(rot_ee).reshape(3, 3)
+        rot_pointing = rot_ee[:, 2]
+
+        #Project rot_pointing perpendicular to rotation_axis_x
+        rot_pointing = rot_pointing - np.dot(rot_pointing, rotation_axis_x) * rotation_axis_x
+        rot_pointing = rot_pointing / np.linalg.norm(rot_pointing)
+        #Minimize the angle between the branch normal and the rotation matrix [2] axis
+        cos_theta = np.dot(rot_pointing, rotation_matrix[:, 2])
+        sin_theta = np.linalg.norm(np.cross(rot_pointing, rotation_matrix[:, 2]))
+        theta = np.arctan2(sin_theta, cos_theta)
+        # if np.dot(cross_product, rotation_axis_x) < 0:
+        #     theta = theta + np.pi
+        # print(np.rad2deg(theta), theta)
+        # if theta > np.pi:
+        #     theta = theta - np.pi
+        # print(np.rad2deg(theta), theta)
+        #Make this concentration lower to make the solutions more random as num_attempts increases.
+        concentration = 0.85
+
+        rotation_angle_x = vonmises(loc = theta, kappa = concentration).rvs(1)
+        # rotation_angle_x = np.random.uniform(0, 2 * np.pi)
         random_rotation_x = R.from_rotvec(rotation_angle_x * rotation_axis_x).as_matrix()
 
         rotation_axis_y = rotation_matrix[:, 1]
