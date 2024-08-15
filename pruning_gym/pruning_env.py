@@ -307,6 +307,7 @@ class PruningEnv(gym.Env):
         self.cam_xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.01, 0.0005, 0.01])
 
     def reset(self, seed: Optional[int] = None, options=None) -> Tuple[dict, dict]:
+        """Theres a chance that this is causing some memory leak. Shows up when using reset multiple times and parallelized."""
         """Environment reset function"""
         super().reset(seed=seed)
         if self.verbose > 1:
@@ -335,6 +336,7 @@ class PruningEnv(gym.Env):
         self.set_camera_pose()
 
         for i in range(50):
+        for i in range(2):
             self.pyb.con.stepSimulation()
 
         self.activate_tree(self.pyb)
@@ -375,6 +377,9 @@ class PruningEnv(gym.Env):
             jv = velocity
         return jv
 
+
+    #Instead of deleting move all trees to the corner
+    #Make a mapping from urdf to tree id and use that
     def activate_tree(self, pyb):
         if self.verbose > 1:
             print("DEBUG: Activating tree")
@@ -383,6 +388,7 @@ class PruningEnv(gym.Env):
         supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [self.tree_pos[0], self.tree_pos[1] - 0.05, 0.0],
                                     list(pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                     globalScaling=1)
+
         self.collision_object_ids['SUPPORT'] = supports
         self.tree_id = pyb.con.loadURDF(self.tree_urdf, self.tree_pos, self.tree_orientation,
                                         globalScaling=self.tree_scale)
@@ -530,6 +536,8 @@ class PruningEnv(gym.Env):
         if "record" in self.name:
             # add sphere
             sphere = self.pyb.add_sphere(radius=0.01, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1], )
+            sphere = self.pyb.add_sphere(radius=0.02, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1], )
+
         img_rgbd = self.pyb.get_image_at_curr_pose(type='viz')
         img_rgb, _ = self.pyb.seperate_rgbd_rgb_d(img_rgbd, self.cam_height, self.cam_width)
         if mode == "human":
@@ -691,6 +699,9 @@ class PruningEnv(gym.Env):
             done = time_limit_exceeded or goal_achieved_terminate  # (self.terminated is True or self.step_counter > self.maxSteps)
         terminate_info = {"time_limit_exceeded": time_limit_exceeded,
                           "goal_achieved_terminate": goal_achieved_terminate}
+        if self.verbose > 1:
+            print("DEBUG: Time limit exceeded: ", time_limit_exceeded)
+            print("DEBUG: Goal achieved: ", goal_achieved_terminate)
         return done, terminate_info
 
     def compute_reward(self, desired_goal, achieved_pose,
@@ -713,6 +724,14 @@ class PruningEnv(gym.Env):
         if self.verbose > 1:
             _ = self.pyb.add_debug_item('line', 'step', lineFromXYZ=achieved_pos, lineToXYZ=desired_pos,
                                         lineColorRGB=[0, 0, 1], lineWidth=20)
+            self.pyb.add_debug_item('sphere', 'step', lineFromXYZ=self.tree_goal_pos,
+                                    lineToXYZ=[self.tree_goal_pos[0] + 0.005, self.tree_goal_pos[1] + 0.005,
+                                               self.tree_goal_pos[2] + 0.005],
+                                    lineColorRGB=[1, 0, 0],
+                                    lineWidth=400)
+            self.pyb.add_debug_item('line', 'step', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
+                                    lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
+                                    lineWidth=400)
         # _ = self.pyb_con.add_debug_item('line', 'step', lineFromXYZ=previous_pos, lineToXYZ=desired_pos,
         #                             lineColorRGB=[0, 0, 1], lineWidth=20)
 
@@ -763,6 +782,11 @@ class PruningEnv(gym.Env):
                 terminated = True
                 if self.verbose > 1:
                     print("DEBUG: Task successful")
+        if self.verbose > 1:
+            print("DEBUG: Distance from target: ", dist_from_target)
+            print("DEBUG: Perpendicular cosine sim: ", orientation_perp_value)
+            print("DEBUG: Pointing cosine sim: ", orientation_point_value)
+            print("DEBUG: Acceptable collision: ", is_success_collision)
         return terminated
 
     def log_collision_info(self, collision_info):
@@ -804,11 +828,6 @@ class PruningEnvRRT(PruningEnv):
 
     def generate_goal_pos(self):
         # self.pyb.remove_debug_items("step")
-        forward = -self.tree_goal_normal / np.linalg.norm(self.tree_goal_normal)
-        up = self.tree_goal_or / np.linalg.norm(self.tree_goal_or)
-        right = np.cross(forward, up)
-        # Get a vector in plane of up and right using linear combination
-        rotation_matrix = np.column_stack((up, right, forward))
         branch_normal = self.tree_goal_normal / np.linalg.norm(self.tree_goal_normal)
         branch_parallel = self.tree_goal_or / np.linalg.norm(self.tree_goal_or)
         forward = np.cross(branch_parallel, branch_normal)
@@ -817,7 +836,6 @@ class PruningEnvRRT(PruningEnv):
         rotation_matrix = R.from_matrix(rotation_matrix).as_matrix()
 
         rotation_axis_x = rotation_matrix[:, 0]
-        rotation_angle_x = np.random.uniform(0, 2 * np.pi)
         #How much to rotate about this axis to make same as branch normal?
         #self.ur5.init_pos_ee[1] as rotation matrix
         rot_ee = self.pyb.con.getMatrixFromQuaternion(self.ur5.init_pos_ee[1])
@@ -855,8 +873,13 @@ class PruningEnvRRT(PruningEnv):
 
         random_rotation = random_rotation_z @ random_rotation_y @ random_rotation_x
         rotation_matrix = random_rotation @ rotation_matrix
+        # print(np.dot(rotation_matrix[:, 2], rot_pointing))
         # self.pyb.visualize_rot_mat(rotation_matrix, self.tree_goal_pos)
+        # self.pyb.visualize_rot_mat(rot_ee, self.tree_goal_pos)
+        # self.pyb.visualize_rot_mat(rot_ee, self.ur5.init_pos_ee[0])
         # input()
+
+        # time.sleep(1)
         r = R.from_matrix(rotation_matrix)
         quaternion = r.as_quat()
         return quaternion, forward, rotation_matrix
