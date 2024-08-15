@@ -1331,7 +1331,7 @@ class PruningEnvRRT(PruningEnv):
             observations = []
             rewards = []
             dones = []
-
+            actions = []
             tree_info = paths_success.iloc[i]['tree_info']
             path = paths_success.iloc[i]['path']
 
@@ -1357,30 +1357,36 @@ class PruningEnvRRT(PruningEnv):
 
 
             ee_vel = self.convert_ja_to_ee_vel(refined_path)
-            self.reset()
+            obs, _ = self.reset()
             if save_video:
                 self.baseline_save_video(refined_path, 'refined_path', final_point_pos)
                 self.ur5.reset_ur5_arm()
             count_in_frame = 0
-            for i, j_a in enumerate(ee_vel):
-                obs, reward, terminated, truncated, _ = self.step(j_a/self.action_scale)
+            for i, vel in enumerate(ee_vel):
+                vel = vel/self.action_scale
+                new_obs, reward, terminated, truncated, _ = self.step(vel)
                 observations.append(obs)
                 rewards.append(reward)
                 dones.append(terminated)
+                actions.append(vel)
                 if (self.observation['point_mask'] > 0).any():
                     count_in_frame += 1
                 else:
                     pass
+                obs = new_obs
+
+            #Once we are done with the planner trajectory, we run a cartesian planner to get to the cut poitn
 
             pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
             ee_vel_global = np.zeros(6)
-            ee_vel_global[:3] = (np.array(final_point_pos) - np.array(pos))*5 #TODO: What is the scaling factor? (0.2)
-            for j in range(8):
-                #Move towards the goal
+            ee_vel_global[:3] = (np.array(final_point_pos) - np.array(pos))/self.action_scale #TODO: What is the velocity needed to reach the goal in 1 second
+            #We run the simulation for self.pyb.step_time seconds
 
+            for j in range(int(2/self.pyb.step_time)): #At least twice the time needed to reach the goal
+                #Move towards the goal
                 ee_vel_local = self.convert_global_action_to_local(ee_vel_global)
-                obs, reward, terminated, truncated, info = self.step(ee_vel_local)
-                ee_vel.append(ee_vel_local)
+                new_obs, reward, terminated, truncated, info = self.step(ee_vel_local)
+                actions.append(ee_vel_local)
                 observations.append(obs)
                 rewards.append(reward)
                 dones.append(terminated)
@@ -1388,7 +1394,9 @@ class PruningEnvRRT(PruningEnv):
                     count_in_frame += 1
                 if terminated or info['collision_unacceptable_reward'] < 0 or info['collision_acceptable_reward'] < 0:
                     break
-            save_dict = {"tree_info": tree_info, "observations": observations, "actions": ee_vel, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(ee_vel)}
+                obs = new_obs
+
+            save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions)}
             #Calculate optical flow
 
             with open('expert_trajectories/{}.pkl'.format(time.time()), 'wb') as f:
