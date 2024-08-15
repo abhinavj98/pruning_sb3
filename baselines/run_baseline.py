@@ -30,6 +30,8 @@ if __name__ == "__main__":
     env = make_vec_env(PruningEnvRRT, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
 
 
+    #read a csv file with the dataset
+    result_df = pd.read_csv(args_baseline['results_save_path']+'.csv')
 
 
     dataset = None
@@ -39,7 +41,9 @@ if __name__ == "__main__":
         with open(f"{type}_dataset.pkl", "rb") as f:
             dataset = pickle.load(f)
     # Shuffle dataset
-    # random.shuffle(dataset)
+
+    if dataset is not None:
+        random.shuffle(dataset)
     set_goal_callback = PruningRRTSetGoalCallback(or_bins=or_bins, type=type, dataset=dataset,
                                                    num_orientations=args_callback['n_eval_orientations'],
                                                    num_points_per_or=args_callback['n_points_per_orientation'],
@@ -52,5 +56,5 @@ if __name__ == "__main__":
     for i in range(env.num_envs):
         dataset = set_goal_callback.dataset[i*num_points_per_env:(i+1)*num_points_per_env]
         env.env_method("set_dataset", dataset=dataset, indices=i)
-    results_method = GenerateResults(env, set_goal_callback, planner, save_video = args_baseline['save_video'])
+    results_method = GenerateResults(env, set_goal_callback, planner, save_video = args_baseline['save_video'], shortcutting = args_baseline['shortcutting'])
     results_method.run(args_baseline['results_save_path']+'.csv') #keep multiples of n_envs

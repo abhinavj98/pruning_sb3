@@ -15,7 +15,7 @@ from pruning_sb3.pruning_gym.models import *
 import numpy as np
 import argparse
 from pruning_sb3.args.args import args
-from pruning_sb3.pruning_gym.helpers import set_args, organize_args
+from pruning_sb3.pruning_gym.helpers import set_args, organize_args, convert_string
 import matplotlib.pyplot as plt
 
 # %%
@@ -116,9 +116,15 @@ def populate_bins(bins, df, idx_name):
         list of lists: List of lists where each sublist represents the indices of direction vectors
                        assigned to the corresponding bin.
     """
-    orientations = df[['or_x', 'or_y', 'or_z']]
+    #create an empty df with columns 'x', 'y', 'z'
+    new_df = pd.DataFrame(columns=['x', 'y', 'z'])
+    new_df['x'] = df['orientation'].apply(lambda x: x[0])
+    new_df['y'] = df['orientation'].apply(lambda x: x[1])
+    new_df['z'] = df['orientation'].apply(lambda x: x[2])
+    orientations = new_df
+
     # Normalize the orientation data
-    orientations = orientations / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
+    orientations = orientations / np.linalg.norm(orientations, axis=1)[:, None]
     print(orientations)
     offset = 1e-3
     for i, direction_vector in enumerate(orientations.values):
@@ -140,23 +146,15 @@ def populate_bins(bins, df, idx_name):
         # append perp_cosine_sim_error to the bin
         bins[bin_key].append((df[idx_name][i]))
 
-        # Find the closest bin based on latitude and longitude angles
-        #
-        # min_dist = float('inf')
-        # closest_bin_idx = None
-        # for j, bin_ in enumerate(bins):
-        #     lat_min, lat_max, lon_min, lon_max = bin_
-        #     if lat_min <= lat_angle <= lat_max and lon_min <= lon_angle <= lon_max:
-        #         dist = angle_between_vectors(direction_vector,
-        #                                      (np.sin((lat_min + lat_max) / 2), 0, np.cos((lat_min + lat_max) / 2)))
-        #         if dist < min_dist:
-        #             min_dist = dist
-        #             closest_bin_idx = j
-        #
-        # # Assign the direction vector to the closest bin
-        # bin_assignments[closest_bin_idx].append(i)
 
     return bins
+
+def populate_euclidean_grid(grid, df, title):
+    for i, pos in enumerate(df['pos'].values):
+        # Find the closest point in the grid
+        closest_center = min(grid.keys(), key=lambda x: np.linalg.norm(np.array(x) - pos))
+        grid[closest_center].append(df['trajectory_in_frame'][i])
+    return grid
 
 
 def visualize_sphere(bins, idx_name):
@@ -225,7 +223,7 @@ def visualize_2d(bins, idx_name, title):
     frequencies = np.array(frequencies)
 
     # Create 2D histogram
-    # figure = plt.figure()
+    figure = plt.figure()
     plt.hist2d(lat_centers, lon_centers, weights=frequencies, bins=[num_latitude_bins, num_longitude_bins])
     plt.colorbar(label=idx_name)
     plt.xlabel('Latitude (rad)')
@@ -235,6 +233,19 @@ def visualize_2d(bins, idx_name, title):
 
     # plt.title(idx_name)
     # plt.savefig('grid{}.png'.format(idx_name), bbox_inches='tight', pad_inches=0.05)
+    plt.show()
+
+def visualize_euclidean_bins(grid, idx, title):
+    #Visualize the euclidean grid in x,y bins
+    x, z = zip(*grid.keys())
+    values = [bin_assignment for bin_assignment in grid.values()]
+    values = np.array(values)
+    figure = plt.figure()
+    plt.hist2d(np.array(x), np.array(z), weights=values, bins=[36, 18], range = [[-0.9, 0.9], [0.9, 1.8]])
+    plt.colorbar(label = idx)
+    plt.xlabel('Left')
+    plt.ylabel('Up')
+    plt.title(title)
     plt.show()
 
 
@@ -320,45 +331,121 @@ def plot_bar(df, label, save=False):
         plt.show()
 
 
-# Step 1: Read the csv file
-df_policy = pd.read_csv('results_data/policy_uniform.csv')
-df_rrt = pd.read_csv('rrt_connect_paths_goal_new.csv')
+def get_reachable_euclidean_grid(radius, resolution):
+    num_bins = round(radius / resolution) * 2
+    base_center = np.array([0, 0, 0.91])
+    # Create a 3D grid of indices
+    i, j, k = np.mgrid[-num_bins // 2:num_bins // 2, -num_bins // 2:num_bins // 2, -num_bins // 2:num_bins // 2]
+
+    # Scale and shift the grid to get the centers of the bins
+    centers = np.stack([(i + 0.5) * resolution, (j + 0.5) * resolution, (k + 0.5) * resolution],
+                       axis=-1)
+    # centers = centers.reshape(-1, 3)
+    # Create a mask for the valid centers
+    mask = (centers[..., 0] ** 2 + centers[..., 1] ** 2 + centers[..., 2] ** 2 <= radius ** 2) & (
+            centers[..., 1] < -0.7) & (centers[..., 2] > -0.05)
+
+    # Apply the mask to the centers array to get the valid centers
+    valid_centers = centers[mask] + base_center
+    #Make a dictionary of the valid centers
+    grid = {tuple(center): [] for center in valid_centers}
+
+    return grid
+
+# def get_reachable_euclidean_grid(radius, resolution):
+#     num_bins = round(radius / resolution) * 2
+#     base_center = np.array([0, 0.91])
+#     # Create a 3D grid of indices
+#     i, j = np.mgrid[-num_bins // 2:num_bins // 2, -num_bins // 2:num_bins // 2]
+#
+#     # Scale and shift the grid to get the centers of the bins
+#     centers = np.stack([(i + 0.5) * resolution, (j + 0.5) * resolution],
+#                        axis=-1)
+#     centers = centers.reshape(-1, 3)
+#     # Create a mask for the valid centers
+#     # mask = (centers[..., 0] ** 2 + centers[..., 1] ** 2 + centers[..., 2] ** 2 <= radius ** 2) & (
+#     #         centers[..., 1] < -0.7) & (centers[..., 2] > -0.05)
+#
+#     # Apply the mask to the centers array to get the valid centers
+#     valid_centers = centers + base_center
+#     #Make a dictionary of the valid centers
+#     grid = {tuple(center): [] for center in valid_centers}
+#
+#     return grid
 
 
-orientations = df_policy[['or_x', 'or_y', 'or_z']]
-dataset = []
+df_smooth = pd.read_csv('rrt_connect_paths_goal_smoothed.csv')
+
+df_smooth['tree_info'] = df_smooth['tree_info'].apply(convert_string)
+df_smooth['path'] = df_smooth['path'].apply(convert_string)
+
+#tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal = tree_info
+#Make a new column for each of the tree_info
+df_smooth['tree_urdf'] = df_smooth['tree_info'].apply(lambda x: x[0])
+df_smooth['pos'] = df_smooth['tree_info'].apply(lambda x: x[1])
+df_smooth['orientation'] = df_smooth['tree_info'].apply(lambda x: x[2])
+df_smooth['tree_orientation'] = df_smooth['tree_info'].apply(lambda x: x[3])
+df_smooth['scale'] = df_smooth['tree_info'].apply(lambda x: x[4])
+df_smooth['tree_pos'] = df_smooth['tree_info'].apply(lambda x: x[5])
+df_smooth['current_branch_normal'] = df_smooth['tree_info'].apply(lambda x: x[6])
+
+
+
+euclidean_grid = get_reachable_euclidean_grid(0.9, 0.05)
+euclidean_grid = populate_euclidean_grid(euclidean_grid, df_smooth, 'asd')
+# x, y, z = zip(*grid.keys())
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# #Label the axes
+# ax.set_xlabel('Left')
+# ax.set_ylabel('Forward')
+# ax.set_zlabel('Up')
+#
+# ax.scatter(x, y, z)
+# plt.show()
+
+#scatter plot pos
+# x, y, z = zip(*df_smooth['pos'])
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# ax.set_xlabel('Left')
+# ax.set_ylabel('Forward')
+# ax.set_zlabel('Up')
+#
+# ax.scatter(x, y, z)
+# plt.show()
+#
+# x = df_smooth['pos'].apply(lambda x: x[0])
+# z = df_smooth['pos'].apply(lambda x: x[2])
+# plt.scatter(x, z)
+# plt.show()
+mean_bins = {}
+for key in euclidean_grid.keys():
+    new_key = (key[0], key[2])
+    if len(euclidean_grid[key]) > 0:
+        mean_bins[new_key] = np.max(euclidean_grid[key])
+    else:
+        mean_bins[new_key] = 0
+
+    # print(key, mean_bins[?key])
+visualize_euclidean_bins(mean_bins, '% trajectory with goal in frame', '% trajectory with goal in frame')
+
 
 num_latitude_bins = 18
 num_longitude_bins = 36
 bins = create_bins(num_latitude_bins, num_longitude_bins)
-idx_name = 'is_success'
-title = 'Success Rate (RRT)'
-df_rrt[title] = df_rrt[idx_name]
-bins = populate_bins(bins, df_rrt, title)
-
-#For each bin, calculate the average perpendicular cosine sim error and display it
+bins = populate_bins(bins, df_smooth, 'trajectory_in_frame')
 perp_bins = {}
-print((bins.values()))
 for key in bins.keys():
-    perp_bins[key] = np.mean(np.array(bins[key]))
-# Assign each latitude and longitude to a bin
-# print(perp_bins)
-visualize_2d(perp_bins, 'is_success', 'asd')
-# # print is_success rate
-
-print(df_rrt['is_success'].value_counts()/len(df_rrt))
-# print(df_rrt['is_success'].value_counts()/len(df_policy))
-# get count of fail modes
-print(df_rrt.groupby(df_rrt['fail_mode']).count())
-print(df_rrt['time_total'].mean(), df_rrt['time_total'].std())
-print(len(df_rrt[df_rrt['fail_mode'] == 'collision']))
-# df_a = pd.DataFrame({'success':[len(df_rrt[df_rrt['is_success']==True])/len(df_rrt), len(df_policy[df_policy['is_success']==True])/len(df_policy)]})
-# df_success = pd.DataFrame({'Success Rate': df_a['success'], 'Environment': ['RRT'] + ['Policy']})
-# print(df_success)
-# #plot_bar(df_success, 'Success Rate', save=True)
-# print(df_rrt.keys(), df_policy.keys())
-# print(df_rrt['time_find_end_config'].mean(), df_rrt['time_total'].mean())
-# print(df_policy['time'].mean(), df_policy['time'].std())
-# print(len(df_policy[df_policy['acceptable_collision'] > 0.]), len(df_policy[df_policy['unacceptable_collision'] > 0.]))
-# print(len(df_policy[(df_policy['unacceptable_collision'] > 0.) & (df_policy['is_success'] == 1.)]))
-# print(len(df_policy[df_policy['unacceptable_collision'] > 0]))
+    # print(key, bins[key])
+    if len(bins[key]) > 0:
+        perp_bins[key] = np.max(bins[key])
+    else:
+        perp_bins[key] = 0
+visualize_2d(perp_bins, '% trajectory with goal in frame', '% trajectory with goal in frame')
+print(df_smooth.columns)
+print(np.mean(df_smooth['len_refined_path']))
+print(np.mean(df_smooth['trajectory_in_frame']))
+print(len(df_smooth))
+print(df_smooth['trajectory_in_frame'])
+print(len(df_smooth[df_smooth['trajectory_in_frame'] > 0.3]))
