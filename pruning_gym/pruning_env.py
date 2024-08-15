@@ -450,13 +450,31 @@ class PruningEnv(gym.Env):
 
         return infos
 
+    def convert_local_action_to_global(self, action):
+        """Convert local action to global action"""
+        pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
+        global_velocity = np.dot(current_or_mat, action[:3])
+        global_angular_velocity = np.dot(current_or_mat, action[3:])
+        return np.hstack((global_velocity, global_angular_velocity))
+
+    def convert_global_action_to_local(self, action):
+        """Convert global action to local action"""
+        pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
+        local_velocity = np.dot(current_or_mat.T, action[:3])
+        local_angular_velocity = np.dot(current_or_mat.T, action[3:])
+        return np.hstack((local_velocity, local_angular_velocity))
+
+
+
     def step(self, action: NDArray[Shape['6, 1'], Float]) -> Tuple[dict, float, bool, bool, dict]:
 
         self.pyb.remove_debug_items("step")
         # Scale all the actions TODO: Make scaling for rotation and translation different
-        self.action[:3] = action[:3] * self.action_scale
-        self.action[3:] = action[3:] * self.action_scale
-
+        action[:3] = action[:3] * self.action_scale
+        action[3:] = action[3:] * self.action_scale
+        self.action = self.convert_local_action_to_global(action)
         # Calculate joint velocities from end effector velocities/or if ik is false, just use the action
         self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
         singularity = self.ur5.set_joint_velocities(self.ur5.action)
