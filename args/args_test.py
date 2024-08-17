@@ -271,7 +271,7 @@ args = {
         # For logging purposes keep as multiple of episode length
         'steps_per_epoch': {
             'type': int,
-            'default': 10,
+            'default': 100,
             'help': 'number of timesteps per epoch'
         },
         'epochs': {

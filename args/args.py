@@ -90,7 +90,7 @@ args = {
 
         'action_scale': {
             'type': float,
-            'default': 0.1,
+            'default': 0.2,
             'help': 'scaling factor for the action space'
         },
         'action_dim': {

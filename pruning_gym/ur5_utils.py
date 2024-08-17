@@ -297,7 +297,8 @@ class UR5:
         collisions_success = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=body_b,
                                                        linkIndexA=self.success_link_index)
         for i in range(len(collisions_success)):
-            if collisions_success[i][-6] < 0:
+            print(collisions_success[i][-6])
+            if collisions_success[i][-6] < 0.001:
                 if self.verbose > 1:
                     print("DEBUG: Success Collision")
                 return True

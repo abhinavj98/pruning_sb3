@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any, ClassVar, Dict, Optional, Type, TypeVar, Union, List
 
 import numpy as np
+import pandas as pd
 import torch as th
 import torchvision
 from gymnasium import spaces
@@ -23,6 +24,9 @@ from stable_baselines3.common.utils import update_learning_rate
 from stable_baselines3.common.vec_env import VecEnv
 from torch.nn import functional as F
 
+from sb3_contrib.common.recurrent.type_aliases import RecurrentDictRolloutBufferSamples, RNNStates
+import copy
+from pruning_sb3.pruning_gym.helpers import convert_string
 SelfRecurrentPPOAE = TypeVar("SelfRecurrentPPOAE", bound="RecurrentPPOAE")
 
 
@@ -208,6 +212,8 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             self.clip_range_vf = get_schedule_fn(self.clip_range_vf)
 
         self.mse_loss = th.nn.MSELoss()
+
+
 
     def collect_rollouts(
             self,
@@ -579,3 +585,136 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         callback.on_training_end()
 
         return self
+
+import glob
+import pickle
+import random
+from collections import OrderedDict
+
+class RecurrentPPOAEWithExpert(RecurrentPPOAE):
+    #So instead of merging run two different rollouts, keep two buffers, and train separately
+    def __init__(self, path_expert_data,  *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.expert_buffer = copy.deepcopy(self.rollout_buffer) #Same structure as rollout buffer
+        self.path_expert_data = path_expert_data
+        self.expert_data = self.load_expert_data()
+        self.num_expert_envs = self.n_envs
+        self.expert_batch = self.get_expert_batch(self.num_expert_envs)
+        self.expert_batch_idx = np.zeros((self.num_expert_envs,), dtype=int)
+
+    def get_expert_batch(self, batch_size):
+        #Get a batch of expert data
+        expert_batch = random.sample(self.expert_data, batch_size)
+        return expert_batch
+    def _flatten_obs(self, obs, observation_space):
+        """
+        asd
+        """
+        return OrderedDict([(k, np.stack([o[k] for o in obs])) for k in observation_space.spaces.keys()])
+
+    def load_expert_data(self):
+        #Load expert data from expert_trajecotries folder. This is a list of pkl files
+        #Each pkl file contains save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions)}
+        #Load all the pkl files into a list
+        expert_trajectories = glob.glob(self.path_expert_data+"/*.pkl")
+        expert_data = []
+        for expert_trajectory in expert_trajectories:
+            print(expert_trajectory)
+            with open(expert_trajectory, "rb") as f:
+                expert_data.append(pickle.load(f)) #These are on cpu
+        print(expert_data[0]['actions'])
+        return expert_data
+
+    def step_expert(self):
+        #Get expert data for each expert trajectory at timestep expert_batch_idx
+        obs = []
+        rewards = []
+        dones = []
+        actions = []
+        infos = [{} for _ in range(len(self.expert_batch))]
+        for i in range(len(self.expert_batch)):
+            timestep = self.expert_batch_idx[i]
+            try:
+                obs.append(self.expert_batch[i]["observations"][timestep])
+            except:
+                print("Error", i, timestep)
+                print(self.expert_batch[i]["observations"][timestep])
+            rewards.append(self.expert_batch[i]["rewards"][timestep])
+            dones.append(self.expert_batch[i]["dones"][timestep])
+            actions.append(self.expert_batch[i]["actions"][timestep])
+            if dones[-1]:
+                self.expert_batch[i] = self.get_expert_batch(1)[0]
+                self.expert_batch_idx[i] = 0
+                infos[i] = {"terminal_observation": self.expert_data[i]["last_obs"]}
+
+        # print("obs", obs)
+        # obs = zip(*obs)
+        # print("rewards", rewards)
+        # rewards = zip(*rewards)
+        # dones = zip(*dones)
+        return  self._flatten_obs(obs, self.env.observation_space), np.stack(rewards), np.stack(dones), np.stack(actions),  infos
+
+    def make_offline_rollouts(self, rollout_buffer: RolloutBuffer, n_rollout_steps) -> bool:
+        #Make a list of offline observations, actions and trees
+
+        #Online use these observations to compute advantages
+        # CURRENTLY WORKING HERE
+        self.policy.set_training_mode(False)
+        n_steps = 0
+        rollout_buffer.reset()
+
+        # Sample expert episode
+        self._last_episode_starts = np.ones((self.num_expert_envs,), dtype=bool)
+        while n_steps < n_rollout_steps:
+
+            #For length of episode
+            # self._last_obs = expert_traj['observation'][idx]  # This or reset obs type: ignore[assignment]
+            #
+            # actions = expert_traj['actions'][idx]
+            # rewards = expert_traj['rewards'][idx]
+            # dones = expert_traj['done'][idx]
+            last_obs, rewards, dones, actions, infos = self.step_expert()
+            #Increment expert_batch_idx
+            self.expert_batch_idx += 1
+            self._last_obs = last_obs
+            with th.no_grad():
+                # Convert to pytorch tensor or to TensorDict
+                obs_tensor = obs_as_tensor(self._last_obs, self.device)
+                actions = obs_as_tensor(actions, self.device)
+                episode_starts = th.tensor(self._last_episode_starts, dtype=th.float32, device=self.device)
+                actions, values, log_probs, lstm_states = self.policy.forward_expert(obs_tensor, self._last_lstm_states, episode_starts, actions)
+
+            actions = actions.cpu().numpy()
+            n_steps += 1
+
+
+            # done = expert_traj['done'][i]
+            #if last step
+                #if done is True do nothing
+                #if done is False
+                    #bootstrap with value function
+
+
+            rollout_buffer.add(
+                self._last_obs,
+                actions,
+                rewards,
+                self._last_episode_starts,
+                values,
+                log_probs,
+                lstm_states=self._last_lstm_states,
+            )
+
+            # self._last_obs = expert_traj['l']
+            self._last_episode_starts = dones
+            self._last_lstm_states = lstm_states #These get reset in forward_expert (process_sequence)
+
+        last_obs, _, _, _, _ = self.step_expert()
+        #Dont increment expert_batch_idx
+        with th.no_grad():
+            # Compute value for the last timestep
+            episode_starts = th.tensor(dones, dtype=th.float32, device=self.device)
+            values = self.policy.predict_values(obs_as_tensor(last_obs, self.device), lstm_states.vf, episode_starts)
+        rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
+
+        return True

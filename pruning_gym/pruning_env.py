@@ -1356,19 +1356,29 @@ class PruningEnvRRT(PruningEnv):
             # refined_path = self.append_goal_config(refined_path)
 
 
-            ee_vel = self.convert_ja_to_ee_vel(refined_path)
+            ee_vel = self.convert_ja_to_ee_vel(refined_path, control_freq=int(1./self.control_time))
             obs, _ = self.reset()
+            obs = copy.deepcopy(obs)
+            # Change rgb, prev_rgb, to CHW from HWC. SB3 does this somewhere automatically, find if time
+            obs['rgb'] = obs['rgb'].transpose(2, 0, 1)
+            obs['prev_rgb'] = obs['prev_rgb'].transpose(2, 0, 1)
             if save_video:
                 self.baseline_save_video(refined_path, 'refined_path', final_point_pos)
                 self.ur5.reset_ur5_arm()
             count_in_frame = 0
             for i, vel in enumerate(ee_vel):
-                vel = vel/self.action_scale
-                new_obs, reward, terminated, truncated, _ = self.step(vel)
+                scaled_vel = vel/self.action_scale #Value passed by name, will get unscaled after step
+                action = copy.deepcopy(scaled_vel)
+                new_obs, reward, terminated, truncated, _ = self.step(scaled_vel)
+                #Change rgb, prev_rgb, to CHW from HWC. SB3 does this somewhere automatically, find if time
+                new_obs = copy.deepcopy(new_obs)
+                new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
+                new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
                 observations.append(obs)
                 rewards.append(reward)
                 dones.append(terminated)
-                actions.append(vel)
+                actions.append(action)
+
                 if (self.observation['point_mask'] > 0).any():
                     count_in_frame += 1
                 else:
@@ -1379,24 +1389,40 @@ class PruningEnvRRT(PruningEnv):
 
             pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
             ee_vel_global = np.zeros(6)
-            ee_vel_global[:3] = (np.array(final_point_pos) - np.array(pos))/self.action_scale #TODO: What is the velocity needed to reach the goal in 1 second
+            ee_vel_global[:3] = (np.array(final_point_pos) - np.array(pos))/self.control_time #Velocity needed to reach the goal in 1 sim step
+            scaled_vel_global = (ee_vel_global)/(3*self.action_scale) #Take at least 3 steps to reach the goal
+            print("Scaling factor", self.action_scale)
             #We run the simulation for self.pyb.step_time seconds
+            if not terminated:
+                for j in range(6): #At least twice the time needed to reach the goal
+                    #Move towards the goal
+                    ee_vel_local = self.convert_global_action_to_local(scaled_vel_global)
+                    action = copy.deepcopy(ee_vel_local)
+                    new_obs, reward, terminated, truncated, info = self.step(ee_vel_local)
+                    actions.append(action)
+                    new_obs = copy.deepcopy(new_obs)
+                    new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
+                    new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
 
-            for j in range(int(2/self.pyb.step_time)): #At least twice the time needed to reach the goal
-                #Move towards the goal
-                ee_vel_local = self.convert_global_action_to_local(ee_vel_global)
-                new_obs, reward, terminated, truncated, info = self.step(ee_vel_local)
-                actions.append(ee_vel_local)
-                observations.append(obs)
-                rewards.append(reward)
-                dones.append(terminated)
-                if (self.observation['point_mask'] > 0).any():
-                    count_in_frame += 1
-                if terminated or info['collision_unacceptable_reward'] < 0 or info['collision_acceptable_reward'] < 0:
-                    break
-                obs = new_obs
+                    # Change rgb, prev_rgb, to CHW from HWC. SB3 does this somewhere automatically, find if time
+                    observations.append(obs)
+                    rewards.append(reward)
+                    if (self.observation['point_mask'] > 0).any():
+                        count_in_frame += 1
+                    #if last step, done is true
 
-            save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions)}
+
+                    if terminated or info['collision_unacceptable_reward'] < 0 or info['collision_acceptable_reward'] < 0:
+                        dones.append(True)
+                        break
+                    if j == int(2 / self.pyb.step_time) - 1:
+                        dones.append(True)
+                    else:
+                        dones.append(terminated)
+
+                    obs = new_obs
+            print("Length of velo", len(actions))
+            save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions), "last_obs": obs}
             #Calculate optical flow
 
             with open('expert_trajectories/{}.pkl'.format(time.time()), 'wb') as f:
@@ -1421,7 +1447,7 @@ class PruningEnvRRT(PruningEnv):
     def convert_ja_to_ee_vel(self, path, control_freq = 2):
         ee_vel = []
         for i in range(len(path) - 1):
-            joint_velocities = (np.array(path[i+1]) - np.array(path[i])) * control_freq
+            joint_velocities = (np.array(path[i+1]) - np.array(path[i]))*control_freq
             self.ur5.set_joint_angles_no_collision(path[i])
             self.pyb.con.stepSimulation()
             jacobian = self.ur5.calculate_jacobian()
