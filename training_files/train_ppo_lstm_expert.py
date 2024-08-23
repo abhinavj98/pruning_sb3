@@ -8,7 +8,7 @@ from pruning_sb3.pruning_gym.models import AutoEncoder
 
 from pruning_sb3.pruning_gym.callbacks.callbacks import EveryNRollouts, PruningLogCallback
 from pruning_sb3.pruning_gym.callbacks.train_callbacks import PruningTrainSetGoalCallback, \
-    PruningTrainRecordEnvCallback, PruningCheckpointCallback
+    PruningTrainRecordEnvCallback, PruningCheckpointCallback, Pruning1TreeSetGoalCallback
 from pruning_sb3.pruning_gym.callbacks.eval_callbacks import GenerateResults
 
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
@@ -57,13 +57,12 @@ if __name__ == "__main__":
         with open(expert_trajectory, "rb") as f:
             expert_data = pickle.load(f)
 
-    # env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
-    env = PruningEnv(**args_train)
+    env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
-    env.set_tree_properties(*expert_data['tree_info'])
 
     # set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
+    set_goal_callback = Pruning1TreeSetGoalCallback(expert_data['tree_info'], verbose=args_callback['verbose'])
     checkpoint_callback = PruningCheckpointCallback(save_freq=args_callback['save_freq'],
                                                     save_path="./logs/{}".format(args_global['run_name']),
                                                     name_prefix="model", verbose=args_callback['verbose'])
@@ -101,7 +100,7 @@ if __name__ == "__main__":
         print("INFO: Loaded Model")
 
     model.set_logger(new_logger)
-    # set_goal_callback.init_callback(model)
+    set_goal_callback.init_callback(model)
 
     if verbose > 0:
         print("INFO: Policy on device: ", model.policy.device)

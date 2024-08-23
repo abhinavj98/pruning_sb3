@@ -26,10 +26,6 @@ from torch.nn import functional as F
 from sb3_contrib.common.recurrent.type_aliases import RecurrentDictRolloutBufferSamples, RNNStates
 import copy
 from pruning_sb3.pruning_gym.helpers import convert_string
-<<<<<<< HEAD
-
-=======
->>>>>>> 8cb316053e595fc3b9745d184ab016f3ee448055
 SelfRecurrentPPOAE = TypeVar("SelfRecurrentPPOAE", bound="RecurrentPPOAE")
 
 
@@ -596,7 +592,6 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
         return self
 
-<<<<<<< HEAD
 
 import glob
 import pickle
@@ -1075,108 +1070,10 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         return continue_training
 
 
-=======
-class RecurrentPPOAEWithExpert(RecurrentPPOAE):
-    def __init__(self, path_expert_data,  *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.expert_buffer = copy.deepcopy(self.rollout_buffer)
-        self.path_expert_data = path_expert_data
-
-    def load_expert_data(self):
-        #Read expert data from file and store in self.expert_data
-        self.expert_data = 0
-        pass
-
-
-    def make_offline_rollouts(self, env: VecEnv, rollout_buffer: RolloutBuffer, n_rollout_steps) -> bool:
-        #Make a list of offline observations, actions and trees
-
-        #Online use these observations to compute advantages
-        self.policy.set_training_mode(False)
-        n_steps = 0
-        self.rollout_buffer.reset()
-
-        while n_steps < n_rollout_steps:
-            #Sample expert episode
-            expert_traj = self.sample_trajectory() #Samplee from self.expert_data
-
-            self._last_obs = expert_traj['observation'][0] # type: ignore[assignment]
-            self._last_episode_starts = np.ones((self.env.num_envs,), dtype=bool)
-
-            #For length of episode
-            for i in range(len(expert_traj)):
-                actions = expert_traj['actions'][i]
-                with th.no_grad():
-                    # Convert to pytorch tensor or to TensorDict
-                    obs_tensor = obs_as_tensor(self._last_obs, self.device)
-                    episode_starts = th.tensor(self._last_episode_starts, dtype=th.float32, device=self.device)
-                    actions, values, log_probs, lstm_states = self.policy.forward_expert(obs_tensor, self._last_lstm_states, episode_starts, actions)
-
-
-                rewards = expert_traj['rewards'][i]
-                n_steps += 1
-
-                #if last step, force done to be True
-                if i == len(expert_traj) - 1:
-                    dones = np.ones((self.env.num_envs,), dtype=bool)
-                else:
-                    dones = np.zeros((self.env.num_envs,), dtype=bool)
-                    new_obs = expert_traj['observation'][i + 1]
-
-                rollout_buffer.add(
-                    self._last_obs,
-                    actions,
-                    rewards,
-                    self._last_episode_starts,
-                    values,
-                    log_probs,
-                    lstm_states=self._last_lstm_states,
-                )
-
-                self._last_obs = new_obs
-                self._last_episode_starts = dones
-                self._last_lstm_states = lstm_states #These get reset in forward_expert (process_sequence)
-        with th.no_grad():
-            # Compute value for the last timestep
-            episode_starts = th.tensor(dones, dtype=th.float32, device=self.device)
-            values = self.policy.predict_values(obs_as_tensor(new_obs, self.device), lstm_states.vf, episode_starts)
-        rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
-
-    # return RecurrentDictRolloutBufferSamples(
-    #     observations=observations,
-    #     actions=self.pad(self.actions[batch_inds]).reshape((padded_batch_size,) + self.actions.shape[1:]),
-    #     old_values=self.pad_and_flatten(self.values[batch_inds]),
-    #     old_log_prob=self.pad_and_flatten(self.log_probs[batch_inds]),
-    #     advantages=self.pad_and_flatten(self.advantages[batch_inds]),
-    #     returns=self.pad_and_flatten(self.returns[batch_inds]),
-    #     lstm_states=RNNStates(lstm_states_pi, lstm_states_vf),
-    #     episode_starts=self.pad_and_flatten(self.episode_starts[batch_inds]),
-    #     mask=self.pad_and_flatten(np.ones_like(self.returns[batch_inds])),
-    # )
-
-    def merge_rollouts(self, rollout_data_online, rollout_data_expert):
-        #Merge the two rollouts
-        rollout_data = RecurrentDictRolloutBufferSamples()
-        rollout_data.observations = th.cat([rollout_data_online.observations, rollout_data_expert.observations], dim=0)
-        rollout_data.actions = th.cat([rollout_data_online.actions, rollout_data_expert.actions], dim=0)
-        rollout_data.old_values = th.cat([rollout_data_online.old_values, rollout_data_expert.old_values], dim=0)
-        rollout_data.old_log_prob = th.cat([rollout_data_online.old_log_prob, rollout_data_expert.old_log_prob], dim=0)
-        rollout_data.advantages = th.cat([rollout_data_online.advantages, rollout_data_expert.advantages], dim=0)
-        rollout_data.returns = th.cat([rollout_data_online.returns, rollout_data_expert.returns], dim=0)
-        rollout_data.lstm_states = th.cat([rollout_data_online.lstm_states, rollout_data_expert.lstm_states], dim=0)
-        rollout_data.episode_starts = th.cat([rollout_data_online.episode_starts, rollout_data_expert.episode_starts], dim=0)
-        rollout_data.mask = th.cat([rollout_data_online.mask, rollout_data_expert.mask], dim=0)
-        return rollout_data
->>>>>>> 8cb316053e595fc3b9745d184ab016f3ee448055
     def train(self) -> None:
         """
         Update policy using the currently gathered rollout buffer.
         """
-<<<<<<< HEAD
-
-=======
-        # Switch to train mode (this affects batch norm / dropout)
->>>>>>> 8cb316053e595fc3b9745d184ab016f3ee448055
         self.policy.set_training_mode(True)
         # Update optimizer learning rate
         self._custom_update_learning_rate(
@@ -1188,7 +1085,6 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # Optional: clip range for the value function
         if self.clip_range_vf is not None:
             clip_range_vf = self.clip_range_vf(self._current_progress_remaining)
-<<<<<<< HEAD
         else:
             clip_range_vf = None
 
@@ -1197,167 +1093,6 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
     def learn(
             self,
-=======
-
-        entropy_losses = []
-        pg_losses, value_losses = [], []
-        clip_fractions = []
-
-        continue_training = True
-
-        # train for n_epochs epochs
-        for epoch in range(self.n_epochs):
-            approx_kl_divs = []
-            ae_losses = []
-            #Extend the rollout buffer with expert data
-            # Do a complete pass on the rollout buffer
-            for rollout_data_online, rollout_data_expert in zip(self.rollout_buffer.get(self.batch_size//2), self.expert_buffer.get(self.batch_size//2)):
-                rollout_data = self.merge_rollouts(rollout_data_online, rollout_data_expert)
-                del rollout_data_online
-                del rollout_data_expert
-                actions = rollout_data.actions
-                if isinstance(self.action_space, spaces.Discrete):
-                    # Convert discrete action from float to long
-                    actions = rollout_data.actions.long().flatten()
-
-                # Convert mask from float to bool
-                mask = rollout_data.mask > 1e-8
-
-                # Re-sample the noise matrix because the log_std has changed
-                if self.use_sde:
-                    self.policy.reset_noise(self.batch_size)
-
-                values, log_prob, entropy, depth_proxy, depth_proxy_recon = self.policy.evaluate_actions(
-                    rollout_data.observations,
-                    actions,
-                    rollout_data.lstm_states,
-                    rollout_data.episode_starts,
-                )
-
-                values = values.flatten()
-                # Normalize advantage
-                advantages = rollout_data.advantages
-                if self.normalize_advantage:
-                    advantages = (advantages - advantages[mask].mean()) / (advantages[mask].std() + 1e-8)
-
-                # ratio between old and new policy, should be one at the first iteration
-                ratio = th.exp(log_prob - rollout_data.old_log_prob)
-
-                # clipped surrogate loss
-                policy_loss_1 = advantages * ratio
-                policy_loss_2 = advantages * th.clamp(ratio, 1 - clip_range, 1 + clip_range)
-                policy_loss = -th.mean(th.min(policy_loss_1, policy_loss_2)[mask])
-
-                # Logging
-                pg_losses.append(policy_loss.item())
-                clip_fraction = th.mean((th.abs(ratio - 1) > clip_range).float()[mask]).item()
-                clip_fractions.append(clip_fraction)
-
-                if self.clip_range_vf is None:
-                    # No clipping
-                    values_pred = values
-                else:
-                    # Clip the different between old and new value
-                    # NOTE: this depends on the reward scaling
-                    values_pred = rollout_data.old_values + th.clamp(
-                        values - rollout_data.old_values, -clip_range_vf, clip_range_vf
-                    )
-
-                # Value loss using the TD(gae_lambda) target
-                # Mask padded sequences
-                ae_l2_loss = self.mse_loss(depth_proxy, depth_proxy_recon)
-                ae_losses.append(ae_l2_loss.item() * self.ae_coeff)
-                value_loss = th.mean(((rollout_data.returns - values_pred) ** 2)[mask])
-                # Depth prediction loss
-                # TODO: Add depth prediction loss
-                value_losses.append(value_loss.item())
-
-                # Entropy loss favor exploration
-                if entropy is None:
-                    # Approximate entropy when no analytical form
-                    entropy_loss = -th.mean(-log_prob[mask])
-                else:
-                    entropy_loss = -th.mean(entropy[mask])
-
-                entropy_losses.append(entropy_loss.item())
-
-                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + ae_l2_loss * self.ae_coeff
-
-                # Calculate approximate form of reverse KL Divergence for early stopping
-                # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
-                # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
-                # and Schulman blog: http://joschu.net/blog/kl-approx.html
-                with th.no_grad():
-                    log_ratio = log_prob - rollout_data.old_log_prob
-                    approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask]).cpu().numpy()
-                    approx_kl_divs.append(approx_kl_div)
-
-                if self.target_kl is not None and approx_kl_div > 1.5 * self.target_kl:
-                    continue_training = False
-                    if self.verbose >= 1:
-                        print(f"Early stopping at step {epoch} due to reaching max kl: {approx_kl_div:.2f}")
-                    break
-
-                # Optimization step
-                self.policy.optimizer.zero_grad()
-                self.policy.optimizer_ae.zero_grad()
-                if self.learning_rate_logstd is not None:
-                    self.policy.optimizer_logstd.zero_grad()
-
-                loss.backward()
-                # Clip grad norm
-                th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
-                self.policy.optimizer.step()
-                self.policy.optimizer_ae.step()
-                if self.learning_rate_logstd is not None:
-                    self.policy.optimizer_logstd.step()
-
-            if not continue_training:
-                break
-
-        self._n_updates += self.n_epochs
-        explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
-
-        # Logs
-        of_image_x = self.normalize_image(depth_proxy_recon[0, 0, :, :]).unsqueeze(0)
-        of_image_y = self.normalize_image(depth_proxy_recon[0, 1, :, :]).unsqueeze(0)
-        of_mask = depth_proxy_recon[0, 2, :, :].unsqueeze(0)
-
-        #resize plot_img to be the same size as of_image
-        depth_proxy_resized = F.interpolate(depth_proxy, size=(of_image_x.shape[1], of_image_x.shape[2]), mode='bilinear')
-        plot_img_x = self.normalize_image(depth_proxy[0, 0, :, :]).unsqueeze(0)
-        plot_img_y = self.normalize_image(depth_proxy[0, 1, :, :]).unsqueeze(0)
-        plot_mask = depth_proxy[0, 2, :, :].unsqueeze(0)
-        of_image_x_grid = torchvision.utils.make_grid(
-            [of_image_x, plot_img_x])
-        of_image_y_grid = torchvision.utils.make_grid(
-            [of_image_y, plot_img_y])
-        of_mask_grid = torchvision.utils.make_grid(
-            [of_mask, plot_mask])
-
-        self.logger.record("autoencoder/of_mask", Image(of_mask_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
-        self.logger.record("autoencoder/depth_proxy_x", Image(of_image_x_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
-        self.logger.record("autoencoder/depth_proxy_y", Image(of_image_y_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
-        self.logger.record("train/ae_loss", np.mean(ae_losses))
-        self.logger.record("train/entropy_loss", np.mean(entropy_losses))
-        self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
-        self.logger.record("train/value_loss", np.mean(value_losses))
-        self.logger.record("train/approx_kl", np.mean(approx_kl_divs))
-        self.logger.record("train/clip_fraction", np.mean(clip_fractions))
-        self.logger.record("train/loss", loss.item())
-        self.logger.record("train/explained_variance", explained_var)
-        if hasattr(self.policy, "log_std"):
-            self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
-
-        self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
-        self.logger.record("train/clip_range", clip_range)
-        if self.clip_range_vf is not None:
-            self.logger.record("train/clip_range_vf", clip_range_vf)
-
-
-    def learn(
-            self: SelfRecurrentPPOAE,
->>>>>>> 8cb316053e595fc3b9745d184ab016f3ee448055
             total_timesteps: int,
             callback: MaybeCallback = None,
             log_interval: int = 1,
@@ -1376,31 +1111,18 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         )
 
         callback.on_training_start(locals(), globals())
-<<<<<<< HEAD
         continue_training = True
         while self.num_timesteps < total_timesteps:
             if self.use_online_data:
                 continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer,
                                                           n_rollout_steps=self.n_steps)
-=======
-
-        while self.num_timesteps < total_timesteps:
-            self.make_offline_rollouts(self.env, self.expert_buffer, self.path_expert_data)
-
-            continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer,
-                                                      n_rollout_steps=self.n_steps)
-
->>>>>>> 8cb316053e595fc3b9745d184ab016f3ee448055
 
             if continue_training is False:
                 break
 
-<<<<<<< HEAD
             if self.use_offline_data:
                 self.make_offline_rollouts(callback, self.expert_buffer, n_rollout_steps=self.n_steps)
 
-=======
->>>>>>> 8cb316053e595fc3b9745d184ab016f3ee448055
             iteration += 1
             self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
 

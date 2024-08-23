@@ -8,6 +8,29 @@ from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
 from stable_baselines3.common.logger import Video
 
 
+class Pruning1TreeSetGoalCallback(PruningSetGoalCallback):
+    def __init__(self, tree_info,  verbose=0):
+        super(Pruning1TreeSetGoalCallback, self).__init__(verbose)
+        self.tree_info = tree_info
+
+    def _init_callback(self) -> None:
+        for i in range(self.training_env.num_envs):
+            self.training_env.env_method("set_tree_properties", indices=i, tree_urdf=self.tree_info[0],
+                                         point_pos=self.tree_info[1], point_branch_or=self.tree_info[2],
+                                         tree_orientation=self.tree_info[3], tree_scale=self.tree_info[4],
+                                         tree_pos=self.tree_info[5], point_branch_normal=self.tree_info[6])
+
+
+    def _sample_tree_and_point(self, idx):
+        return
+
+    def _update_tree_properties(self):
+        return
+
+    def _on_step(self) -> bool:
+        return
+
+
 class PruningTrainSetGoalCallback(PruningSetGoalCallback):
     def __init__(self, or_bins, verbose=0):
         super(PruningTrainSetGoalCallback, self).__init__(verbose)
