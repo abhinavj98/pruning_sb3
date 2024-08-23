@@ -338,6 +338,14 @@ class PruningEnv(gym.Env):
             self.pyb.con.stepSimulation()
 
         self.activate_tree(self.pyb)
+        self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=self.tree_goal_pos,
+                                lineToXYZ=[self.tree_goal_pos[0] + 0.005, self.tree_goal_pos[1] + 0.005,
+                                           self.tree_goal_pos[2] + 0.005],
+                                lineColorRGB=[1, 0, 0],
+                                lineWidth=400)
+        self.pyb.add_debug_item('line', 'reset', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
+                                lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
+                                lineWidth=400)
 
         pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
 
@@ -369,7 +377,7 @@ class PruningEnv(gym.Env):
     def calculate_joint_velocities_from_ee_constrained(self, velocity):
         """Calculate joint velocities from end effector velocities adds constraints of max joint velocities"""
         if self.use_ik:
-            jv, jacobian = self.ur5.calculate_joint_velocities_from_ee_velocity(velocity)
+            jv, jacobian = self.ur5.calculate_joint_velocities_from_ee_velocity_dls(velocity)
         # If not using ik, just set joint velocities to be regressed by actor
         else:
             jv = velocity
@@ -1332,6 +1340,7 @@ class PruningEnvRRT(PruningEnv):
             rewards = []
             dones = []
             actions = []
+            terminated = False
             tree_info = paths_success.iloc[i]['tree_info']
             path = paths_success.iloc[i]['path']
 
@@ -1390,15 +1399,19 @@ class PruningEnvRRT(PruningEnv):
             pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
             ee_vel_global = np.zeros(6)
             ee_vel_global[:3] = (np.array(final_point_pos) - np.array(pos))/self.control_time #Velocity needed to reach the goal in 1 sim step
-            scaled_vel_global = (ee_vel_global)/(3*self.action_scale) #Take at least 3 steps to reach the goal
-            print("Scaling factor", self.action_scale)
+            scaled_vel_global = ee_vel_global #Take at least 3 steps to reach the goal
+
+            ee_vel_local = self.convert_global_action_to_local(scaled_vel_global)
+            scale = 1#np.max(np.abs(ee_vel_local))
+            if (ee_vel_local > 1).any() or (ee_vel_local < -1).any():
+                scale = np.max(np.abs(ee_vel_local))
+                ee_vel_local = ee_vel_local/(scale+1e-4)
             #We run the simulation for self.pyb.step_time seconds
             if not terminated:
-                for j in range(6): #At least twice the time needed to reach the goal
+                for j in range(int(2*int(scale)/self.action_scale)): #At most twice the time needed to reach the goal
                     #Move towards the goal
-                    ee_vel_local = self.convert_global_action_to_local(scaled_vel_global)
                     action = copy.deepcopy(ee_vel_local)
-                    new_obs, reward, terminated, truncated, info = self.step(ee_vel_local)
+                    new_obs, reward, terminated, truncated, info = self.step(copy.deepcopy(ee_vel_local))
                     actions.append(action)
                     new_obs = copy.deepcopy(new_obs)
                     new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
@@ -1415,7 +1428,7 @@ class PruningEnvRRT(PruningEnv):
                     if terminated or info['collision_unacceptable_reward'] < 0 or info['collision_acceptable_reward'] < 0:
                         dones.append(True)
                         break
-                    if j == int(2 / self.pyb.step_time) - 1:
+                    if j == 5:
                         dones.append(True)
                     else:
                         dones.append(terminated)
@@ -1453,8 +1466,13 @@ class PruningEnvRRT(PruningEnv):
             jacobian = self.ur5.calculate_jacobian()
             global_ee_vel = np.matmul(jacobian, joint_velocities)
             local_ee_vel = self.convert_global_action_to_local(global_ee_vel)
-            ee_vel.append(local_ee_vel)
-
+            #if any term in local_ee_vel > 1 or < -1, break the step into smaller steps
+            if np.any(local_ee_vel > 1*self.action_scale) or np.any(local_ee_vel < -1*self.action_scale):
+                num_steps = int(np.ceil(np.max(np.abs(local_ee_vel/(1*self.action_scale)))))
+                for j in range(num_steps):
+                    ee_vel.append(local_ee_vel/num_steps)
+            else:
+                ee_vel.append(local_ee_vel)
         return ee_vel
 
 class ResultMode(Enum):

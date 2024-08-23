@@ -7,7 +7,7 @@ from pruning_sb3.pruning_gym.models import *
 import numpy as np
 import random
 import argparse
-from pruning_sb3.args.args_test import args
+from pruning_sb3.args.args import args
 from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, set_args, organize_args
 from pruning_sb3.pruning_gym.helpers import make_or_bins, get_policy_kwargs
 from pruning_sb3.pruning_gym.callbacks.train_callbacks import PruningTrainSetGoalCallback
@@ -31,7 +31,6 @@ if __name__ == "__main__":
     load_timestep = args_global['load_timestep']
 
     env = PruningEnv(**args_record)
-
     expert_trajectory_path = "expert_trajectories"
     expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
     #shuffle the expert trajectories
@@ -50,7 +49,8 @@ if __name__ == "__main__":
         # env.ur5.reset_ur5_arm()
         env.reset()
         for i in range(len(actions)):
-            action = actions[i]*10
+            action = actions[i]
+            print("Action: ", action)
             observation = observations[i]
             # env.set_observation(observation)
             # env.set_action(action)

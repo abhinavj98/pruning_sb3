@@ -57,22 +57,22 @@ args = {
         },
         'collision_reward_scale': {
             'type': float,
-            'default': -0.005,
+            'default': -0.05,
             'help': 'scaling factor for the collision reward'
         },
         'slack_reward_scale': {
             'type': float,
-            'default': -0.01,
+            'default': -0.03,
             'help': 'scaling factor for the slack reward'
         },
         'pointing_orientation_reward_scale': {
             'type': float,
-            'default': 8,
+            'default': 3,
             'help': 'scaling factor for the orientation reward'
         },
         'perpendicular_orientation_reward_scale': {
             'type': float,
-            'default': 8,
+            'default': 3,
             'help': 'scaling factor for the orientation reward'
         },
         # Gym envirionment parameters
@@ -300,7 +300,23 @@ args = {
         'ae_coeff': {
             'type': int,
             'default': 0,
-        }
+        },
+        'verbose': {
+            'type': int,
+            'default': 1,
+            'help': 'verbosity level'
+        },
+        'use_offline_data': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to use offline data'
+        },
+
+        'use_online_data': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to use online data'
+        },
     },
     'args_baseline': {
         'planner': {

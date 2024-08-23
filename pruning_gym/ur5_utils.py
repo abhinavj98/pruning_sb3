@@ -203,9 +203,9 @@ class UR5:
 
         # TODO: Find a better way to handle singularity than not moving
         # Don't move if joint velocity is more than half of max joint velocity
-        if (abs(joint_velocities) > max_joint_velocity / 2).any():
-            singularity = True
-            joint_velocities = np.zeros(6)
+        # if (abs(joint_velocities) > max_joint_velocity / 2).any():
+        #     singularity = True
+        #     joint_velocities = np.zeros(6)
         for i, name in enumerate(self.control_joints):
             joint = self.joints[name]
             velocities.append(joint_velocities[i])
@@ -240,6 +240,19 @@ class UR5:
         jacobian = self.calculate_jacobian()
         inv_jacobian = np.linalg.pinv(jacobian)
         joint_velocities = np.matmul(inv_jacobian, end_effector_velocity).astype(np.float32)
+        return joint_velocities, jacobian
+
+    def calculate_joint_velocities_from_ee_velocity_dls(self,
+                                                        end_effector_velocity: NDArray[Shape['6, 1'], Float],
+                                                        damping_factor: float = 0.05) -> \
+            Tuple[ndarray, ndarray]:
+        """Calculate joint velocities from end effector velocity using damped least squares"""
+        jacobian = self.calculate_jacobian()
+        identity_matrix = np.eye(jacobian.shape[0])
+        damped_matrix = jacobian @ jacobian.T + (damping_factor ** 2) * identity_matrix
+        damped_matrix_inv = np.linalg.inv(damped_matrix)
+        dls_inv_jacobian = jacobian.T @ damped_matrix_inv
+        joint_velocities = dls_inv_jacobian @ end_effector_velocity
         return joint_velocities, jacobian
 
     def get_joint_angles(self) -> Tuple[float, float, float, float, float, float]:
@@ -298,7 +311,7 @@ class UR5:
                                                        linkIndexA=self.success_link_index)
         for i in range(len(collisions_success)):
             print(collisions_success[i][-6])
-            if collisions_success[i][-6] < 0.001:
+            if collisions_success[i][-6] < 0.05:
                 if self.verbose > 1:
                     print("DEBUG: Success Collision")
                 return True

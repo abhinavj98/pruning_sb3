@@ -23,10 +23,10 @@ from stable_baselines3.common.utils import obs_as_tensor, safe_mean
 from stable_baselines3.common.utils import update_learning_rate
 from stable_baselines3.common.vec_env import VecEnv
 from torch.nn import functional as F
-
 from sb3_contrib.common.recurrent.type_aliases import RecurrentDictRolloutBufferSamples, RNNStates
 import copy
 from pruning_sb3.pruning_gym.helpers import convert_string
+
 SelfRecurrentPPOAE = TypeVar("SelfRecurrentPPOAE", bound="RecurrentPPOAE")
 
 
@@ -213,8 +213,6 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
         self.mse_loss = th.nn.MSELoss()
 
-
-
     def collect_rollouts(
             self,
             env: VecEnv,
@@ -246,9 +244,13 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         n_steps = 0
         rollout_buffer.reset()
         # Sample new weights for the state dependent exploration
+        if self.verbose > 1:
+            print("DEBUG: Collecting online rollout")
+
         if self.use_sde:
             self.policy.reset_noise(env.num_envs)
-
+        offline = False
+        callback.update_locals(locals())
         callback.on_rollout_start()
 
         lstm_states = deepcopy(self._last_lstm_states)
@@ -499,8 +501,9 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         of_image_y = self.normalize_image(depth_proxy_recon[0, 1, :, :]).unsqueeze(0)
         of_mask = depth_proxy_recon[0, 2, :, :].unsqueeze(0)
 
-        #resize plot_img to be the same size as of_image
-        depth_proxy_resized = F.interpolate(depth_proxy, size=(of_image_x.shape[1], of_image_x.shape[2]), mode='bilinear')
+        # resize plot_img to be the same size as of_image
+        depth_proxy_resized = F.interpolate(depth_proxy, size=(of_image_x.shape[1], of_image_x.shape[2]),
+                                            mode='bilinear')
         plot_img_x = self.normalize_image(depth_proxy[0, 0, :, :]).unsqueeze(0)
         plot_img_y = self.normalize_image(depth_proxy[0, 1, :, :]).unsqueeze(0)
         plot_mask = depth_proxy[0, 2, :, :].unsqueeze(0)
@@ -512,8 +515,10 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             [of_mask, plot_mask])
 
         self.logger.record("autoencoder/of_mask", Image(of_mask_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
-        self.logger.record("autoencoder/depth_proxy_x", Image(of_image_x_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
-        self.logger.record("autoencoder/depth_proxy_y", Image(of_image_y_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
+        self.logger.record("autoencoder/depth_proxy_x", Image(of_image_x_grid, "CHW"),
+                           exclude=("stdout", "log", "json", "csv"))
+        self.logger.record("autoencoder/depth_proxy_y", Image(of_image_y_grid, "CHW"),
+                           exclude=("stdout", "log", "json", "csv"))
         self.logger.record("train/ae_loss", np.mean(ae_losses))
         self.logger.record("train/entropy_loss", np.mean(entropy_losses))
         self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
@@ -586,26 +591,32 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
         return self
 
+
 import glob
 import pickle
 import random
 from collections import OrderedDict
 
+
 class RecurrentPPOAEWithExpert(RecurrentPPOAE):
-    #So instead of merging run two different rollouts, keep two buffers, and train separately
-    def __init__(self, path_expert_data,  *args, **kwargs):
+    # So instead of merging run two different rollouts, keep two buffers, and train separately
+    def __init__(self, path_expert_data, use_online_data, use_offline_data, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.expert_buffer = copy.deepcopy(self.rollout_buffer) #Same structure as rollout buffer
+        self.use_online_data = use_online_data
+        self.use_offline_data = use_offline_data
+        self.expert_buffer = copy.deepcopy(self.rollout_buffer)  # Same structure as rollout buffer
         self.path_expert_data = path_expert_data
         self.expert_data = self.load_expert_data()
         self.num_expert_envs = self.n_envs
         self.expert_batch = self.get_expert_batch(self.num_expert_envs)
         self.expert_batch_idx = np.zeros((self.num_expert_envs,), dtype=int)
-
+        print("INIT PPOAEWithExpert with verbose", self.verbose)
     def get_expert_batch(self, batch_size):
-        #Get a batch of expert data
-        expert_batch = random.sample(self.expert_data, batch_size)
+        # Get a batch of expert data
+        expert_batch = random.choices(self.expert_data, k=batch_size)
+        # expert_batch = random.sample(self.expert_data, batch_size)
         return expert_batch
+
     def _flatten_obs(self, obs, observation_space):
         """
         asd
@@ -613,20 +624,19 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         return OrderedDict([(k, np.stack([o[k] for o in obs])) for k in observation_space.spaces.keys()])
 
     def load_expert_data(self):
-        #Load expert data from expert_trajecotries folder. This is a list of pkl files
-        #Each pkl file contains save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions)}
-        #Load all the pkl files into a list
-        expert_trajectories = glob.glob(self.path_expert_data+"/*.pkl")
+        # Load expert data from expert_trajecotries folder. This is a list of pkl files
+        # Each pkl file contains save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions)}
+        # Load all the pkl files into a list
+        expert_trajectories = glob.glob(self.path_expert_data + "/*.pkl")
         expert_data = []
         for expert_trajectory in expert_trajectories:
             print(expert_trajectory)
             with open(expert_trajectory, "rb") as f:
-                expert_data.append(pickle.load(f)) #These are on cpu
-        print(expert_data[0]['actions'])
+                expert_data.append(pickle.load(f))  # These are on cpu
         return expert_data
 
     def step_expert(self):
-        #Get expert data for each expert trajectory at timestep expert_batch_idx
+        # Get expert data for each expert trajectory at timestep expert_batch_idx
         obs = []
         rewards = []
         dones = []
@@ -638,6 +648,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 obs.append(self.expert_batch[i]["observations"][timestep])
             except:
                 print("Error", i, timestep)
+                print("len", len(self.expert_batch[i]["observations"]))
                 print(self.expert_batch[i]["observations"][timestep])
             rewards.append(self.expert_batch[i]["rewards"][timestep])
             dones.append(self.expert_batch[i]["dones"][timestep])
@@ -652,50 +663,60 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # print("rewards", rewards)
         # rewards = zip(*rewards)
         # dones = zip(*dones)
-        return  self._flatten_obs(obs, self.env.observation_space), np.stack(rewards), np.stack(dones), np.stack(actions),  infos
+        return self._flatten_obs(obs, self.env.observation_space), np.stack(rewards), np.stack(dones), np.stack(
+            actions), infos
 
-    def make_offline_rollouts(self, rollout_buffer: RolloutBuffer, n_rollout_steps) -> bool:
-        #Make a list of offline observations, actions and trees
-
-        #Online use these observations to compute advantages
-        # CURRENTLY WORKING HERE
+    def make_offline_rollouts(self, callback, expert_buffer: RolloutBuffer, n_rollout_steps) -> bool:
+        # Make a list of offline observations, actions and trees
+        offline = True
+        if self.verbose > 1:
+            print("DEBUG: Making offline rollouts")
         self.policy.set_training_mode(False)
         n_steps = 0
-        rollout_buffer.reset()
+        expert_buffer.reset()
+        callback.update_locals(locals())
+        callback.on_rollout_start()
 
         # Sample expert episode
         self._last_episode_starts = np.ones((self.num_expert_envs,), dtype=bool)
         while n_steps < n_rollout_steps:
-
-            #For length of episode
+            # For length of episode
             # self._last_obs = expert_traj['observation'][idx]  # This or reset obs type: ignore[assignment]
             #
             # actions = expert_traj['actions'][idx]
             # rewards = expert_traj['rewards'][idx]
             # dones = expert_traj['done'][idx]
             last_obs, rewards, dones, actions, infos = self.step_expert()
-            #Increment expert_batch_idx
+            # Increment expert_batch_idx
             self.expert_batch_idx += 1
+            self.num_timesteps += self.num_expert_envs
+
+            callback.update_locals(locals())
+            if callback.on_step() is False:
+                return False
+
+            self._update_info_buffer(infos)
+            n_steps += 1
+
             self._last_obs = last_obs
             with th.no_grad():
                 # Convert to pytorch tensor or to TensorDict
                 obs_tensor = obs_as_tensor(self._last_obs, self.device)
                 actions = obs_as_tensor(actions, self.device)
+                assert not (th.abs(actions) > 1).any(), "Actions should be less than 1:" + str(actions)
                 episode_starts = th.tensor(self._last_episode_starts, dtype=th.float32, device=self.device)
-                actions, values, log_probs, lstm_states = self.policy.forward_expert(obs_tensor, self._last_lstm_states, episode_starts, actions)
+                actions, values, log_probs, lstm_states = self.policy.forward_expert(obs_tensor, self._last_lstm_states,
+                                                                                     episode_starts, actions)
 
             actions = actions.cpu().numpy()
-            n_steps += 1
-
 
             # done = expert_traj['done'][i]
-            #if last step
-                #if done is True do nothing
-                #if done is False
-                    #bootstrap with value function
+            # if last step
+            # if done is True do nothing
+            # if done is False
+            # bootstrap with value function
 
-
-            rollout_buffer.add(
+            expert_buffer.add(
                 self._last_obs,
                 actions,
                 rewards,
@@ -707,14 +728,421 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
             # self._last_obs = expert_traj['l']
             self._last_episode_starts = dones
-            self._last_lstm_states = lstm_states #These get reset in forward_expert (process_sequence)
+            self._last_lstm_states = lstm_states  # These get reset in forward_expert (process_sequence)
 
         last_obs, _, _, _, _ = self.step_expert()
-        #Dont increment expert_batch_idx
+        # Dont increment expert_batch_idx
         with th.no_grad():
             # Compute value for the last timestep
             episode_starts = th.tensor(dones, dtype=th.float32, device=self.device)
             values = self.policy.predict_values(obs_as_tensor(last_obs, self.device), lstm_states.vf, episode_starts)
-        rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
+        expert_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
 
+        callback.on_rollout_end()
+        offline = False
+        callback.update_locals(locals())
         return True
+
+    def train_online_batch(self, batch, clip_range, clip_range_vf):
+        if self.verbose > 0:
+            print("INFO: Training on rollout batch")
+        # Train on online data
+        actions = batch.actions
+        if isinstance(self.action_space, spaces.Discrete):
+            # Convert discrete action from float to long
+            actions = batch.actions.long().flatten()
+
+        # Convert mask from float to bool
+        mask = batch.mask > 1e-8
+
+        # Re-sample the noise matrix because the log_std has changed
+        if self.use_sde:
+            self.policy.reset_noise(self.batch_size)
+
+        values, log_prob, entropy, depth_proxy, depth_proxy_recon = self.policy.evaluate_actions(
+            batch.observations,
+            actions,
+            batch.lstm_states,
+            batch.episode_starts,
+        )
+
+        values = values.flatten()
+        # Normalize advantage
+        advantages = batch.advantages
+        if self.normalize_advantage:
+            advantages = (advantages - advantages[mask].mean()) / (advantages[mask].std() + 1e-8)
+
+        # ratio between old and new policy, should be one at the first iteration
+        ratio = th.exp(log_prob - batch.old_log_prob)
+
+        # clipped surrogate loss
+        policy_loss_1 = advantages * ratio
+        policy_loss_2 = advantages * th.clamp(ratio, 1 - clip_range, 1 + clip_range)
+        policy_loss = -th.mean(th.min(policy_loss_1, policy_loss_2)[mask])
+
+        # Logging
+        pg_loss = policy_loss.item()
+        clip_fraction = th.mean((th.abs(ratio - 1) > clip_range).float()[mask]).item()
+
+        if self.clip_range_vf is None:
+            # No clipping
+            values_pred = values
+        else:
+            # Clip the different between old and new value
+            # NOTE: this depends on the reward scaling
+            values_pred = batch.old_values + th.clamp(
+                values - batch.old_values, -clip_range_vf, clip_range_vf
+            )
+
+        # Value loss using the TD(gae_lambda) target
+        # Mask padded sequences
+        ae_l2_loss = self.mse_loss(depth_proxy, depth_proxy_recon) * self.ae_coeff
+        value_loss = th.mean(((batch.returns - values_pred) ** 2)[mask]) * self.vf_coef
+
+        # Entropy loss favor exploration
+        if entropy is None:
+            # Approximate entropy when no analytical form
+            entropy_loss = -th.mean(-log_prob[mask]) * self.ent_coef
+        else:
+            entropy_loss = -th.mean(entropy[mask]) * self.ent_coef
+
+        online_loss = policy_loss + entropy_loss + value_loss + ae_l2_loss
+
+        # Calculate approximate form of reverse KL Divergence for early stopping
+        # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
+        # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
+        # and Schulman blog: http://joschu.net/blog/kl-approx.html
+        with th.no_grad():
+            log_ratio = log_prob - batch.old_log_prob
+            approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask]).cpu().numpy()
+
+        return online_loss, pg_loss, clip_fraction, ae_l2_loss.item(), value_loss.item(), entropy_loss.item(), approx_kl_div, depth_proxy, depth_proxy_recon
+    def train_offline_batch(self, batch, clip_range, clip_range_vf):
+
+        actions = batch.actions
+
+        if self.verbose > 0:
+            print("INFO: Training on expert batch")
+        if isinstance(self.action_space, spaces.Discrete):
+            # Convert discrete action from float to long
+            actions = batch.actions.long().flatten()
+
+        # Convert mask from float to bool
+        mask = batch.mask > 1e-8
+
+        # Re-sample the noise matrix because the log_std has changed
+        if self.use_sde:
+            self.policy.reset_noise(self.batch_size)
+        # Check if any observations are nan
+        for key, val in batch.observations.items():
+            if th.isnan(val).any():
+                print("Nan in observations")
+        assert not th.isnan(actions).any(), "Nan in actions"
+        # assert not th.isnan(batch.lstm_states.pi).any(), "Nan in lstm pi states"
+        # assert not th.isnan(batch.lstm_states.vf).any(), "Nan in lstm vf states"
+        assert not th.isnan(batch.episode_starts).any(), "Nan in episode starts"
+        values, log_prob, entropy, depth_proxy, depth_proxy_recon = self.policy.evaluate_actions(
+            batch.observations,
+            actions,
+            batch.lstm_states,
+            batch.episode_starts,
+        )
+
+        values = values.flatten()
+        # Normalize advantage
+        advantages = batch.advantages
+        if self.normalize_advantage:
+            advantages = (advantages - advantages[mask].mean()) / (advantages[mask].std() + 1e-8)
+
+        # ratio between old and new online policy, should be one at the first iteration
+        ratio_current_old = th.exp(log_prob - batch.old_log_prob)
+        ratio_current_expert = th.exp(log_prob - 0)  # Expert probability is 1, so log prob is 0
+        ratio_old_expert = th.exp(batch.old_log_prob - 0)  # Expert probability is 1, so log prob is 0
+
+        # print("ratio_current_old", ratio_current_old, "log_prob", log_prob, "old_log_prob", rollout_data.old_log_prob)
+        # print("ratio_current_expert", ratio_current_expert)
+        # print("ratio_old_expert", ratio_old_expert)
+        # clipped surrogate loss
+        policy_loss_1 = advantages * ratio_current_expert
+        policy_loss_2 = advantages * th.clamp(ratio_current_old, 1 - clip_range, 1 + clip_range) * ratio_old_expert
+        policy_loss = -th.mean(th.min(policy_loss_1, policy_loss_2)[mask])
+
+        # Logging
+        pg_loss = policy_loss.item()
+        clip_fraction = th.mean((th.abs(ratio_current_old - 1) > clip_range).float()[mask]).item()
+
+        if self.clip_range_vf is None:
+            # No clipping
+            values_pred = values
+        else:
+            # Clip the different between old and new value
+            # NOTE: this depends on the reward scaling
+            values_pred = batch.old_values + th.clamp(
+                values - batch.old_values, -clip_range_vf, clip_range_vf
+            )
+
+        # Value loss using the TD(gae_lambda) target
+        # Mask padded sequences
+        ae_l2_loss = self.mse_loss(depth_proxy, depth_proxy_recon) * self.ae_coeff
+        value_loss = th.mean(((batch.returns - values_pred) ** 2)[mask]) * self.vf_coef
+
+        # Entropy loss favor exploration
+        if entropy is None:
+            # Approximate entropy when no analytical form
+            entropy_loss = -th.mean(-log_prob[mask]) * self.ent_coef
+        else:
+            entropy_loss = -th.mean(entropy[mask]) * self.ent_coef
+
+        offline_loss = policy_loss + entropy_loss + value_loss + ae_l2_loss
+        # Calculate approximate form of reverse KL Divergence for early stopping
+        # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
+        # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
+        # and Schulman blog: http://joschu.net/blog/kl-approx.html
+
+        with th.no_grad():
+            log_ratio = log_prob - batch.old_log_prob
+            approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask]).cpu().numpy()
+
+        return offline_loss, pg_loss, clip_fraction, ae_l2_loss.item(), value_loss.item(), entropy_loss.item(), approx_kl_div, depth_proxy, depth_proxy_recon
+
+
+
+    def train_expert(self, clip_range, clip_range_vf):
+        self.policy.set_training_mode(True)
+        # Optimization step
+        self.policy.optimizer.zero_grad()
+        self.policy.optimizer_ae.zero_grad()
+        if self.learning_rate_logstd is not None:
+            self.policy.optimizer_logstd.zero_grad()
+
+        entropy_losses_online = []
+        pg_losses_online, value_losses_online = [], []
+        clip_fractions_online = []
+        approx_kl_divs_online = []
+        ae_losses_online = []
+
+
+        entropy_losses_offline = []
+        pg_losses_offline, value_losses_offline = [], []
+        clip_fractions_offline = []
+        approx_kl_divs_offline = []
+        ae_losses_offline = []
+
+        continue_training = True
+
+        # train for n_epochs epochs
+        for epoch in range(self.n_epochs):
+            if self.use_offline_data:
+                offline_data_buffer = self.expert_buffer.get(self.batch_size)
+            if self.use_online_data:
+                online_data_buffer = self.rollout_buffer.get(self.batch_size)
+            while True:
+                try:
+                    if self.use_offline_data:
+                        offline_data = next(offline_data_buffer)
+                    if self.use_online_data:
+                        online_data = next(online_data_buffer)
+                except StopIteration:
+                    break
+
+                # Optimization step
+                self.policy.optimizer.zero_grad()
+                self.policy.optimizer_ae.zero_grad()
+                if self.learning_rate_logstd is not None:
+                    self.policy.optimizer_logstd.zero_grad()
+
+                # Train the expert
+                if self.use_offline_data:
+                    (loss_offline, pg_loss_offline, clip_fraction_offline, ae_l2_loss_offline, value_loss_offline,
+                     entropy_loss_offline, approx_kl_div_offline, depth_proxy, depth_proxy_recon) = self.train_offline_batch(
+                        offline_data, clip_range, clip_range_vf)
+                    pg_losses_offline.append(pg_loss_offline)
+                    clip_fractions_offline.append(clip_fraction_offline)
+                    ae_losses_offline.append(ae_l2_loss_offline)
+                    value_losses_offline.append(value_loss_offline)
+                    entropy_losses_offline.append(entropy_loss_offline)
+                    approx_kl_divs_offline.append(approx_kl_div_offline)
+
+
+                    if self.target_kl is not None and approx_kl_div_offline > 1.5 * self.target_kl:
+                        continue_training = False
+                        if self.verbose >= 1:
+                            print(f"Early stopping at step {epoch} due to reaching max kl: {approx_kl_div:.2f}")
+                        break
+
+                    loss_offline.backward()
+
+                if self.use_online_data:
+                    (loss_online, pg_loss_online, clip_fraction_online, ae_l2_loss_online, value_loss_online,
+                     entropy_loss_online, approx_kl_div_online, depth_proxy, depth_proxy_recon) = self.train_online_batch(
+                        online_data, clip_range, clip_range_vf)
+                    pg_losses_online.append(pg_loss_online)
+                    clip_fractions_online.append(clip_fraction_online)
+                    ae_losses_online.append(ae_l2_loss_online)
+                    value_losses_online.append(value_loss_online)
+                    entropy_losses_online.append(entropy_loss_online)
+                    approx_kl_divs_online.append(approx_kl_div_online)
+
+                    if self.target_kl is not None and approx_kl_div_online > 1.5 * self.target_kl:
+                        continue_training = False
+                        if self.verbose >= 1:
+                            print(f"Early stopping at step {epoch} due to reaching max kl: {approx_kl_div:.2f}")
+                        break
+
+                    loss_online.backward()
+                # Clip grad norm
+                th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                self.policy.optimizer.step()
+                self.policy.optimizer_ae.step()
+                if self.learning_rate_logstd is not None:
+                    self.policy.optimizer_logstd.step()
+
+                if not continue_training:
+                    break
+
+            # print(self.rollout_buffer.values, self.rollout_buffer.returns)
+        self._n_updates += self.n_epochs
+        assert not np.isnan(self.expert_buffer.values.flatten()).any(), "Nan in loss"
+        assert not np.isnan(self.expert_buffer.returns.flatten()).any(), "Nan in returns"
+        # explained_var = explained_variance(self.expert_buffer.values.flatten(),
+        #                                    self.expert_buffer.returns.flatten())
+
+        explained_var_online = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
+        explained_var_offline = explained_variance(self.expert_buffer.values.flatten(), self.expert_buffer.returns.flatten())
+        # Logs
+
+        of_image_x = self.normalize_image(depth_proxy_recon[0, 0, :, :]).unsqueeze(0)
+        of_image_y = self.normalize_image(depth_proxy_recon[0, 1, :, :]).unsqueeze(0)
+        of_mask = depth_proxy_recon[0, 2, :, :].unsqueeze(0)
+
+        plot_img_x = self.normalize_image(depth_proxy[0, 0, :, :]).unsqueeze(0)
+        plot_img_y = self.normalize_image(depth_proxy[0, 1, :, :]).unsqueeze(0)
+        plot_mask = depth_proxy[0, 2, :, :].unsqueeze(0)
+        of_image_x_grid = torchvision.utils.make_grid(
+            [of_image_x, plot_img_x])
+        of_image_y_grid = torchvision.utils.make_grid(
+            [of_image_y, plot_img_y])
+        of_mask_grid = torchvision.utils.make_grid(
+            [of_mask, plot_mask])
+
+        self.logger.record("autoencoder/of_mask", Image(of_mask_grid, "CHW"),
+                           exclude=("stdout", "log", "json", "csv"))
+        self.logger.record("autoencoder/depth_proxy_x", Image(of_image_x_grid, "CHW"),
+                           exclude=("stdout", "log", "json", "csv"))
+        self.logger.record("autoencoder/depth_proxy_y", Image(of_image_y_grid, "CHW"),
+                           exclude=("stdout", "log", "json", "csv"))
+
+        if self.use_online_data:
+            self.logger.record("train_online/ae_loss", np.mean(ae_losses_online))
+            self.logger.record("train_online/entropy_loss", np.mean(entropy_losses_online))
+            self.logger.record("train_online/policy_gradient_loss", np.mean(pg_losses_online))
+            self.logger.record("train_online/value_loss", np.mean(value_losses_online))
+            self.logger.record("train_online/approx_kl", np.mean(approx_kl_divs_online))
+            self.logger.record("train_online/clip_fraction", np.mean(clip_fractions_online))
+            self.logger.record("train_online/loss", loss_online.item())
+            self.logger.record("train_online/explained_variance", explained_var_online)
+
+            if hasattr(self.policy, "log_std"):
+                self.logger.record("train_online/std", th.exp(self.policy.log_std).mean().item())
+
+            self.logger.record("train_online/n_updates", self._n_updates, exclude="tensorboard")
+            self.logger.record("train_online/clip_range", clip_range)
+            if self.clip_range_vf is not None:
+                self.logger.record("train_online/clip_range_vf", clip_range_vf)
+        if self.use_offline_data:
+            self.logger.record("train_offline/ae_loss", np.mean(ae_losses_offline))
+            self.logger.record("train_offline/entropy_loss", np.mean(entropy_losses_offline))
+            self.logger.record("train_offline/policy_gradient_loss", np.mean(pg_losses_offline))
+            self.logger.record("train_offline/value_loss", np.mean(value_losses_offline))
+            self.logger.record("train_offline/approx_kl", np.mean(approx_kl_divs_offline))
+            self.logger.record("train_offline/clip_fraction", np.mean(clip_fractions_offline))
+            self.logger.record("train_offline/loss", loss_offline.item())
+            self.logger.record("train_offline/explained_variance", explained_var_offline)
+
+            if hasattr(self.policy, "log_std"):
+                self.logger.record("train_offline/std", th.exp(self.policy.log_std).mean().item())
+
+            self.logger.record("train_offline/n_updates", self._n_updates, exclude="tensorboard")
+            self.logger.record("train_offline/clip_range", clip_range)
+            if self.clip_range_vf is not None:
+                self.logger.record("train_offline/clip_range_vf", clip_range_vf)
+        return continue_training
+
+
+    def train(self) -> None:
+        """
+        Update policy using the currently gathered rollout buffer.
+        """
+
+        self.policy.set_training_mode(True)
+        # Update optimizer learning rate
+        self._custom_update_learning_rate(
+            [self.policy.optimizer, self.policy.optimizer_ae, self.policy.optimizer_logstd])
+
+        # self._update_learning_rate(self.policy.optimizer)
+        # Compute current clip range
+        clip_range = self.clip_range(self._current_progress_remaining)
+        # Optional: clip range for the value function
+        if self.clip_range_vf is not None:
+            clip_range_vf = self.clip_range_vf(self._current_progress_remaining)
+        else:
+            clip_range_vf = None
+
+        self.train_expert(clip_range, clip_range_vf)
+
+
+    def learn(
+            self,
+            total_timesteps: int,
+            callback: MaybeCallback = None,
+            log_interval: int = 1,
+            tb_log_name: str = "RecurrentPPO",
+            reset_num_timesteps: bool = True,
+            progress_bar: bool = False,
+    ) -> SelfRecurrentPPOAE:
+        iteration = 0
+
+        total_timesteps, callback = self._setup_learn(
+            total_timesteps,
+            callback,
+            reset_num_timesteps,
+            tb_log_name,
+            progress_bar,
+        )
+
+        callback.on_training_start(locals(), globals())
+        continue_training = True
+        while self.num_timesteps < total_timesteps:
+            if self.use_online_data:
+                continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer,
+                                                          n_rollout_steps=self.n_steps)
+
+            if continue_training is False:
+                break
+
+            if self.use_offline_data:
+                self.make_offline_rollouts(callback, self.expert_buffer, n_rollout_steps=self.n_steps)
+
+            iteration += 1
+            self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
+
+            # Display training infos
+            if log_interval is not None and iteration % log_interval == 0:
+                time_elapsed = max((time.time_ns() - self.start_time) / 1e9, sys.float_info.epsilon)
+                fps = int((self.num_timesteps - self._num_timesteps_at_start) / time_elapsed)
+                self.logger.record("time/iterations", iteration, exclude="tensorboard")
+                if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+                    self.logger.record("rollout/ep_rew_mean",
+                                       safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+                    self.logger.record("rollout/ep_len_mean",
+                                       safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
+                self.logger.record("time/fps", fps)
+                self.logger.record("time/time_elapsed", int(time_elapsed), exclude="tensorboard")
+                self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
+                self.logger.dump(step=self.num_timesteps)
+
+            self.train()
+
+        callback.on_training_end()
+
+        return self

@@ -179,7 +179,7 @@ class EveryNRollouts(EventCallback):
 
 
 class PruningLogCallback(BaseCallback):
-    def __init__(self, verbose=0):
+    def __init__(self, expert = False, verbose=0):
         super(PruningLogCallback, self).__init__(verbose)
         self._reward_dict = {}
         self._info_dict = {}
@@ -219,16 +219,22 @@ class PruningLogCallback(BaseCallback):
         self._collisions_unacceptable_buffer.extend(self.training_env.get_attr("collisions_unacceptable"))
 
     def _on_rollout_start(self) -> None:
+        if self.locals['offline']:
+            return
         if self.verbose > 0:
             print("INFO: Rollout start")
         self._init_log_storage()
 
     def _on_step(self) -> bool:
+        if self.locals['offline']:
+            return True
         self._log_infos()
         self._log_collisions()
         return True
 
     def _on_rollout_end(self) -> None:
+        if self.locals['offline']:
+            return
         if self.verbose > 0:
             print("INFO: Rollout end")
             print("INFO: Success rate", np.mean(self._info_dict["is_success"]))
