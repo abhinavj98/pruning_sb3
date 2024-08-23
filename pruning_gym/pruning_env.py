@@ -893,7 +893,6 @@ class PruningEnvRRT(PruningEnv):
         orientation, forward, rot = self.generate_goal_pos()
         init_vec = np.array([0, 0, 1])
         init_vec = rot @ init_vec
-        #
         position = self.tree_goal_pos - offset * init_vec
         if config:
             joint_angles = self.ur5.calculate_ik(position, orientation)
@@ -998,7 +997,6 @@ class PruningEnvRRT(PruningEnv):
         self.dataset = dataset
 
 
-
     def run_naive_ik(self, planner, file_path, save_video=False, shortcutting=False): #Consistent with the other run functions
         for i in range(len(self.dataset)):
             self.reset()
@@ -1086,10 +1084,6 @@ class PruningEnvRRT(PruningEnv):
         else:
             row.to_csv(file_path, index=False, mode='a', header=False)
 
-
-
-
-
     def run_rrt_star(self, save_video=False, informed = True, shortcutting = False):
         planner = "informed_rrt_star" if informed else "rrt_star"
         timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
@@ -1139,7 +1133,6 @@ class PruningEnvRRT(PruningEnv):
 
     def baseline_save_video(self, path, planner, goal):
         frames = []
-
         self.pyb.remove_debug_items("step")
         self.pyb.remove_debug_items("reset")
         self.reset()
@@ -1170,6 +1163,18 @@ class PruningEnvRRT(PruningEnv):
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
                      self.tree_pos, self.tree_goal_normal]
 
+    def run_rrt_connect(self, save_video=False, shortcutting=False):
+        timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
+        solutions = self.get_different_ik_results(total_attempts=60, timing=timing)
+
+        tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
+                     self.tree_pos, self.tree_goal_normal]
+
+
+        distance_fn, sample_position, extend_fn, collision_fn = self.get_planning_fns()
+        controllable_joints = [3, 4, 5, 6, 7, 8]
+
+        start_find_path = time.time()
         path = None
         solution_found = False
         for i in solutions:

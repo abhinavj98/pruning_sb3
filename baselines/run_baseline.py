@@ -41,7 +41,6 @@ if __name__ == "__main__":
         with open(f"{type}_dataset.pkl", "rb") as f:
             dataset = pickle.load(f)
     # Shuffle dataset
-
     if dataset is not None:
         random.shuffle(dataset)
     set_goal_callback = PruningRRTSetGoalCallback(or_bins=or_bins, type=type, dataset=dataset,
