@@ -43,7 +43,7 @@ if __name__ == "__main__":
         load_path_model = None
 
     print(parsed_args_dict)
-    or_bins = make_or_bins(args_train, "test")
+    # or_bins = make_or_bins(args_train, "test")
 
     env = PruningEnv(**args_record)
     # new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)

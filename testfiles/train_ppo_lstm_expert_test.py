@@ -52,27 +52,27 @@ if __name__ == "__main__":
     expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
     # shuffle the expert trajectories
     # random.shuffle(expert_trajectories)
-    # for expert_trajectory in expert_trajectories:
-    #     print("Expert trajectory: ", expert_trajectory)
-    #     with open(expert_trajectory, "rb") as f:
-    #         expert_data = pickle.load(f)
+    for expert_trajectory in expert_trajectories:
+        print("Expert trajectory: ", expert_trajectory)
+        with open(expert_trajectory, "rb") as f:
+            expert_data = pickle.load(f)
 
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
 
-    set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
-    # set_goal_callback = Pruning1TreeSetGoalCallback(expert_data['tree_info'], verbose=args_callback['verbose'])
+    # set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
+    set_goal_callback = Pruning1TreeSetGoalCallback(expert_data['tree_info'], verbose=args_callback['verbose'])
     checkpoint_callback = PruningCheckpointCallback(save_freq=args_callback['save_freq'],
                                                     save_path="./logs/{}".format(args_global['run_name']),
                                                     name_prefix="model", verbose=args_callback['verbose'])
-    record_env_callback = EveryNRollouts(100, PruningTrainRecordEnvCallback(verbose=args_callback['verbose']))
+    # record_env_callback = EveryNRollouts(100, PruningTrainRecordEnvCallback(verbose=args_callback['verbose']))
     logging_callback = PruningLogCallback(expert=True, verbose=args_callback['verbose'])
-    callback_list = [record_env_callback, set_goal_callback, checkpoint_callback, logging_callback]
+    callback_list = [checkpoint_callback, logging_callback]
 
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
-    expert_trajectory_path = "expert_trajectories"
+    expert_trajectory_path = "expert_trajectories_temp"
     if not load_path_model:
         model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
                                          args_policy['use_offline_data'],

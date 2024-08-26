@@ -605,17 +605,43 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         super().__init__(*args, **kwargs)
         self.use_online_data = use_online_data
         self.use_offline_data = use_offline_data
-        self.expert_buffer = copy.deepcopy(self.rollout_buffer)  # Same structure as rollout buffer
+        self.num_expert_envs = self.n_envs
+        self.load_expert_from_disk = True
+        # self.expert_buffer = copy.deepcopy(self.rollout_buffer)  # Same structure as rollout buffer
+        # No copy, only freedom
+        buffer_cls = RecurrentDictRolloutBuffer if isinstance(self.observation_space,
+                                                              spaces.Dict) else RecurrentRolloutBuffer
+        lstm = self.policy.lstm_actor
+        hidden_state_buffer_shape = (self.n_steps, lstm.num_layers, self.num_expert_envs, lstm.hidden_size)
+
+        self.expert_buffer  = buffer_cls(
+            self.n_steps,
+            self.observation_space,
+            self.action_space,
+            hidden_state_buffer_shape,
+            self.device,
+            gamma=self.gamma,
+            gae_lambda=self.gae_lambda,
+            n_envs=self.n_envs,
+        )
         self.path_expert_data = path_expert_data
         self.expert_data = self.load_expert_data()
-        self.num_expert_envs = self.n_envs
+
         self.expert_batch = self.get_expert_batch(self.num_expert_envs)
         self.expert_batch_idx = np.zeros((self.num_expert_envs,), dtype=int)
+
         print("INIT PPOAEWithExpert with verbose", self.verbose)
     def get_expert_batch(self, batch_size):
         # Get a batch of expert data
-        expert_batch = random.choices(self.expert_data, k=batch_size)
-        # expert_batch = random.sample(self.expert_data, batch_size)
+        if self.load_expert_from_disk:
+            expert_batch_files = random.choices(self.expert_data, k=batch_size)
+            expert_batch = []
+            for i, file in enumerate(expert_batch_files):
+                with open(file, "rb") as f:
+                    expert_batch.append(pickle.load(f))
+        else:
+            expert_batch = random.choices(self.expert_data, k=batch_size)
+
         return expert_batch
 
     def _flatten_obs(self, obs, observation_space):
@@ -629,11 +655,14 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # Each pkl file contains save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions)}
         # Load all the pkl files into a list
         expert_trajectories = glob.glob(self.path_expert_data + "/*.pkl")
-        expert_data = []
-        for expert_trajectory in expert_trajectories:
-            print(expert_trajectory)
-            with open(expert_trajectory, "rb") as f:
-                expert_data.append(pickle.load(f))  # These are on cpu
+        if self.load_expert_from_disk:
+            expert_data = list(expert_trajectories)
+        else:
+            expert_data = []
+            for expert_trajectory in expert_trajectories:
+                print(expert_trajectory)
+                with open(expert_trajectory, "rb") as f:
+                    expert_data.append(pickle.load(f))  # These are on cpu
         return expert_data
 
     def step_expert(self):
@@ -645,19 +674,14 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         infos = [{} for _ in range(len(self.expert_batch))]
         for i in range(len(self.expert_batch)):
             timestep = self.expert_batch_idx[i]
-            try:
-                obs.append(self.expert_batch[i]["observations"][timestep])
-            except:
-                print("Error", i, timestep)
-                print("len", len(self.expert_batch[i]["observations"]))
-                print(self.expert_batch[i]["observations"][timestep])
+            obs.append(self.expert_batch[i]["observations"][timestep])
             rewards.append(self.expert_batch[i]["rewards"][timestep])
             dones.append(self.expert_batch[i]["dones"][timestep])
             actions.append(self.expert_batch[i]["actions"][timestep])
             if dones[-1]:
                 self.expert_batch[i] = self.get_expert_batch(1)[0]
                 self.expert_batch_idx[i] = 0
-                infos[i] = {"terminal_observation": self.expert_data[i]["last_obs"]}
+                infos[i] = {"terminal_observation": self.expert_batch[i]["last_obs"]}
 
         # print("obs", obs)
         # obs = zip(*obs)
@@ -675,26 +699,20 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         self.policy.set_training_mode(False)
         n_steps = 0
         expert_buffer.reset()
-        callback.update_locals(locals())
-        callback.on_rollout_start()
+        # callback.update_locals(locals())
+        # callback.on_rollout_start()
 
         # Sample expert episode
         self._last_episode_starts = np.ones((self.num_expert_envs,), dtype=bool)
         while n_steps < n_rollout_steps:
-            # For length of episode
-            # self._last_obs = expert_traj['observation'][idx]  # This or reset obs type: ignore[assignment]
-            #
-            # actions = expert_traj['actions'][idx]
-            # rewards = expert_traj['rewards'][idx]
-            # dones = expert_traj['done'][idx]
+
             last_obs, rewards, dones, actions, infos = self.step_expert()
             # Increment expert_batch_idx
             self.expert_batch_idx += 1
-            self.num_timesteps += self.num_expert_envs
 
-            callback.update_locals(locals())
-            if callback.on_step() is False:
-                return False
+            # callback.update_locals(locals())
+            # if callback.on_step() is False:
+            #     return False
 
             self._update_info_buffer(infos)
             n_steps += 1
@@ -726,7 +744,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 log_probs,
                 lstm_states=self._last_lstm_states,
             )
-
+            self.num_timesteps += self.num_expert_envs
             # self._last_obs = expert_traj['l']
             self._last_episode_starts = dones
             self._last_lstm_states = lstm_states  # These get reset in forward_expert (process_sequence)
@@ -739,9 +757,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             values = self.policy.predict_values(obs_as_tensor(last_obs, self.device), lstm_states.vf, episode_starts)
         expert_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
 
-        callback.on_rollout_end()
-        offline = False
-        callback.update_locals(locals())
+        # callback.on_rollout_end()
+        # offline = False
+        # callback.update_locals(locals())
         return True
 
     def train_online_batch(self, batch, clip_range, clip_range_vf):
@@ -894,7 +912,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         else:
             entropy_loss = -th.mean(entropy[mask]) * self.ent_coef
 
-        offline_loss = policy_loss + entropy_loss + value_loss + ae_l2_loss
+        offline_loss = policy_loss + entropy_loss*0. + value_loss + ae_l2_loss
         # Calculate approximate form of reverse KL Divergence for early stopping
         # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
         # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419

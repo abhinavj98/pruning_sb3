@@ -76,7 +76,8 @@ class pyb_utils:
         self.side_wall_1_id = self.create_wall_with_texture([0.01, 5, 5], [-5, 0, 5], [0, 0, 0], self.wall_texture)
         self.side_wall_2_id = self.create_wall_with_texture([0.01, 5, 5], [5, 0, 5], [0, 0, 0], self.wall_texture)
         self.ceil_id = self.create_wall_with_texture([0.01, 5, 5], [0, 0, 10], [0, np.pi / 2, 0], self.wall_texture)
-
+        self.back_wall_id = self.create_wall_with_texture([0.01, 5, 5], [0, 2, 5], [np.pi / 2, 0, np.pi / 2],
+                                                          self.wall_texture)
     def remove_debug_items(self, where) -> None:
         if where == 'step':
             for item in self.debug_items_step:

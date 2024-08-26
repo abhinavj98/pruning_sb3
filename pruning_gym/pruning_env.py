@@ -288,6 +288,7 @@ class PruningEnv(gym.Env):
         self.is_goal_state = False
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
+        self.ur5_robot = None
 
     def set_curriculum_level(self, episode_counter, curriculum_level_steps):
         """Set curriculum level"""
@@ -309,14 +310,18 @@ class PruningEnv(gym.Env):
         """Theres a chance that this is causing some memory leak. Shows up when using reset multiple times and parallelized."""
         """Environment reset function"""
         super().reset(seed=seed)
+        self.pyb.con.resetSimulation()
+        # #enable file caching
+        self.pyb.con.setPhysicsEngineParameter(enableFileCaching=1)
+
         if self.verbose > 1:
             print("DEBUG: Resetting environment")
         random.seed(seed)
         self.reset_env_variables()
 
         # Remove and add tree to avoid collisions with tree while resetting
-        if self.tree_id is not None:
-            self.inactivate_tree(self.pyb)
+        # if self.tree_id is not None:
+        #     self.inactivate_tree(self.pyb)
 
         # Function for remove body
         # self.ur5.remove_ur5_robot()
@@ -327,9 +332,9 @@ class PruningEnv(gym.Env):
         self.set_curriculum_level(self.episode_counter, self.curriculum_level_steps)  # This will not work now
 
         # Create new ur5 arm body
-        # self.pyb.create_background()
-        # self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
-        self.ur5.reset_ur5_arm()
+        self.pyb.create_background()
+        self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
+        # self.ur5.reset_ur5_arm()
         # Sample new point
         # Jitter the camera pose
         self.set_camera_pose()
@@ -1381,6 +1386,8 @@ class PruningEnvRRT(PruningEnv):
                 self.ur5.reset_ur5_arm()
             count_in_frame = 0
             for i, vel in enumerate(ee_vel):
+                if np.isclose(vel, np.zeros(6), atol=0.001).all():
+                    continue
                 scaled_vel = vel/self.action_scale #Value passed by name, will get unscaled after step
                 action = copy.deepcopy(scaled_vel)
                 new_obs, reward, terminated, truncated, _ = self.step(scaled_vel)
@@ -1415,6 +1422,9 @@ class PruningEnvRRT(PruningEnv):
             if not terminated:
                 for j in range(int(2*int(scale)/self.action_scale)): #At most twice the time needed to reach the goal
                     #Move towards the goal
+                    if np.isclose(ee_vel_local, np.zeros(6), atol=0.001).all():
+                        dones[-1] = True
+                        break
                     action = copy.deepcopy(ee_vel_local)
                     new_obs, reward, terminated, truncated, info = self.step(copy.deepcopy(ee_vel_local))
                     actions.append(action)
@@ -1433,7 +1443,7 @@ class PruningEnvRRT(PruningEnv):
                     if terminated or info['collision_unacceptable_reward'] < 0 or info['collision_acceptable_reward'] < 0:
                         dones.append(True)
                         break
-                    if j == 5:
+                    if j == int(2*int(scale)/self.action_scale) - 1:
                         dones.append(True)
                     else:
                         dones.append(terminated)

@@ -73,6 +73,8 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
                                              tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,
                                              point_branch_normal=current_branch_normal)
     def _on_step(self) -> bool:
+        if self.locals['offline']:
+            return
         self._update_tree_properties()  # Maybe remove infos check and pass it in an EventCallback that triggers whenever episode terminates
         return True
 

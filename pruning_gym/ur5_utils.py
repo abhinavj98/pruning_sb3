@@ -51,7 +51,9 @@ class UR5:
         self.setup_ur5_arm()  # Changes pos and orientation if randomize is True
 
     def setup_ur5_arm(self) -> None:
-        assert self.ur5_robot is None
+        if self.ur5_robot is not None:
+            self.con.removeBody(self.ur5_robot)
+            del self.ur5_robot
         self.tool0_link_index = 8
         self.end_effector_index = 13
         self.success_link_index = 14
