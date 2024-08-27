@@ -35,7 +35,7 @@ if __name__ == "__main__":
         parsed_args)
     verbose = 1
 
-    # init_wandb(parsed_args_dict, args_global['run_name'])
+    init_wandb(parsed_args_dict, args_global['run_name'])
     load_timestep = args_global['load_timestep']
 
     if args_global['load_path']:
@@ -48,7 +48,8 @@ if __name__ == "__main__":
 
     print(parsed_args_dict)
     or_bins = make_or_bins(args_train, "train")
-    expert_trajectory_path = "expert_trajectories_temp"
+    expert_trajectory_path = "expert_trajectories"
+    print("Number of expert trajectories: ", len(glob.glob(expert_trajectory_path + "/*.pkl")))
     expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
     # shuffle the expert trajectories
     # random.shuffle(expert_trajectories)
@@ -72,7 +73,6 @@ if __name__ == "__main__":
 
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
-    expert_trajectory_path = "expert_trajectories"
     if not load_path_model:
         model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
                                          args_policy['use_offline_data'],
