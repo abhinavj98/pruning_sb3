@@ -89,36 +89,50 @@ class Decoder(nn.Module):
 
 
 class AutoEncoder(BaseFeaturesExtractor):
-    def __init__(self, observation_space: gym.spaces.Box, features_dim=72, in_channels=1, size=(224, 224)):
+    def __init__(self, observation_space: gym.spaces.Box, features_dim=128, in_channels=1, size=(240, 424)):
         super(AutoEncoder, self).__init__(observation_space, features_dim)
         self.in_channels = in_channels
         self.size = size
-        output_conv = nn.Conv2d(3, in_channels, 3, padding=1)
         self.encoder = nn.Sequential(
-            nn.Conv2d(in_channels, 16, 3, padding='same'),  # b, 16, 224, 224
+            nn.Conv2d(in_channels, 16, 3, padding='same'),  # b, 16, 240, 424
             nn.ReLU(),
-            nn.Conv2d(16, 32, 3, padding=1, stride=2),  # b, 64, 112, 112
+            nn.LayerNorm([16, 240, 424]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(16, 32, 3, padding=1, stride=2),  # b, 32, 120, 212
             nn.ReLU(),
-            nn.Conv2d(32, 64, 3, padding=1, stride=2),  # b, 64, 56, 56
+            nn.LayerNorm([32, 120, 212]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(32, 64, 3, padding=1, stride=2),  # b, 64, 60, 106
             nn.ReLU(),
-            nn.Conv2d(64, 128, 3, padding=1, stride=2),  # b, 128, 28, 28
+            nn.LayerNorm([64, 60, 106]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(64, 128, 3, padding=1, stride=2),  # b, 128, 30, 53
             nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding=1, stride=2),  # b, 128, 14, 14
+            nn.LayerNorm([128, 30, 53]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(128, 128, 3, padding=1, stride=2),  # b, 128, 15, 27
             nn.ReLU(),
-            nn.Conv2d(128, 64, 3, padding=1, stride=2),  # b, 128, 7, 7
+            nn.LayerNorm([128, 15, 27]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(128, 64, 3, padding=1, stride=2),  # b, 64, 8, 14
             nn.ReLU(),
-            nn.Conv2d(64, 32, 3, padding=1),
+            nn.LayerNorm([64, 8, 14]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(64, 32, 3, padding=1),  # b, 32, 8, 14
             nn.ReLU(),
-            nn.Conv2d(32, 8, 3, padding=1),
-            nn.AvgPool2d(5, stride=1),
+            nn.LayerNorm([32, 8, 14]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(32, 8, 3, padding=1),  # b, 8, 8, 14
+            nn.ReLU(),
+            nn.LayerNorm([8, 8, 14]),  # Apply LayerNorm after ReLU
         )
-        output_conv = nn.Conv2d(3, in_channels, 3, padding=1)
-        # output_conv.bias.data.fill_(0.3)
-        self.fc = nn.Sequential(
-            nn.Linear(72, 7 * 7 * 32),
+        self.fc_in = nn.Sequential(
+            nn.Linear(8*8*14, 128),)
+        self.fc_out = nn.Sequential(
+            nn.Linear(128, 8*8*14),
             nn.ReLU())
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(32, 32, 3, padding=1, stride=1),  # 32. 7, 7
+            nn.ConvTranspose2d(8, 32, 3, padding=1, stride=1),  # 32. 7, 7
             nn.ReLU(),
             nn.ConvTranspose2d(32, 32, 2, stride=2),  # 32. 14, 14
             nn.ReLU(),
@@ -150,9 +164,11 @@ class AutoEncoder(BaseFeaturesExtractor):
     def forward(self, image) -> th.Tensor:
         # print(observation)
         image_resized = self._preprocess(image)
-        encoding = self.encoder(image_resized).view(-1, 72)
-        fc_out = self.fc(encoding)
-        recon = self.decoder(fc_out.view(-1, 32, 7, 7))
+        encoder_conv = self.encoder(image_resized)
+        encoding = self.fc_in(encoder_conv.view(-1, 8*8*14))
+        fc_out = self.fc_out(encoding)
+        recon = self.decoder(fc_out.view(-1, 8, 8, 14))
+        recon = self._preprocess(recon)
         return encoding, recon
 
 

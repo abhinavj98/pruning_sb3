@@ -76,6 +76,7 @@ if __name__ == "__main__":
     if not load_path_model:
         model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
                                          args_policy['use_offline_data'],
+                                         args_policy['mix_data'],
                                          policy, env, policy_kwargs=policy_kwargs,
                                          learning_rate=linear_schedule(args_policy['learning_rate']),
                                          learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),

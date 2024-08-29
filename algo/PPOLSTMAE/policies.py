@@ -36,6 +36,96 @@ from torchvision.transforms import functional as F
 # Optical flow
 from pruning_sb3.pruning_gym.optical_flow import OpticalFlow
 
+import torch as th
+import torch.nn as nn
+from typing import Union, List, Dict, Tuple, Type
+from stable_baselines3.common.utils import get_device
+
+class MlpExtractorLN(nn.Module):
+    """
+    Constructs an MLP that receives the output from a previous features extractor (i.e., a CNN) or directly
+    the observations (if no features extractor is applied) as an input and outputs a latent representation
+    for the policy and a value network.
+
+    The ``net_arch`` parameter allows to specify the amount and size of the hidden layers.
+    It can be in either of the following forms:
+    1. ``dict(vf=[<list of layer sizes>], pi=[<list of layer sizes>])``: to specify the amount and size of the layers in the
+        policy and value nets individually. If it is missing any of the keys (pi or vf),
+        zero layers will be considered for that key.
+    2. ``[<list of layer sizes>]``: "shortcut" in case the amount and size of the layers
+        in the policy and value nets are the same. Same as ``dict(vf=int_list, pi=int_list)``
+        where int_list is the same for the actor and critic.
+
+    .. note::
+        If a key is not specified or an empty list is passed ``[]``, a linear network will be used.
+
+    :param feature_dim: Dimension of the feature vector (can be the output of a CNN)
+    :param net_arch: The specification of the policy and value networks.
+        See above for details on its formatting.
+    :param activation_fn: The activation function to use for the networks.
+    :param device: PyTorch device.
+    """
+
+    def __init__(
+        self,
+        feature_dim: int,
+        net_arch: Union[List[int], Dict[str, List[int]]],
+        activation_fn: Type[nn.Module],
+        device: Union[th.device, str] = "auto",
+        add_layer_norm: bool = True,  # New argument to control Layer Norm
+    ) -> None:
+        super().__init__()
+        device = get_device(device)
+        policy_net: List[nn.Module] = []
+        value_net: List[nn.Module] = []
+        last_layer_dim_pi = feature_dim
+        last_layer_dim_vf = feature_dim
+
+        # Save dimensions of layers in policy and value nets
+        if isinstance(net_arch, dict):
+            # Note: if key is not specified, assume linear network
+            pi_layers_dims = net_arch.get("pi", [])  # Layer sizes of the policy network
+            vf_layers_dims = net_arch.get("vf", [])  # Layer sizes of the value network
+        else:
+            pi_layers_dims = vf_layers_dims = net_arch
+
+        # Iterate through the policy layers and build the policy net
+        for curr_layer_dim in pi_layers_dims:
+            policy_net.append(nn.Linear(last_layer_dim_pi, curr_layer_dim))
+            # if add_layer_norm:
+            #     policy_net.append(nn.LayerNorm(curr_layer_dim))
+            policy_net.append(activation_fn())
+            last_layer_dim_pi = curr_layer_dim
+
+        # Iterate through the value layers and build the value net
+        for curr_layer_dim in vf_layers_dims:
+            value_net.append(nn.Linear(last_layer_dim_vf, curr_layer_dim))
+            if add_layer_norm:
+                value_net.append(nn.LayerNorm(curr_layer_dim))
+            value_net.append(activation_fn())
+            last_layer_dim_vf = curr_layer_dim
+
+        # Save dim, used to create the distributions
+        self.latent_dim_pi = last_layer_dim_pi
+        self.latent_dim_vf = last_layer_dim_vf
+
+        # Create networks
+        # If the list of layers is empty, the network will just act as an Identity module
+        self.policy_net = nn.Sequential(*policy_net).to(device)
+        self.value_net = nn.Sequential(*value_net).to(device)
+
+    def forward(self, features: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
+        """
+        :return: latent_policy, latent_value of the specified network.
+            If all layers are shared, then ``latent_policy == latent_value``
+        """
+        return self.forward_actor(features), self.forward_critic(features)
+
+    def forward_actor(self, features: th.Tensor) -> th.Tensor:
+        return self.policy_net(features)
+
+    def forward_critic(self, features: th.Tensor) -> th.Tensor:
+        return self.value_net(features)
 
 class ActorCriticPolicySquashed(BasePolicy):
     """
@@ -75,7 +165,7 @@ class ActorCriticPolicySquashed(BasePolicy):
             action_space: spaces.Space,
             lr_schedule: Schedule,
             net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
-            activation_fn: Type[nn.Module] = nn.Tanh,
+            activation_fn: Type[nn.Module] = nn.ReLU,
             ortho_init: bool = True,
             use_sde: bool = False,
             log_std_init: float = 0.0,
@@ -199,12 +289,13 @@ class ActorCriticPolicySquashed(BasePolicy):
         # Note: If net_arch is None and some features extractor is used,
         #       net_arch here is an empty list and mlp_extractor does not
         #       really contain any layers (acts like an identity module).
-        self.mlp_extractor = MlpExtractor(
+        self.mlp_extractor = MlpExtractorLN(
             self.features_dim,
             net_arch=self.net_arch,
             activation_fn=self.activation_fn,
             device=self.device,
         )
+
 
     def _build(self, lr_schedule: Schedule) -> None:
         """
@@ -215,7 +306,6 @@ class ActorCriticPolicySquashed(BasePolicy):
         """
         self._build_mlp_extractor()
 
-        latent_dim_pi = self.mlp_extractor.latent_dim_pi
         latent_dim_pi = self.mlp_extractor.latent_dim_pi
         self.action_net, self.log_std = self.action_dist.proba_distribution_net(
             latent_dim=latent_dim_pi, log_std_init=self.log_std_init
@@ -579,17 +669,6 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
                 print("NOT MAC")
                 self.running_mean_var_oflow_x, self.running_mean_var_oflow_y = pickle.load(f)
 
-    def _build_mlp_extractor(self) -> None:
-        """
-        Create the policy and value networks.
-        Part of the layers can be shared.
-        """
-        self.mlp_extractor = MlpExtractor(
-            self.lstm_output_dim,
-            net_arch=self.net_arch,
-            activation_fn=self.activation_fn,
-            device=self.device,
-        )
 
     @staticmethod
     def _process_sequence(
@@ -778,13 +857,14 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
 
         depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
 
-        depth_proxy = F.resize(depth_proxy, size=[224, 224], antialias=True)
-        if self.training:
-            self.running_mean_var_oflow_x.update(depth_proxy[:, 0, :, :].reshape(depth_proxy.shape[0], -1))
-            self.running_mean_var_oflow_y.update(depth_proxy[:, 1, :, :].reshape(depth_proxy.shape[0], -1))
-        image_features = self.features_extractor(
-            self._normalize_using_running_mean_std(depth_proxy, (self.running_mean_var_oflow_x,
-                                                                 self.running_mean_var_oflow_y)))
+        # depth_proxy = F.resize(depth_proxy, size=[224, 224], antialias=True)
+        # if self.training:
+        #     self.running_mean_var_oflow_x.update(depth_proxy[:, 0, :, :].reshape(depth_proxy.shape[0], -1))
+        #     self.running_mean_var_oflow_y.update(depth_proxy[:, 1, :, :].reshape(depth_proxy.shape[0], -1))
+        # image_features = self.features_extractor(
+        #     self._normalize_using_running_mean_std(depth_proxy, (self.running_mean_var_oflow_x,
+        #                                                          self.running_mean_var_oflow_y)))
+        image_features = self.features_extractor(depth_proxy)
         features_actor = th.cat([obs[i] for i in obs.keys() if 'critic' not in i and 'rgb' not in i
                                  and 'prev_rgb' not in i and 'point_mask' not in i], dim=1).to(th.float32)
         features_actor = th.cat([features_actor, image_features[0]], dim=1).to(th.float32)
@@ -807,9 +887,9 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
 
         # return actor features and critic features
         # unnormalize in place
-        unnormalize_recon = self._unnormalize_using_running_mean_std(image_features[1], (self.running_mean_var_oflow_x,
-                                                                                         self.running_mean_var_oflow_y))
-        return features, depth_proxy, unnormalize_recon
+        # unnormalize_recon = self._unnormalize_using_running_mean_std(image_features[1], (self.running_mean_var_oflow_x,
+        #                                                                                  self.running_mean_var_oflow_y))
+        return features, depth_proxy, image_features[1]
 
     # def make_state_from_obs(self, obs):
     #     depth_features = self.extract_features(obs['depth_proxy'])
@@ -896,9 +976,9 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         # Preprocess the observation if needed
         features, depth_proxy, depth_proxy_recon = self.extract_features(obs)
         #Check if any nan values
-        for i, feat in enumerate(features):
-            assert not th.isnan(feat).any(), "Nan values in features "+str(i) + " " + str(feat)
-        assert not th.isnan(depth_proxy).any(), "Nan values in depth_proxy"
+        # for i, feat in enumerate(features):
+        #     assert not th.isnan(feat).any(), "Nan values in features "+str(i) + " " + str(feat)
+        # assert not th.isnan(depth_proxy).any(), "Nan values in depth_proxy"
         if self.share_features_extractor:
             pi_features = vf_features = features  # alias
         else:
@@ -912,13 +992,28 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             latent_vf = self.critic(vf_features)
         latent_pi = self.mlp_extractor.forward_actor(latent_pi)
         latent_vf = self.mlp_extractor.forward_critic(latent_vf)
-        assert not th.isnan(latent_pi).any(), f"Actor's latent vector has NaN values: {latent_pi}"
-        assert not th.isnan(latent_vf).any(), f"Critic's latent vector has NaN values: {latent_vf}"
+        # assert not th.isnan(latent_pi).any(), f"Actor's latent vector has NaN values: {latent_pi}"
+        # assert not th.isnan(latent_vf).any(), f"Critic's latent vector has NaN values: {latent_vf}"
         distribution = self._get_action_dist_from_latent(latent_pi)
         log_prob = distribution.log_prob(actions)
 
         values = self.value_net(latent_vf)
         return values, log_prob, distribution.entropy(), depth_proxy, depth_proxy_recon
+
+    def _build_mlp_extractor(self) -> None:
+        """
+        Create the policy and value networks.
+        Part of the layers can be shared.
+        """
+        # Note: If net_arch is None and some features extractor is used,
+        #       net_arch here is an empty list and mlp_extractor does not
+        #       really contain any layers (acts like an identity module).
+        self.mlp_extractor = MlpExtractorLN(
+            self.lstm_output_dim,
+            net_arch=self.net_arch,
+            activation_fn=self.activation_fn,
+            device=self.device,
+        )
 
     @staticmethod
     def init_weights(module: nn.Module, gain: float = 1) -> None:

@@ -189,7 +189,7 @@ def get_policy_kwargs(args_policy, args_env, features_extractor_class):
         "features_extractor_class": features_extractor_class,
         "features_extractor_kwargs": {"features_dim": args_policy['state_dim'],
                                       "in_channels": 3,
-                                      "size": (224, 224)},
+                                      "size": (args_env['cam_height'], args_env['cam_width'])},
         "optimizer_class": th.optim.Adam,
         "log_std_init": args_policy['log_std_init'],
         "net_arch": dict(

@@ -257,7 +257,7 @@ args = {
         },
         'state_dim': {
             'type': int,
-            'default': 72 + 33,
+            'default': 128 + 33,
             'help': 'dimension of the state space'
         },
         # Training parameters
@@ -294,7 +294,7 @@ args = {
         },
         'log_std_init': {
             'type': float,
-            'default': -0.8,  # -3.5,
+            'default': -1.2,  # -3.5,
             'help': 'initial value for the log standard deviation'
         },
         'ae_coeff': {
@@ -316,6 +316,12 @@ args = {
             'action': "store_true",
             'default': False,
             'help': 'whether to use online data'
+        },
+
+        'mix_data': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to mix data'
         },
     },
     'args_baseline': {

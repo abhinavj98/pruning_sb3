@@ -200,11 +200,11 @@ class PruningLogCallback(BaseCallback):
         self._reward_dict["velocity_reward"] = []
         self._reward_dict["perpendicular_orientation_reward"] = []
         self._reward_dict["pointing_orientation_reward"] = []
+        self._reward_dict["velocity"] = []
         self._info_dict["pointing_cosine_sim_error"] = []
         self._info_dict["perpendicular_cosine_sim_error"] = []
         self._info_dict["euclidean_error"] = []
         self._info_dict["is_success"] = []
-        self._info_dict['velocity'] = []
         self._collisions_acceptable_buffer = []
         self._collisions_unacceptable_buffer = []
 
