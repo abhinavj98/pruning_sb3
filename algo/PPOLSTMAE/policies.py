@@ -325,8 +325,9 @@ class ActorCriticPolicySquashed(BasePolicy):
         #     self.action_net = self.action_dist.proba_distribution_net(latent_dim=latent_dim_pi)
         # else:
         #     raise NotImplementedError(f"Unsupported distribution '{self.action_dist}'.")
-
-        self.value_net = nn.Linear(self.mlp_extractor.latent_dim_vf, 1)
+        #Add layer norm to the value network
+        self.value_net =nn.Linear(self.mlp_extractor.latent_dim_vf, 1)
+        # self.value_net = nn.Linear(self.mlp_extractor.latent_dim_vf, 1)
         # Init weights: use orthogonal initialization
         # with small initial weight for the output
         if self.ortho_init:

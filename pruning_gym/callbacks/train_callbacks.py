@@ -119,7 +119,10 @@ class PruningCheckpointCallback(CheckpointCallback):
     def _on_step(self) -> bool:
         if self.n_calls % self.save_freq == 0:
             model_path = self._checkpoint_path(extension="zip")
-            self.model.save(model_path)
+            
+            self.model.save(model_path, exclude=["_last_obs", "_last_episode_starts", "_last_original_obs"
+                                                 "expert_buffer", "expert_data", "expert_batch_idx",
+                                                 "rollout_buffer", "expert_batch"])
             if self.verbose >= 1:
                 print(f"Saving model checkpoint to {model_path}")
             mean_std_path = self._checkpoint_path(checkpoint_type="mean_std_", extension="pkl")
