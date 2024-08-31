@@ -677,9 +677,13 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         if self.load_expert_from_disk:
             expert_batch_files = random.choices(self.expert_data, k=num_traj)
             expert_batch = []
-            for i, file in enumerate(expert_batch_files):
-                with open(file, "rb") as f:
-                    expert_batch.append(pickle.load(f))
+            try:
+                for i, file in enumerate(expert_batch_files):
+                    with open(file, "rb") as f:
+                        expert_batch.append(pickle.load(f))
+            except Exception as e:
+                print("Error loading expert file", e)
+                return self.get_expert_batch(num_traj)
         else:
             expert_batch = random.choices(self.expert_data, k=num_traj)
 
@@ -949,8 +953,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             )
 
         # Value loss using the TD(gae_lambda) target
-        value_loss_online = th.mean(((batch_online.returns*ratio_current_old_online - values_pred_online) ** 2)[mask_online]) * self.vf_coef
-        value_loss_offline = th.mean(((batch_offline.returns*ratio_current_expert_offline - values_pred_offline) ** 2)[mask_offline]) * self.vf_coef
+        value_loss_online = th.mean(((batch_online.returns - values_pred_online) ** 2)[mask_online]) * self.vf_coef
+        value_loss_offline = th.mean(((batch_offline.returns*ratio_old_expert_offline - values_pred_offline) ** 2)[mask_offline]) * self.vf_coef
 
         #Autoencoder loss
         ae_l2_loss_online = self.mse_loss(depth_proxy_online, depth_proxy_recon_online) * self.ae_coeff
@@ -1216,7 +1220,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         #                                    self.expert_buffer.returns.flatten())
 
         explained_var_online = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
-        explained_var_offline = explained_variance(self.expert_buffer.values.flatten(), self.expert_buffer.returns.flatten())
+        explained_var_offline = explained_variance(self.expert_buffer.values.flatten(), self.expert_buffer.returns.flatten()*ratio_old_expert_offline)
         # Logs
 
         # of_image_x = self.normalize_image(depth_proxy_recon[0, 0, :, :]).unsqueeze(0)
