@@ -77,6 +77,7 @@ if __name__ == "__main__":
         model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
                                          args_policy['use_offline_data'],
                                          args_policy['mix_data'],
+                                         args_policy['use_online_bc'],
                                          policy, env, policy_kwargs=policy_kwargs,
                                          learning_rate=linear_schedule(args_policy['learning_rate']),
                                          learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),
@@ -90,9 +91,10 @@ if __name__ == "__main__":
     else:
         load_dict = {"learning_rate": linear_schedule(args_policy['learning_rate']),
                      "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
-                     "learning_rate_logstd": None,
-                     "log_std": -0.5}
-        model = RecurrentPPOAEWithExpert.load(load_path_model, env=env, custom_objects=load_dict)
+                     "learning_rate_logstd": None}
+        model = RecurrentPPOAEWithExpert.load(load_path_model, env=env, path_expert_data=expert_trajectory_path, use_online_data=args_policy['use_online_data'],
+                                                use_offline_data=args_policy['use_offline_data'],
+                                                mix_data=args_policy['mix_data'], custom_objects=load_dict)
 
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
 

@@ -50,11 +50,20 @@ if __name__ == "__main__":
     # env.logger = new_logger
 
     #load pkl file from expert_trajectories_temp
-    expert_trajectory_path = "expert_trajectories_temp"
+    expert_trajectory_path = "expert_trajectories"
     expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
+
+    policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
+    policy = RecurrentActorCriticPolicy
+
+    model = RecurrentPPOAE.load(load_path_model, env=env)
+    model.policy.load_running_mean_std_from_file(load_path_mean_std)
+    model.num_timesteps = load_timestep
+    model._num_timesteps_at_start = load_timestep
+
     #shuffle the expert trajectories
     # random.shuffle(expert_trajectories)
-    for expert_trajectory in expert_trajectories:
+    for expert_trajectory in expert_trajectories[:50]:
         print("Expert trajectory: ", expert_trajectory)
         with open(expert_trajectory, "rb") as f:
             expert_data = pickle.load(f)
@@ -78,31 +87,24 @@ if __name__ == "__main__":
     #
     # env.reset()
 
-    policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
-    policy = RecurrentActorCriticPolicy
-
-    model = RecurrentPPOAE.load(load_path_model, env=env)
-    model.policy.load_running_mean_std_from_file(load_path_mean_std)
-    model.num_timesteps = load_timestep
-    model._num_timesteps_at_start = load_timestep
 
 
-    env.reset()
+        env.reset()
 
-    episode_rewards, episode_lengths = evaluate_policy(
-        model,
-        env,
-        n_eval_episodes=1,
-        render=False,
-        deterministic=True,
-        return_episode_rewards=True
-    )
+        episode_rewards, episode_lengths = evaluate_policy(
+            model,
+            env,
+            n_eval_episodes=1,
+            render=False,
+            deterministic=True,
+            return_episode_rewards=True
+        )
 
-    print("Episode rewards: ", episode_rewards)
-    if verbose > 0:
-        print("INFO: Policy on device: ", model.policy.device)
-        print("INFO: Model on device: ", model.device)
-        print("INFO: Optical flow on device: ", model.policy.optical_flow_model.device)
-        print("INFO: Using device: ", utils.get_device())
-        print("INFO: Number of timesteps: ", model.num_timesteps)
+        print("Episode rewards: ", episode_rewards)
+        if verbose > 0:
+            print("INFO: Policy on device: ", model.policy.device)
+            print("INFO: Model on device: ", model.device)
+            print("INFO: Optical flow on device: ", model.policy.optical_flow_model.device)
+            print("INFO: Using device: ", utils.get_device())
+            print("INFO: Number of timesteps: ", model.num_timesteps)
 

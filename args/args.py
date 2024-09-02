@@ -323,6 +323,12 @@ args = {
             'default': False,
             'help': 'whether to mix data'
         },
+
+        'use_online_bc': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to use online bc'
+        }
     },
     'args_baseline': {
         'planner': {

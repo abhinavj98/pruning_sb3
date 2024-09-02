@@ -432,7 +432,7 @@ class PruningEnv(gym.Env):
     def get_infos(self, terminated, truncated):
         infos = {'is_success': False, "TimeLimit.truncated": False}  # type: ignore
         if truncated:
-            infos["TimeLimit.truncated"] = True  # type: ignore
+            infos["TimeLimit.truncated"] = False  # type: ignore
             infos["terminal_observation"] = self.observation  # type: ignore
         if truncated or terminated:
             if self.is_goal_state is True:
@@ -1450,7 +1450,7 @@ class PruningEnvRRT(PruningEnv):
 
                     obs = new_obs
             print("Length of velo", len(actions))
-            save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions), "last_obs": obs}
+            save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions), "last_obs": obs, "info": info}
             #Calculate optical flow
 
             with open('expert_trajectories/{}.pkl'.format(time.time()), 'wb') as f:

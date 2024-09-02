@@ -43,7 +43,8 @@ if __name__ == "__main__":
         tree_info = expert_data['tree_info']
         actions = expert_data['actions']
         observations = expert_data['observations']
-        # dones = expert_data['dones']
+        rewards = expert_data['rewards']
+        dones = expert_data['dones']
         env.set_tree_properties(*tree_info)
 
         # env.ur5.reset_ur5_arm()
@@ -55,7 +56,8 @@ if __name__ == "__main__":
             # env.set_observation(observation)
             # env.set_action(action)
             obs, rew, term, trunc, _ = env.step(action)
-            print(rew, term)
+            print("env", rew, term)
+            print("file", rewards[i], dones[i])
         input()
 
     print("Env created")
