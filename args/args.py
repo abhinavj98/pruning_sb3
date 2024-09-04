@@ -37,7 +37,7 @@ args = {
         # Reward parameters
         'movement_reward_scale': {
             'type': float,
-            'default': 5,
+            'default': 10,
             'help': 'scaling factor for the movement reward'
         },
         'distance_reward_scale': {
@@ -328,7 +328,12 @@ args = {
             'action': "store_true",
             'default': False,
             'help': 'whether to use online bc'
-        }
+        },
+        'dont_normalize_advantage': {
+            'action': "store_false",
+            'default': True,
+            'help': 'whether to normalize the advantage'
+        },
     },
     'args_baseline': {
         'planner': {
@@ -361,5 +366,6 @@ args = {
             'default': 'results.csv',
             'help': 'path to load the results to smooth'
         },
+
     }
 }

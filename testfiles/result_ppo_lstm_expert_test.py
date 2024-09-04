@@ -50,7 +50,7 @@ if __name__ == "__main__":
     # env.logger = new_logger
 
     #load pkl file from expert_trajectories_temp
-    expert_trajectory_path = "expert_trajectories"
+    expert_trajectory_path = "expert_trajectories_temp"
     expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
 
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
@@ -74,17 +74,17 @@ if __name__ == "__main__":
         # dones = expert_data['dones']
         env.set_tree_properties(*tree_info)
 
-    #     env.ur5.reset_ur5_arm()
-    #     env.reset()
-    #     for i in range(len(actions)):
-    #         action = actions[i]
-    #         print("Action: ", action)
-    #         observation = observations[i]
-    #         # env.set_observation(observation)
-    #         # env.set_action(action)
-    #         obs, rew, term, trunc, _ = env.step(action)
-    #         print(rew, term)
-    #
+        env.ur5.reset_ur5_arm()
+        env.reset()
+        for i in range(len(actions)):
+            action = actions[i]
+            print("Action: ", action)
+            observation = observations[i]
+            # env.set_observation(observation)
+            # env.set_action(action)
+            obs, rew, term, trunc, _ = env.step(action)
+            print(rew, term)
+
     # env.reset()
 
 

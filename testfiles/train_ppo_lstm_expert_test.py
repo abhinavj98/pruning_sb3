@@ -73,6 +73,9 @@ if __name__ == "__main__":
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
     # expert_trajectory_path = "expert_trajectories"
+    learning_rate_logstd = None
+    if args_policy['use_online_bc'] or args_policy['mix_data']:
+        learning_rate_logstd = linear_schedule(args_policy['learning_rate'])
     if not load_path_model:
         model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
                                          args_policy['use_offline_data'],
@@ -81,17 +84,18 @@ if __name__ == "__main__":
                                          policy, env, policy_kwargs=policy_kwargs,
                                          learning_rate=linear_schedule(args_policy['learning_rate']),
                                          learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),
-                                         learning_rate_logstd=None,
+                                         learning_rate_logstd=learning_rate_logstd,
                                          n_steps=args_policy['steps_per_epoch'],
                                          batch_size=args_policy['batch_size'],
                                          n_epochs=args_policy['epochs'],
                                          ae_coeff=args_policy['ae_coeff'],
                                          verbose=args_policy['verbose'],
+                                         normalize_advantage=args_policy['dont_normalize_advantage'],
                                          )
     else:
         load_dict = {"learning_rate": linear_schedule(args_policy['learning_rate']),
                      "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
-                     "learning_rate_logstd": None,
+                     "learning_rate_logstd": learning_rate_logstd,
                      "log_std": -0.5}
         model = RecurrentPPOAEWithExpert.load(load_path_model, env=env, custom_objects=load_dict)
 

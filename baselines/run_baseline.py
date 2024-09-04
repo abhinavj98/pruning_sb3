@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
 
     #read a csv file with the dataset
-    result_df = pd.read_csv(args_baseline['results_save_path']+'.csv')
+    # result_df = pd.read_csv(args_baseline['results_save_path']+'.csv')
 
 
     dataset = None

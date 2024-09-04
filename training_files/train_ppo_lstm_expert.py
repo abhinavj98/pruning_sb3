@@ -73,6 +73,8 @@ if __name__ == "__main__":
 
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
+    if args_policy['use_online_bc'] or args_policy['mix_data']:
+        learning_rate_logstd = linear_schedule(args_policy['learning_rate'])
     if not load_path_model:
         model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
                                          args_policy['use_offline_data'],
@@ -81,7 +83,7 @@ if __name__ == "__main__":
                                          policy, env, policy_kwargs=policy_kwargs,
                                          learning_rate=linear_schedule(args_policy['learning_rate']),
                                          learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),
-                                         learning_rate_logstd=None,
+                                         learning_rate_logstd=learning_rate_logstd,
                                          n_steps=args_policy['steps_per_epoch'],
                                          batch_size=args_policy['batch_size'],
                                          n_epochs=args_policy['epochs'],
@@ -91,7 +93,7 @@ if __name__ == "__main__":
     else:
         load_dict = {"learning_rate": linear_schedule(args_policy['learning_rate']),
                      "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
-                     "learning_rate_logstd": None}
+                     "learning_rate_logstd": learning_rate_logstd}
         model = RecurrentPPOAEWithExpert.load(load_path_model, env=env, path_expert_data=expert_trajectory_path, use_online_data=args_policy['use_online_data'],
                                                 use_offline_data=args_policy['use_offline_data'],
                                                 mix_data=args_policy['mix_data'], custom_objects=load_dict)
