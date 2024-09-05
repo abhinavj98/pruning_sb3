@@ -1,4 +1,5 @@
 # Editors
+*.out
 *.pkl
 .vscode/
 ../.idea/
