@@ -263,7 +263,7 @@ args = {
         # Training parameters
         'total_timesteps': {
             'type': int,
-            'default': 20_000_000,
+            'default': 5_000_000,
             'help': 'total number of timesteps to train for'
         },
         # For logging purposes keep as multiple of episode length
@@ -294,7 +294,7 @@ args = {
         },
         'log_std_init': {
             'type': float,
-            'default': -1.2,  # -3.5,
+            'default': -0.9,  # -3.5,
             'help': 'initial value for the log standard deviation'
         },
         'ae_coeff': {
