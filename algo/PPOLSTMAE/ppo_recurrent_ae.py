@@ -6,6 +6,7 @@ from typing import Any, ClassVar, Dict, Optional, Type, TypeVar, Union, List
 import numpy as np
 import pandas as pd
 import torch as th
+import torch.autograd
 import torchvision
 from gymnasium import spaces
 from sb3_contrib.common.recurrent.buffers import RecurrentDictRolloutBuffer, RecurrentRolloutBuffer
@@ -1341,7 +1342,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 #For BC loss remove variance from the optimization
                 if self.use_online_bc:
                     offline_loss = bc_loss * 0.01
-                    offline_loss.backward(retain_graph=True)
+                    offline_loss.backward()
                     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     self.policy.optimizer.step()
                     self.policy.optimizer_ae.step()
@@ -1355,7 +1356,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     self.policy.optimizer_logstd.step()
                 elif self.mix_data:
                     offline_loss = loss_offline/20
-                    offline_loss.backward(retain_graph = True)
+                    offline_loss.backward()
                     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     self.policy.optimizer.step()
                     self.policy.optimizer_ae.step()
@@ -1363,7 +1364,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     self.policy.optimizer_ae.zero_grad()
                     self.policy.optimizer_logstd.zero_grad()
                     online_loss = loss_online/2
-                    online_loss.backward()
+                    with torch.autograd.set_detect_anomaly(True):
+                        online_loss.backward()
                     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     self.policy.optimizer.step()
                     self.policy.optimizer_ae.step()
