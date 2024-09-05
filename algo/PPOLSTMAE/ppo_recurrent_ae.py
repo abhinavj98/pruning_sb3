@@ -1364,8 +1364,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     self.policy.optimizer_ae.zero_grad()
                     self.policy.optimizer_logstd.zero_grad()
                     online_loss = loss_online/2
-                    with torch.autograd.set_detect_anomaly(True):
-                        online_loss.backward()
+                    online_loss.backward()
                     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     self.policy.optimizer.step()
                     self.policy.optimizer_ae.step()

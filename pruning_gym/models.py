@@ -132,29 +132,21 @@ class AutoEncoder(BaseFeaturesExtractor):
             nn.Linear(128, 8*8*14),
             nn.ReLU())
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(8, 32, 3, padding=1, stride=1),  # 32. 7, 7
+            nn.ConvTranspose2d(8, 32, 3, padding=1, stride=1),  # 32, 8, 14
             nn.ReLU(),
-            nn.ConvTranspose2d(32, 32, 2, stride=2),  # 32. 14, 14
+            nn.ConvTranspose2d(32, 64, 3, padding=1, stride=2),  # 64, 15, 27 (match stride in encoder)
             nn.ReLU(),
-            nn.ConvTranspose2d(32, 16, 3, padding=1, stride=1),  # b, 16, 14, 14
+            nn.ConvTranspose2d(64, 128, 3, padding=1, stride=2),  # 128, 30, 53
             nn.ReLU(),
-            nn.ConvTranspose2d(16, 16, 2, stride=2),  # b, 16, 28, 28
+            nn.ConvTranspose2d(128, 128, 3, padding=1, stride=2),  # 128, 60, 106
             nn.ReLU(),
-            nn.ConvTranspose2d(16, 16, 3, padding=1, stride=1),  # 16. 28, 28
+            nn.ConvTranspose2d(128, 64, 3, padding=1, stride=2),  # 64, 120, 212
             nn.ReLU(),
-            nn.ConvTranspose2d(16, 8, 2, stride=2),  # b, 8, 56, 56
+            nn.ConvTranspose2d(64, 32, 3, padding=1, stride=2),  # 32, 240, 424
             nn.ReLU(),
-            nn.ConvTranspose2d(8, 8, 3, padding=1, stride=1),  # 8. 56, 56
+            nn.ConvTranspose2d(32, 16, 3, padding=1, stride=1),  # 16, 240, 424 (no change in size)
             nn.ReLU(),
-            nn.ConvTranspose2d(8, 8, 2, stride=2),  # b, 8, 112, 112
-            nn.ReLU(),
-            nn.ConvTranspose2d(8, 4, 3, padding=1, stride=1),  # b, 4, 112, 112
-            nn.ReLU(),
-            nn.ConvTranspose2d(4, 4, 2, stride=2),  # b, 4, 224, 224
-            nn.ReLU(),
-            nn.Conv2d(4, 3, 3, padding=1),  # b, 3, 224, 224
-            nn.ReLU(),
-            nn.Conv2d(3, in_channels, 3, padding=1),  # b, 1, 224, 224
+            nn.Conv2d(16, in_channels, 3, padding=1),  # Final output to match input channel size
         )
 
     def _preprocess(self, img):
@@ -168,7 +160,7 @@ class AutoEncoder(BaseFeaturesExtractor):
         encoding = self.fc_in(encoder_conv.view(-1, 8*8*14))
         fc_out = self.fc_out(encoding)
         recon = self.decoder(fc_out.view(-1, 8, 8, 14))
-        recon = self._preprocess(recon)
+        # recon = self._preprocess(recon)
         return encoding, recon
 
 
