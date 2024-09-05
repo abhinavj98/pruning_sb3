@@ -639,7 +639,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
     """Allows use of data collected offline along with online data for training. The offline data is stored in a folder as pkl files."""
 
     def __init__(self, path_expert_data, use_online_data, use_offline_data, mix_data, use_online_bc, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, _init_setup_model=False)
         self.use_online_data = use_online_data
         self.use_offline_data = use_offline_data
         self.mix_data = mix_data  # Use both online and offline data
@@ -1089,22 +1089,24 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         clip_fraction_online = th.mean((th.abs(ratio_current_old_online - 1) > clip_range).float()[mask_online]).item()
         clip_fraction_offline = th.mean((th.abs(ratio_current_old_offline - 1) > clip_range).float()[mask_offline]).item()
 
-        ratio_current_old_online_mean = th.mean(ratio_current_old_online).detach().cpu().numpy()
-        ratio_current_old_offline_mean = th.mean(ratio_current_old_offline).detach().cpu().numpy()
-        ratio_old_expert_offline_mean = th.mean(ratio_old_expert_offline).detach().cpu().numpy()
-        log_prob_offline_mean = th.mean(log_prob_offline).detach().cpu().numpy()
-        log_prob_online_mean = th.mean(log_prob_online).detach().cpu().numpy()
+        ratio_current_old_online_mean = th.mean(ratio_current_old_online).item()
+        ratio_current_old_offline_mean = th.mean(ratio_current_old_offline).item()
+        ratio_old_expert_offline_mean = th.mean(ratio_old_expert_offline).item()
+        log_prob_offline_mean = th.mean(log_prob_offline).item()
+        log_prob_online_mean = th.mean(log_prob_online).item()
+        advantages_online_mean = th.mean(advantages_online).item()
+        advantages_offline_mean = th.mean(advantages_offline).item()
 
         offline_loss_dict = {"ratio_current_old": ratio_current_old_offline_mean,
                              "ratio_old_expert": ratio_old_expert_offline_mean, "policy_loss": policy_loss_offline.item(),
                              "entropy_loss": entropy_loss_offline.item(), "value_loss": value_loss_offline.item(),
                              "ae_loss": ae_l2_loss_offline.item(), "approx_kl_div": approx_kl_div_offline,
                              "clip_fraction": clip_fraction_offline,
-                             "advantages": th.mean(advantages_offline).cpu().numpy(), "log_prob_offline": log_prob_offline_mean}
+                             "advantages": advantages_offline_mean, "log_prob_offline": log_prob_offline_mean}
         online_loss_dict = {"ratio_current_old": ratio_current_old_online_mean, "policy_loss": policy_loss_online.item(),
                             "entropy_loss": entropy_loss_online.item(), "value_loss": value_loss_online.item(),
                             "ae_loss": ae_l2_loss_online.item(), "approx_kl_div": approx_kl_div_online,
-                            "clip_fraction": clip_fraction_online, "advantages": th.mean(advantages_online).cpu().numpy(),
+                            "clip_fraction": clip_fraction_online, "advantages": advantages_online_mean,
                             "log_prob_online": log_prob_online_mean}
         return online_loss, online_loss_dict, offline_loss, offline_loss_dict
 
@@ -1442,7 +1444,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             self.logger.record("train_offline/ratio_old_expert", np.mean(ratio_old_expert_offline))
             self.logger.record("train_offline/pred_values", np.mean(self.expert_buffer.values).item())
             self.logger.record("train_offline/returns",
-                               np.mean(self.expert_buffer.returns))
+                               np.mean(self.expert_buffer.returns).item())
             self.logger.record("train_offline/log_prob", np.mean(log_prob_offline))
 
 
