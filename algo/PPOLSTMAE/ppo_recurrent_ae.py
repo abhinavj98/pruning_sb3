@@ -638,8 +638,12 @@ def create_expert_dataloader(expert_data, batch_size=1, load_from_disk=True, num
 class RecurrentPPOAEWithExpert(RecurrentPPOAE):
     """Allows use of data collected offline along with online data for training. The offline data is stored in a folder as pkl files."""
 
-    def __init__(self, path_expert_data, use_online_data, use_offline_data, mix_data, use_online_bc, *args, **kwargs):
-        super().__init__(*args, **kwargs, _init_setup_model=False)
+    def __init__(self, path_expert_data, use_online_data, use_offline_data, mix_data, use_online_bc,  *args, **kwargs):
+        if "_init_setup_model" in kwargs:
+            super().__init__(*args, **kwargs)
+        else:
+            super().__init__(*args, **kwargs, _init_setup_model=False)
+
         self.use_online_data = use_online_data
         self.use_offline_data = use_offline_data
         self.mix_data = mix_data  # Use both online and offline data
@@ -1337,7 +1341,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 #For BC loss remove variance from the optimization
                 if self.use_online_bc:
                     offline_loss = bc_loss * 0.01
-                    offline_loss.backward()
+                    offline_loss.backward(retain_graph=True)
                     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     self.policy.optimizer.step()
                     self.policy.optimizer_ae.step()
@@ -1351,7 +1355,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     self.policy.optimizer_logstd.step()
                 elif self.mix_data:
                     offline_loss = loss_offline/20
-                    offline_loss.backward()
+                    offline_loss.backward(retain_graph = True)
                     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     self.policy.optimizer.step()
                     self.policy.optimizer_ae.step()
