@@ -639,7 +639,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
     """Allows use of data collected offline along with online data for training. The offline data is stored in a folder as pkl files."""
 
     def __init__(self, path_expert_data, use_online_data, use_offline_data, mix_data, use_online_bc, *args, **kwargs):
-        super().__init__(*args, **kwargs, _init_setup_model=False)
+        super().__init__(*args, **kwargs)
         self.use_online_data = use_online_data
         self.use_offline_data = use_offline_data
         self.mix_data = mix_data  # Use both online and offline data
@@ -1565,6 +1565,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             use_online_data: bool = False,
             use_offline_data: bool = False,
             mix_data: bool = True,
+            use_online_bc: bool = False,
             device: Union[th.device, str] = "auto",
             custom_objects: Optional[Dict[str, Any]] = None,
             print_system_info: bool = False,
@@ -1666,6 +1667,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             path_expert_data=path_expert_data,
             use_online_data=use_online_data,
             use_offline_data=use_offline_data,
+            use_online_bc=use_online_bc,
             mix_data=mix_data,
             policy=data["policy_class"],
             env=env,

@@ -96,7 +96,7 @@ if __name__ == "__main__":
                      "learning_rate_logstd": learning_rate_logstd}
         model = RecurrentPPOAEWithExpert.load(load_path_model, env=env, path_expert_data=expert_trajectory_path, use_online_data=args_policy['use_online_data'],
                                                 use_offline_data=args_policy['use_offline_data'],
-                                                mix_data=args_policy['mix_data'], custom_objects=load_dict)
+                                                mix_data=args_policy['mix_data'], use_online_bc = args_policy['use_online_bc'], custom_objects=load_dict)
 
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
 
