@@ -134,9 +134,9 @@ class AutoEncoder(BaseFeaturesExtractor):
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(8, 32, 3, padding=1, stride=1),  # 32, 8, 14
             nn.ReLU(),
-            nn.ConvTranspose2d(32, 64, (3, 5), padding=1, stride=2),  # 64, 15, 29 (match stride in encoder)
+            nn.ConvTranspose2d(32, 64, 3, padding=1, stride=2),  # 64, 15, 27 (match stride in encoder)
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 128, 3, padding=1, stride=2, output_padding = 1),  # 128, 30, 58
+            nn.ConvTranspose2d(64, 128, 3, padding=1, stride=2, output_padding = (1,0)),  # 128, 30, 53
             nn.ReLU(),
             nn.ConvTranspose2d(128, 128, 3, padding=1, stride=2, output_padding = 1),  # 128, 60, 106
             nn.ReLU(),

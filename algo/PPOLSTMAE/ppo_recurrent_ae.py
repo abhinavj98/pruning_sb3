@@ -1356,15 +1356,20 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     self.policy.optimizer_logstd.step()
                 elif self.mix_data:
                     offline_loss = loss_offline/20
-                    offline_loss.backward()
-                    th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
-                    self.policy.optimizer.step()
-                    self.policy.optimizer_ae.step()
-                    self.policy.optimizer.zero_grad()
-                    self.policy.optimizer_ae.zero_grad()
-                    self.policy.optimizer_logstd.zero_grad()
                     online_loss = loss_online/2
+                    #loss = loss_offline/20+lose_online/2
+                    #loss.backward()
+                    #th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                    offline_loss.backward()
+                    self.policy.optimizer_logstd.zero_grad()
                     online_loss.backward()
+                    #self.policy.optimizer.step()
+                    #self.policy.optimizer_ae.step()
+                    #self.policy.optimizer_logstd.zero_grad()
+                    #self.policy.optimizer.zero_grad()
+                    #self.policy.optimizer_ae.zero_grad()
+                    #self.policy.optimizer_logstd.zero_grad()
+                    #offline_loss.backward()
                     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     self.policy.optimizer.step()
                     self.policy.optimizer_ae.step()
