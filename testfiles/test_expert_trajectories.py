@@ -34,7 +34,7 @@ if __name__ == "__main__":
     expert_trajectory_path = "expert_trajectories"
     expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
     #shuffle the expert trajectories
-    random.shuffle(expert_trajectories)
+    # random.shuffle(expert_trajectories)
     for expert_trajectory in expert_trajectories:
         print("Expert trajectory: ", expert_trajectory)
         with open(expert_trajectory, "rb") as f:

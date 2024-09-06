@@ -101,7 +101,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             clip_range: Union[float, Schedule] = 0.2,
             clip_range_vf: Union[None, float, Schedule] = None,
             normalize_advantage: bool = True,
-            ent_coef: float = 0.001,
+            ent_coef: float = 0.01,
             vf_coef: float = 0.5,
             ae_coeff: float = 0.,
             max_grad_norm: float = 0.5,
@@ -1079,7 +1079,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             # Approximate entropy when no analytical form
             entropy_loss_offline = -th.mean(-log_prob_offline[mask_offline]+1e-8) * self.ent_coef
         else:
-            entropy_loss_offline = -th.mean(entropy_offline[mask_offline]) * self.ent_coef * 10
+            entropy_loss_offline = -th.mean(entropy_offline[mask_offline]) * self.ent_coef
 
         online_loss = policy_loss_online + entropy_loss_online + value_loss_online + ae_l2_loss_online
         offline_loss = policy_loss_offline + entropy_loss_offline + value_loss_offline + ae_l2_loss_offline
@@ -1355,7 +1355,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     self.policy.optimizer_ae.step()
                     self.policy.optimizer_logstd.step()
                 elif self.mix_data:
-                    offline_loss = loss_offline/20
+                    offline_loss = loss_offline/2
                     online_loss = loss_online/2
                     #loss = loss_offline/20+lose_online/2
                     #loss.backward()
