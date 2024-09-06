@@ -1021,7 +1021,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         advantages_online = advantages[:len(advantages_online)]
         advantages_offline = advantages[len(advantages_online):]
 
-        log_prob_expert = 2 # Variance of 0.04
+        log_prob_expert = 1 # Variance of 0.04
         # ratio between old and new policy, should be one at the first iteration
         ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
         ratio_current_old_offline = th.exp(log_prob_offline - batch_offline.old_log_prob)
@@ -1079,7 +1079,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             # Approximate entropy when no analytical form
             entropy_loss_offline = -th.mean(-log_prob_offline[mask_offline]+1e-8) * self.ent_coef
         else:
-            entropy_loss_offline = -th.mean(entropy_offline[mask_offline]) * self.ent_coef
+            entropy_loss_offline = -th.mean(entropy_offline[mask_offline]) * self.ent_coef * 10
 
         online_loss = policy_loss_online + entropy_loss_online + value_loss_online + ae_l2_loss_online
         offline_loss = policy_loss_offline + entropy_loss_offline + value_loss_offline + ae_l2_loss_offline

@@ -63,27 +63,28 @@ if __name__ == "__main__":
 
     #shuffle the expert trajectories
     # random.shuffle(expert_trajectories)
-    for expert_trajectory in expert_trajectories[:50]:
+    for expert_trajectory in expert_trajectories[:1]:
         print("Expert trajectory: ", expert_trajectory)
         with open(expert_trajectory, "rb") as f:
             expert_data = pickle.load(f)
         print("Expert data: ", expert_data['actions'])
         tree_info = expert_data['tree_info']
-        actions = expert_data['actions']
-        observations = expert_data['observations']
-        # dones = expert_data['dones']
-        env.set_tree_properties(*tree_info)
-
-        env.ur5.reset_ur5_arm()
-        env.reset()
-        for i in range(len(actions)):
-            action = actions[i]
-            print("Action: ", action)
-            observation = observations[i]
-            # env.set_observation(observation)
-            # env.set_action(action)
-            obs, rew, term, trunc, _ = env.step(action)
-            print(rew, term)
+        del expert_data
+        # actions = expert_data['actions']
+        # observations = expert_data['observations']
+        # # dones = expert_data['dones']
+        # env.set_tree_properties(*tree_info)
+        #
+        # env.ur5.reset_ur5_arm()
+        # env.reset()
+        # for i in range(len(actions)):
+        #     action = actions[i]
+        #     print("Action: ", action)
+        #     observation = observations[i]
+        #     # env.set_observation(observation)
+        #     # env.set_action(action)
+        #     obs, rew, term, trunc, _ = env.step(action)
+        #     print(rew, term)
 
     # env.reset()
 
