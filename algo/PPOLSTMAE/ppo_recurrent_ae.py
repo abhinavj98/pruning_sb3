@@ -101,7 +101,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             clip_range: Union[float, Schedule] = 0.2,
             clip_range_vf: Union[None, float, Schedule] = None,
             normalize_advantage: bool = True,
-            ent_coef: float = 0.01,
+            ent_coef: float = 0.001,
             vf_coef: float = 0.5,
             ae_coeff: float = 0.,
             max_grad_norm: float = 0.5,
@@ -639,7 +639,7 @@ def create_expert_dataloader(expert_data, batch_size=1, load_from_disk=True, num
 class RecurrentPPOAEWithExpert(RecurrentPPOAE):
     """Allows use of data collected offline along with online data for training. The offline data is stored in a folder as pkl files."""
 
-    def __init__(self, path_expert_data, use_online_data, use_offline_data, mix_data, use_online_bc,  *args, **kwargs):
+    def __init__(self, path_expert_data, use_online_data, use_offline_data, mix_data, use_online_bc, use_awac, *args, **kwargs):
         if "_init_setup_model" in kwargs:
             super().__init__(*args, **kwargs)
         else:
@@ -649,6 +649,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         self.use_offline_data = use_offline_data
         self.mix_data = mix_data  # Use both online and offline data
         self.use_online_bc = use_online_bc  # Use online data for behavior cloning
+        self.use_awac = use_awac
 
         self.load_expert_from_disk = True
 
@@ -1021,7 +1022,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         advantages_online = advantages[:len(advantages_online)]
         advantages_offline = advantages[len(advantages_online):]
 
-        log_prob_expert = 1 # Variance of 0.04
+        log_prob_expert = 2. # Variance of 0.04
         # ratio between old and new policy, should be one at the first iteration
         ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
         ratio_current_old_offline = th.exp(log_prob_offline - batch_offline.old_log_prob)
@@ -1082,7 +1083,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             entropy_loss_offline = -th.mean(entropy_offline[mask_offline]) * self.ent_coef
 
         online_loss = policy_loss_online + entropy_loss_online + value_loss_online + ae_l2_loss_online
-        offline_loss = policy_loss_offline + entropy_loss_offline + value_loss_offline + ae_l2_loss_offline
+        offline_loss = policy_loss_offline/500 + entropy_loss_offline/50 + value_loss_offline + ae_l2_loss_offline/10
 
         with th.no_grad():
             log_ratio_online = log_prob_online - batch_online.old_log_prob
@@ -1115,6 +1116,76 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                             "log_prob_online": log_prob_online_mean}
         return online_loss, online_loss_dict, offline_loss, offline_loss_dict
 
+
+
+    def train_awac(self, batch_online, batch_offline, clip_range, clip_range_vf):
+        """Train using advantage weighted actor critic"""
+        if self.verbose > 1:
+            print("INFO: Training on mix batch")
+        actions_online = batch_online.actions
+        actions_offline = batch_offline.actions
+        if isinstance(self.action_space, spaces.Discrete):
+            # Convert discrete action from float to long
+            actions_online = batch_online.actions.long().flatten()
+            actions_offline = batch_offline.actions.long().flatten()
+
+        # Convert mask from float to bool
+        mask_online = batch_online.mask > 1e-8
+        mask_offline = batch_offline.mask > 1e-8
+
+        # Re-sample the noise matrix because the log_std has changed
+        if self.use_sde:
+            self.policy.reset_noise(self.batch_size)
+
+        values_online, log_prob_online, entropy_online, depth_proxy_online, depth_proxy_recon_online = self.policy.evaluate_actions(
+            batch_online.observations,
+            actions_online,
+            batch_online.lstm_states,
+            batch_online.episode_starts,
+        )
+
+        values_offline, log_prob_offline, entropy_offline, depth_proxy_offline, depth_proxy_recon_offline = self.policy.evaluate_actions(
+            batch_offline.observations,
+            actions_offline,
+            batch_offline.lstm_states,
+            batch_offline.episode_starts,
+        )
+
+        values_online = values_online.flatten()
+        values_offline = values_offline.flatten()
+        # Normalize advantage
+        advantages_online = batch_online.advantages
+        advantages_offline = batch_offline.advantages
+        # Concatenate advantages
+        advantages = th.cat((advantages_online, advantages_offline), 0)
+        if self.normalize_advantage:
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+        advantages_online = advantages[:len(advantages_online)]
+        advantages_offline = advantages[len(advantages_online):]
+
+        # values = th.cat((values_online, values_offline), 0)
+        # returns = th.cat((batch_online.returns, batch_offline.returns), 0)
+        # value_loss = th.mean(((returns - values) ** 2)) * self.vf_coef
+        # log_probs = th.cat((log_prob_online, log_prob_offline), 0)
+        # policy_loss = -th.mean(log_probs*th.exp(advantages/10))
+        # loss_dict = {"policy_loss": policy_loss.item(), "value_loss": value_loss.item()}
+
+        value_loss_online = th.mean(((batch_online.returns - values_online) ** 2)[mask_online]) * self.vf_coef
+        value_loss_offline = th.mean(((batch_offline.returns - values_offline) ** 2)[mask_offline]) * self.vf_coef
+
+        policy_loss_online = -th.mean(log_prob_online * th.exp(advantages_online/10))
+        policy_loss_offline = -th.mean(log_prob_offline * th.exp(advantages_offline/10))
+
+        loss_dict_online = {"policy_loss": policy_loss_online.item(), "value_loss": value_loss_online.item()}
+        loss_dict_offline = {"policy_loss": policy_loss_offline.item(), "value_loss": value_loss_offline.item()}
+        online_loss = policy_loss_online + value_loss_online
+        offline_loss = policy_loss_offline + value_loss_offline
+
+        return online_loss, loss_dict_online, offline_loss, loss_dict_offline
+
+
+        return policy_loss, value_loss, loss_dict
 
     def train_offline_batch(self, batch, clip_range, clip_range_vf):
         actions = batch.actions
@@ -1240,15 +1311,15 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # train for n_epochs epochs
         for epoch in range(self.n_epochs):
-            if self.use_offline_data or self.mix_data or self.use_online_bc:
+            if self.use_offline_data or self.mix_data or self.use_online_bc or self.use_awac:
                 offline_data_buffer = self.expert_buffer.get(self.batch_size)
-            if self.use_online_data or self.mix_data or self.use_online_bc:
+            if self.use_online_data or self.mix_data or self.use_online_bc or self.use_awac:
                 online_data_buffer = self.rollout_buffer.get(self.batch_size)
             while True:
                 try:
-                    if self.use_offline_data or self.mix_data or self.use_online_bc:
+                    if self.use_offline_data or self.mix_data or self.use_online_bc or self.use_awac:
                         offline_data = next(offline_data_buffer)
-                    if self.use_online_data or self.mix_data or self.use_online_bc:
+                    if self.use_online_data or self.mix_data or self.use_online_bc or self.use_awac:
                         online_data = next(online_data_buffer)
                 except StopIteration:
                     break
@@ -1279,7 +1350,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     #     break
                     loss_offline.backward()
 
-                if self.use_online_data:
+                elif self.use_online_data:
                     (loss_online, pg_loss_online, clip_fraction_online, ae_l2_loss_online, value_loss_online,
                      entropy_loss_online, approx_kl_div_online, depth_proxy, depth_proxy_recon) = self.train_online_batch(
                         online_data, clip_range, clip_range_vf)
@@ -1298,7 +1369,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
                     loss_online.backward()
 
-                if self.mix_data:
+                elif self.mix_data:
                     (loss_online, online_loss_dict, loss_offline, offline_loss_dict) = self.train_mix_batch(
                         online_data, offline_data, clip_range, clip_range_vf)
                     pg_losses_online.append(online_loss_dict["policy_loss"])
@@ -1327,7 +1398,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
 
 
-                if self.use_online_bc:
+                elif self.use_online_bc:
                     (loss_online, bc_loss, pg_loss_online, clip_fraction_online, ae_l2_loss_online, value_loss_online,
                      entropy_loss_online, approx_kl_div_online, depth_proxy, depth_proxy_recon) = self.train_online_bc(
                         online_data, offline_data, clip_range, clip_range_vf)
@@ -1339,6 +1410,16 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     approx_kl_divs_online.append(approx_kl_div_online)
                     online_losses.append(loss_online.item())
                     bc_losses.append(bc_loss.item())
+
+                elif self.use_awac:
+                    online_loss, loss_dict_online, offline_loss, loss_dict_offline = self.train_awac(
+                        online_data, offline_data, clip_range, clip_range_vf)
+                    pg_losses_online.append(loss_dict_online["policy_loss"])
+                    value_losses_online.append(loss_dict_online["value_loss"])
+                    pg_losses_offline.append(loss_dict_offline["policy_loss"])
+                    value_losses_offline.append(loss_dict_offline["value_loss"])
+                    loss = online_loss + offline_loss
+                    loss.backward()
                 #For BC loss remove variance from the optimization
                 if self.use_online_bc:
                     offline_loss = bc_loss * 0.01
@@ -1361,7 +1442,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     #loss.backward()
                     #th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     offline_loss.backward()
-                    self.policy.optimizer_logstd.zero_grad()
+                    #self.policy.optimizer_logstd.zero_grad()
                     online_loss.backward()
                     #self.policy.optimizer.step()
                     #self.policy.optimizer_ae.step()
@@ -1419,7 +1500,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # self.logger.record("autoencoder/depth_proxy_y", Image(of_image_y_grid, "CHW"),
         #                    exclude=("stdout", "log", "json", "csv"))
 
-        if self.use_online_data or self.mix_data:
+        if self.use_online_data or self.mix_data or self.use_awac:
             self.logger.record("train_online/ae_loss", np.mean(ae_losses_online))
             self.logger.record("train_online/entropy_loss", np.mean(entropy_losses_online))
             self.logger.record("train_online/policy_gradient_loss", np.mean(pg_losses_online))
@@ -1440,7 +1521,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             self.logger.record("train_online/clip_range", clip_range)
             if self.clip_range_vf is not None:
                 self.logger.record("train_online/clip_range_vf", clip_range_vf)
-        if self.use_offline_data or self.mix_data:
+        if self.use_offline_data or self.mix_data or self.use_awac:
             self.logger.record("train_offline/ae_loss", np.mean(ae_losses_offline))
             self.logger.record("train_offline/entropy_loss", np.mean(entropy_losses_offline))
             self.logger.record("train_offline/policy_gradient_loss", np.mean(pg_losses_offline))
@@ -1526,7 +1607,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         print("Learning with offline data", self.use_offline_data)
         print("Learning with mix data", self.mix_data)
         while self.num_timesteps < total_timesteps:
-            if self.use_online_data or self.mix_data or self.use_online_bc:
+            if self.use_online_data or self.mix_data or self.use_online_bc or self.use_awac:
                 # if self.num_timesteps > :
                 continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer,
                                                           n_rollout_steps=self.n_steps)
@@ -1536,7 +1617,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             if continue_training is False:
                 break
 
-            if self.use_offline_data or self.mix_data or self.use_online_bc:
+            if self.use_offline_data or self.mix_data or self.use_online_bc or self.use_awac:
                 self.make_offline_rollouts(callback, self.expert_buffer, n_rollout_steps=self.n_steps)
 
             iteration += 1

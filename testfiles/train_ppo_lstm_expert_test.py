@@ -60,8 +60,10 @@ if __name__ == "__main__":
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
-
+    #Replace \\ with / in the tree_info
+    expert_data['tree_info'][0] = expert_data['tree_info'][0].replace("\\", "/")
     # set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
+    print("INFO: Using expert data: ", expert_data['tree_info'])
     set_goal_callback = Pruning1TreeSetGoalCallback(expert_data['tree_info'], verbose=args_callback['verbose'])
     checkpoint_callback = PruningCheckpointCallback(save_freq=args_callback['save_freq'],
                                                     save_path="./logs/{}".format(args_global['run_name']),
@@ -81,6 +83,7 @@ if __name__ == "__main__":
                                          args_policy['use_offline_data'],
                                          args_policy['mix_data'],
                                          args_policy['use_online_bc'],
+                                            args_policy['use_awac'],
                                          policy, env, policy_kwargs=policy_kwargs,
                                          learning_rate=linear_schedule(args_policy['learning_rate']),
                                          learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),
