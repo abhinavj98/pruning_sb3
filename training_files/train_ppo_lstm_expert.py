@@ -80,6 +80,7 @@ if __name__ == "__main__":
                                          args_policy['use_offline_data'],
                                          args_policy['mix_data'],
                                          args_policy['use_online_bc'],
+                                         args_policy['use_awac'],
                                          policy, env, policy_kwargs=policy_kwargs,
                                          learning_rate=linear_schedule(args_policy['learning_rate']),
                                          learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),

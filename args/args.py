@@ -329,6 +329,12 @@ args = {
             'default': False,
             'help': 'whether to use online bc'
         },
+
+        'use_awac': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to use awac'
+        },
         'dont_normalize_advantage': {
             'action': "store_false",
             'default': True,
