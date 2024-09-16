@@ -58,7 +58,7 @@ if __name__ == "__main__":
     logging_callback = PruningLogCallback(verbose=args_callback['verbose'])
     callback_list = [record_env_callback, set_goal_callback, checkpoint_callback, logging_callback]
 
-    policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
+    policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder) #This has all the important parameters for the policy
     policy = RecurrentActorCriticPolicy
 
     if not load_path_model:

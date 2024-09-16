@@ -33,7 +33,7 @@ import time
 import pandas as pd
 from enum import Enum
 from scipy.stats import vonmises
-
+from filelock import FileLock
 class PruningEnv(gym.Env):
     """
         PruningEnv is a custom environment that extends the gym.Env class from OpenAI Gym.
@@ -311,6 +311,11 @@ class PruningEnv(gym.Env):
         """Environment reset function"""
         super().reset(seed=seed)
         self.pyb.con.resetSimulation()
+        self.ur5_robot = None
+        self.tree_id = None
+        self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None,
+                                     'SUPPORT': None, }
+
         # #enable file caching
         self.pyb.con.setPhysicsEngineParameter(enableFileCaching=1)
 
@@ -412,7 +417,7 @@ class PruningEnv(gym.Env):
             self.collision_object_ids[i] = pyb.con.loadURDF(label_urdf_path, self.tree_pos, self.tree_orientation,
                                                             globalScaling=self.tree_scale)
 
-        # Do not collide with UR5
+        # Do not make the textured tree collide with the UR5, let the collision objects do
         for i in range(self.ur5.num_joints):
             pyb.con.setCollisionFilterPair(self.tree_id, self.ur5.ur5_robot, 0, i, 0)
 
@@ -904,7 +909,7 @@ class PruningEnvRRT(PruningEnv):
             return joint_angles
         return position, orientation
 
-    def get_different_ik_results(self, total_attempts, timing=None):
+    def get_different_ik_results(self, total_attempts, timing=None, check_collision=True):
         """This is a generator that yields different ik results"""
         attempts = 0
         while attempts < total_attempts:
@@ -921,40 +926,41 @@ class PruningEnvRRT(PruningEnv):
             # scale the offset to be 15cm away from the goal
             offset = 0.15 * offset / np.linalg.norm(offset)
             initial_guess = self.ur5.calculate_ik(goal + offset, goal_orientation)
-            no_collision = True
-            if no_collision:
-                self.ur5.set_joint_angles_no_collision(initial_guess)
-                self.pyb.con.stepSimulation()
-            else:
-                self.ur5.set_joint_angles(initial_guess)
-                for j in range(30):
-                    self.pyb.con.stepSimulation()
+            # if no_collision:
+            self.ur5.set_joint_angles_no_collision(initial_guess)
+            self.pyb.con.stepSimulation()
+            # else:
+            #     self.ur5.set_joint_angles(initial_guess)
+            #     for j in range(30):
+            #         self.pyb.con.stepSimulation()
 
             joint_angles = self.ur5.calculate_ik(goal, goal_orientation)
-            if no_collision:
-                self.ur5.set_joint_angles_no_collision(joint_angles)
-            else:
-                self.ur5.set_joint_angles(joint_angles)
-                for j in range(30):
-                    self.pyb.con.stepSimulation()
+            self.ur5.set_joint_angles_no_collision(joint_angles)
+            # else:
+            #     self.ur5.set_joint_angles(joint_angles)
+            #     for j in range(30):
+            #         self.pyb.con.stepSimulation()
             # self.activate_tree(self.pyb)
             # self.pyb.con.stepSimulation()
             # print("Actual", self.ur5.get_joint_angles())
-            self.ur5.unset_collision_filter_tree(self.collision_object_ids)
-            self.pyb.con.stepSimulation()
+
             # if not np.isclose(joint_angles, self.ur5.get_joint_angles(), atol=1e-1).all():
             #     # print("Cant set joint angles")
             #     # print(joint_angles, self.ur5.get_joint_angles())
             #     attempts += 1
             #     continue
+            if check_collision:
+                self.ur5.unset_collision_filter_tree(self.collision_object_ids)
+                self.pyb.con.stepSimulation()
+                collision_info = self.ur5.check_collisions(self.collision_object_ids)
 
-            collision_info = self.ur5.check_collisions(self.collision_object_ids)
-
-            if collision_info[1]['collisions_unacceptable']:
-                collision = True
-                if self.verbose > 1:
-                    print("DEBUG: Collision")
-
+                if collision_info[1]['collisions_unacceptable']:
+                    collision = True
+                    if self.verbose > 1:
+                        print("DEBUG: Collision")
+            else:
+                self.pyb.con.stepSimulation()
+                collision = False
             if not collision:
                 current_ee_pose = self.ur5.get_current_pose(self.ur5.end_effector_index)
                 delta_q = self.pyb.con.getDifferenceQuaternion(current_ee_pose[1], goal_orientation)
@@ -1059,6 +1065,8 @@ class PruningEnvRRT(PruningEnv):
                 path, tree_info, goal_orientation, timing = self.run_rrt_star(save_video=save_video, informed = False, shortcutting = shortcutting)
             elif planner == "straight_line_ik":
                 path, tree_info, goal_orientation, timing = self.run_straight_line_ik(save_video=save_video)
+            elif planner == "reachability":
+                path, tree_info, goal_orientation, timing = self.run_reachability(save_video=save_video)
             else:
                 raise ValueError("Planner not found")
 
@@ -1073,7 +1081,7 @@ class PruningEnvRRT(PruningEnv):
                 fail_mode = path
             print("Completed", i, success, fail_mode)
             result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
-                      "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode, "path": path, "tree_info": tree_info}
+                      "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}#, "path": path, "tree_info": tree_info}
             result.update(timing)
 
             # write to existing file
@@ -1084,10 +1092,41 @@ class PruningEnvRRT(PruningEnv):
         return
 
     def append_row_to_csv(self, row, file_path):
-        if not pd.io.common.file_exists(file_path):
-            row.to_csv(file_path, index=False, mode='w', header=True)
-        else:
-            row.to_csv(file_path, index=False, mode='a', header=False)
+        # Create a file lock for thread/process safety
+        lock_path = file_path + '.lock'
+        with FileLock(lock_path):
+            # Check if file exists
+            if not os.path.exists(file_path):
+                # Write the row and header to a new file
+                row.to_csv(file_path, index=False, mode='w', header=True)
+            else:
+                # Append the row without header
+                row.to_csv(file_path, index=False, mode='a', header=False)
+
+    def run_reachability(self, save_video=False):
+        #Return true if my arm can reach the given pose without considering collisions
+        timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
+        solutions = self.get_different_ik_results(total_attempts=100, timing=timing)
+        tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
+                        self.tree_pos, self.tree_goal_normal]
+        for i in solutions:
+            if i is None:
+                return ResultMode.NO_PATH, tree_info, None, timing
+            # self.ur5.set_joint_angles(i)
+            # for j in range(50):
+            #     self.pyb.con.stepSimulation()
+            # pos, goal_or = self.ur5.get_current_pose(self.ur5.end_effector_index)
+            # if np.linalg.norm(np.array(pos) - np.array(self.tree_goal_pos)) < 0.05:
+            else:
+                goal, goal_pos, goal_or = i
+                self.ur5.set_joint_angles_no_collision(goal)
+                for j in range(2):
+                    self.pyb.con.stepSimulation()
+
+                condition_number = self.ur5.get_condition_number()
+                return condition_number, tree_info, None, timing
+
+
 
     def run_rrt_star(self, save_video=False, informed = True, shortcutting = False):
         planner = "informed_rrt_star" if informed else "rrt_star"
@@ -1167,19 +1206,6 @@ class PruningEnvRRT(PruningEnv):
         solutions = self.get_different_ik_results(total_attempts=60, timing=timing)
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
                      self.tree_pos, self.tree_goal_normal]
-
-    def run_rrt_connect(self, save_video=False, shortcutting=False):
-        timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
-        solutions = self.get_different_ik_results(total_attempts=60, timing=timing)
-
-        tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
-                     self.tree_pos, self.tree_goal_normal]
-
-
-        distance_fn, sample_position, extend_fn, collision_fn = self.get_planning_fns()
-        controllable_joints = [3, 4, 5, 6, 7, 8]
-
-        start_find_path = time.time()
         path = None
         solution_found = False
         for i in solutions:
@@ -1225,7 +1251,7 @@ class PruningEnvRRT(PruningEnv):
         return (path, tree_info, goal_or, timing)
     def run_rrt_connect(self, save_video=False, shortcutting=False):
         timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
-        solutions = self.get_different_ik_results(total_attempts=60, timing=timing)
+        solutions = self.get_different_ik_results(total_attempts=100, timing=timing)
 
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
                      self.tree_pos, self.tree_goal_normal]
