@@ -101,7 +101,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             clip_range: Union[float, Schedule] = 0.2,
             clip_range_vf: Union[None, float, Schedule] = None,
             normalize_advantage: bool = True,
-            ent_coef: float = 0.01,
+            ent_coef: float = 0.001,
             vf_coef: float = 0.5,
             ae_coeff: float = 0.,
             max_grad_norm: float = 0.5,
@@ -1021,7 +1021,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         advantages_online = advantages[:len(advantages_online)]
         advantages_offline = advantages[len(advantages_online):]
 
-        log_prob_expert = 1 # Variance of 0.04
+        log_prob_expert = 2. # Variance of 0.04
         # ratio between old and new policy, should be one at the first iteration
         ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
         ratio_current_old_offline = th.exp(log_prob_offline - batch_offline.old_log_prob)
@@ -1082,7 +1082,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             entropy_loss_offline = -th.mean(entropy_offline[mask_offline]) * self.ent_coef
 
         online_loss = policy_loss_online + entropy_loss_online + value_loss_online + ae_l2_loss_online
-        offline_loss = policy_loss_offline + entropy_loss_offline + value_loss_offline + ae_l2_loss_offline
+        offline_loss = policy_loss_offline/500 + entropy_loss_offline/50 + value_loss_offline + ae_l2_loss_offline/10
 
         with th.no_grad():
             log_ratio_online = log_prob_online - batch_online.old_log_prob
@@ -1361,7 +1361,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     #loss.backward()
                     #th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     offline_loss.backward()
-                    self.policy.optimizer_logstd.zero_grad()
+                    #self.policy.optimizer_logstd.zero_grad()
                     online_loss.backward()
                     #self.policy.optimizer.step()
                     #self.policy.optimizer_ae.step()
