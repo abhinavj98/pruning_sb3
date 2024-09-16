@@ -25,7 +25,7 @@ if __name__ == "__main__":
         parsed_args)
 
     print(parsed_args_dict)
-    or_bins = make_or_bins(args_train, "train")
+    or_bins = make_or_bins(args_train, "test")
 
     env = make_vec_env(PruningEnvRRT, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
 
@@ -37,8 +37,8 @@ if __name__ == "__main__":
     dataset = None
     planner = args_baseline['planner']
     type = args_baseline['dataset_type']
-    if os.path.exists(f"{type}_dataset.pkl"):
-        with open(f"{type}_dataset.pkl", "rb") as f:
+    if os.path.exists(f"dataset_{type}.pkl"):
+        with open(f"dataset_{type}.pkl", "rb") as f:
             dataset = pickle.load(f)
     # Shuffle dataset
     if dataset is not None:
