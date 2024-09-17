@@ -1347,6 +1347,7 @@ class PruningEnvRRT(PruningEnv):
         paths_success = self.dataset
         for i in range(len(paths_success)):
             observations = []
+            new_observations = []
             rewards = []
             dones = []
             actions = []
@@ -1395,6 +1396,7 @@ class PruningEnvRRT(PruningEnv):
                 new_obs = copy.deepcopy(new_obs)
                 new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
                 new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
+                new_observations.append(new_obs)
                 observations.append(obs)
                 rewards.append(reward)
                 dones.append(terminated)
@@ -1429,10 +1431,12 @@ class PruningEnvRRT(PruningEnv):
                     new_obs, reward, terminated, truncated, info = self.step(copy.deepcopy(ee_vel_local))
                     actions.append(action)
                     new_obs = copy.deepcopy(new_obs)
+                    # Change rgb, prev_rgb, to CHW from HWC. SB3 does this somewhere automatically using VecEnvWrapper
+
                     new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
                     new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
 
-                    # Change rgb, prev_rgb, to CHW from HWC. SB3 does this somewhere automatically, find if time
+                    new_observations.append(new_obs)
                     observations.append(obs)
                     rewards.append(reward)
                     if (self.observation['point_mask'] > 0).any():
@@ -1450,7 +1454,7 @@ class PruningEnvRRT(PruningEnv):
 
                     obs = new_obs
             print("Length of velo", len(actions))
-            save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions), "last_obs": obs, "info": info}
+            save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions), "next_observations": new_observations, "info": info}
             #Calculate optical flow
 
             with open('expert_trajectories/{}.pkl'.format(time.time()), 'wb') as f:

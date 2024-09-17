@@ -37,7 +37,7 @@ args = {
         # Reward parameters
         'movement_reward_scale': {
             'type': float,
-            'default': 10,
+            'default': 5,
             'help': 'scaling factor for the movement reward'
         },
         'distance_reward_scale': {
@@ -57,12 +57,12 @@ args = {
         },
         'collision_reward_scale': {
             'type': float,
-            'default': -0.05,
+            'default': -0.01,
             'help': 'scaling factor for the collision reward'
         },
         'slack_reward_scale': {
             'type': float,
-            'default': -0.03,
+            'default': -0.01,
             'help': 'scaling factor for the slack reward'
         },
         'pointing_orientation_reward_scale': {
@@ -72,7 +72,7 @@ args = {
         },
         'perpendicular_orientation_reward_scale': {
             'type': float,
-            'default': 3,
+            'default': 6,
             'help': 'scaling factor for the orientation reward'
         },
         # Gym envirionment parameters
