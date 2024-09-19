@@ -991,7 +991,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         return online_loss, bc_loss, pg_loss, clip_fraction, ae_l2_loss.item(), value_loss.item(), entropy_loss.item(), approx_kl_div, depth_proxy, depth_proxy_recon
 
-    def train_mix_batch(self, batch_online, batch_offline, clip_range, clip_range_vf):
+    def train_ppo_offline(self, batch_online, batch_offline, clip_range, clip_range_vf):
         # Train on mix of online and offline data
         # Normalize advantage for both online and offline data together
         if self.verbose > 1:
@@ -1191,15 +1191,19 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         value_loss_online = th.mean(((batch_online.returns - values_online) ** 2)[mask_online]) * self.vf_coef
         value_loss_offline = th.mean(((batch_offline.returns - values_offline) ** 2)[mask_offline]) * self.vf_coef
 
-        policy_loss_online = -th.mean(log_prob_online * th.exp(advantages_online / 10))
-        policy_loss_offline = -th.mean(log_prob_offline * th.exp(advantages_offline / 10))
+        policy_loss_online = -th.mean(log_prob_online * th.exp(advantages_online / 5))
+        policy_loss_offline = -th.mean(log_prob_offline * th.exp(advantages_offline / 5))
 
-        loss_dict_online = {"policy_loss": policy_loss_online.item(), "value_loss": value_loss_online.item()}
-        loss_dict_offline = {"policy_loss": policy_loss_offline.item(), "value_loss": value_loss_offline.item()}
+        entropy_loss_offline = -th.mean(-log_prob_offline) * self.ent_coef
+        entropy_loss_online = -th.mean(-log_prob_online) * self.ent_coef
+
+        loss_dict_online = {"policy_loss": policy_loss_online.item(), "value_loss": value_loss_online.item(), "entropy_loss": entropy_loss_online.item(), "advantages": th.mean(advantages_online).item()}
+        loss_dict_offline = {"policy_loss": policy_loss_offline.item(), "value_loss": value_loss_offline.item(), "entropy_loss": entropy_loss_offline.item(), "advantages": th.mean(advantages_offline).item()}
         online_loss = policy_loss_online + value_loss_online
         offline_loss = policy_loss_offline + value_loss_offline
+        entropy_loss = entropy_loss_online + entropy_loss_offline
 
-        return online_loss, loss_dict_online, offline_loss, loss_dict_offline
+        return online_loss, loss_dict_online, offline_loss, loss_dict_offline, entropy_loss
 
 
     def train_offline_batch(self, batch, clip_range, clip_range_vf):
@@ -1382,7 +1386,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     loss_online.backward()
 
                 elif self.use_ppo_offline:
-                    (loss_online, online_loss_dict, loss_offline, offline_loss_dict) = self.train_mix_batch(
+                    (loss_online, online_loss_dict, loss_offline, offline_loss_dict) = self.train_ppo_offline(
                         online_data, offline_data, clip_range, clip_range_vf)
                     pg_losses_online.append(online_loss_dict["policy_loss"])
                     clip_fractions_online.append(online_loss_dict["clip_fraction"])
@@ -1421,13 +1425,18 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     bc_losses.append(bc_loss.item())
 
                 elif self.use_awac:
-                    online_loss, loss_dict_online, offline_loss, loss_dict_offline = self.train_awac(
+                    online_loss, loss_dict_online, offline_loss, loss_dict_offline, entropy_loss = self.train_awac(
                         online_data, offline_data, clip_range, clip_range_vf)
                     pg_losses_online.append(loss_dict_online["policy_loss"])
                     value_losses_online.append(loss_dict_online["value_loss"])
                     pg_losses_offline.append(loss_dict_offline["policy_loss"])
                     value_losses_offline.append(loss_dict_offline["value_loss"])
-                    loss = online_loss + offline_loss
+                    entropy_losses_online.append(loss_dict_online["entropy_loss"])
+                    entropy_losses_offline.append(loss_dict_offline["entropy_loss"])
+                    advantages_online.append(loss_dict_online["advantages"])
+                    advantages_offline.append(loss_dict_offline["advantages"])
+
+                    loss = online_loss + offline_loss + entropy_loss
                     loss.backward()
 
                 # For BC loss remove variance from the optimization
