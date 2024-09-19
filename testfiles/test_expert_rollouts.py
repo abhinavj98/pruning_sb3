@@ -65,8 +65,13 @@ if __name__ == "__main__":
     policy = RecurrentActorCriticPolicy
 
 
-    expert_trajectory_path = "expert_trajectories"
-    model = RecurrentPPOAEWithExpert(expert_trajectory_path, policy = policy, env = env, policy_kwargs=policy_kwargs,
+    expert_trajectory_path = "expert_trajectories_temp"
+    model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
+                         args_policy['use_offline_data'],
+                         args_policy['use_ppo_offline'],
+                         args_policy['use_online_bc'],
+                         args_policy['use_awac'],
+                         policy, env,  policy_kwargs=policy_kwargs,
                            learning_rate=linear_schedule(args_policy['learning_rate']),
                            learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),
                            learning_rate_logstd=None,
@@ -74,15 +79,24 @@ if __name__ == "__main__":
                            batch_size=args_policy['batch_size'],
                            n_epochs=args_policy['epochs'],
                            ae_coeff=args_policy['ae_coeff'])
-    model.make_offline_rollouts(model.expert_buffer, args_policy['steps_per_epoch'])
-    samples = model.expert_buffer.get(1)
-    env.set_tree_properties(*model.expert_data[0]['tree_info'])
 
+    model.make_offline_rollouts(None, model.expert_buffer, args_policy['steps_per_epoch'])
+    samples = model.expert_buffer.get(1)
+    #read the pkl file from expert_Data
+    import glob
+    import pickle
+    expert_path = glob.glob(expert_trajectory_path + "/*.pkl")[0]
+    with open(expert_path, "rb") as f:
+        expert_data = pickle.load(f)
+    env.set_tree_properties(*expert_data['tree_info'])
     env.reset()
-    env.set_tree_properties(*model.expert_data[0]['tree_info'])
-    print("Expert data length: ", len(model.expert_data[0]['actions']))
+
+    # env.set_tree_properties(*model.expert_data[0]['tree_info'])
+    # print("Expert data length: ", len(model.expert_data[0]['actions']))
+    # print("Samples: ", len(samples))
     for j in samples:
         print(j.actions.cpu().numpy(), env.action_scale)
         env.step(j.actions.cpu().numpy()[0])
+
 
     print("Expert buffer length: ", (model.expert_buffer.pos))

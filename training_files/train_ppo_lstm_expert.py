@@ -67,18 +67,24 @@ if __name__ == "__main__":
     checkpoint_callback = PruningCheckpointCallback(save_freq=args_callback['save_freq'],
                                                     save_path="./logs/{}".format(args_global['run_name']),
                                                     name_prefix="model", verbose=args_callback['verbose'])
+
     record_env_callback = EveryNRollouts(100, PruningTrainRecordEnvCallback(verbose=args_callback['verbose']))
     logging_callback = PruningLogCallback(expert=True, verbose=args_callback['verbose'])
     callback_list = [record_env_callback, set_goal_callback, checkpoint_callback, logging_callback]
 
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
-    if args_policy['use_online_bc'] or args_policy['mix_data']:
+    if args_policy['use_online_bc'] or args_policy['use_ppo_offline']:
         learning_rate_logstd = linear_schedule(args_policy['learning_rate'])
+    else:
+        learning_rate_logstd = None
+
+
+
     if not load_path_model:
         model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
                                          args_policy['use_offline_data'],
-                                         args_policy['mix_data'],
+                                         args_policy['use_ppo_offline'],
                                          args_policy['use_online_bc'],
                                          args_policy['use_awac'],
                                          policy, env, policy_kwargs=policy_kwargs,
@@ -97,7 +103,7 @@ if __name__ == "__main__":
                      "learning_rate_logstd": learning_rate_logstd}
         model = RecurrentPPOAEWithExpert.load(load_path_model, env=env, path_expert_data=expert_trajectory_path, use_online_data=args_policy['use_online_data'],
                                                 use_offline_data=args_policy['use_offline_data'],
-                                                mix_data=args_policy['mix_data'], use_online_bc = args_policy['use_online_bc'], custom_objects=load_dict)
+                                                use_ppo_offline=args_policy['use_ppo_offline'], use_online_bc = args_policy['use_online_bc'], custom_objects=load_dict)
 
         model.policy.load_running_mean_std_from_file(load_path_mean_std)
 

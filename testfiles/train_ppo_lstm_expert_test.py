@@ -76,14 +76,14 @@ if __name__ == "__main__":
     policy = RecurrentActorCriticPolicy
     # expert_trajectory_path = "expert_trajectories"
     learning_rate_logstd = None
-    if args_policy['use_online_bc'] or args_policy['mix_data']:
+    if args_policy['use_online_bc'] or args_policy['use_ppo_offline']:
         learning_rate_logstd = linear_schedule(args_policy['learning_rate'])
     if not load_path_model:
         model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
                                          args_policy['use_offline_data'],
-                                         args_policy['mix_data'],
+                                         args_policy['use_ppo_offline'],
                                          args_policy['use_online_bc'],
-                                            args_policy['use_awac'],
+                                         args_policy['use_awac'],
                                          policy, env, policy_kwargs=policy_kwargs,
                                          learning_rate=linear_schedule(args_policy['learning_rate']),
                                          learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),

@@ -631,16 +631,17 @@ class TrajectoryIterableDataset(IterableDataset):
             done = trajectory_data['dones'][step]
             next_observation = trajectory_data['next_observations'][step]
 
-            flattened_observation = self._flatten_obs(observation, self.observation_space)
-            flattened_next_observation = self._flatten_obs(next_observation, self.observation_space)
+            # flattened_observation = self._flatten_obs(observation, self.observation_space)
+            # flattened_next_observation = self._flatten_obs(next_observation, self.observation_space)
 
             # sample are numpy arrays
+            # print(type(observation), type(action), type(reward), type(done), type(next_observation))
             sample = {
-                'observation': flattened_observation,
+                'observation': observation,
                 'action': action,
                 'reward': reward,
                 'done': done,
-                'next_observation': flattened_next_observation,
+                'next_observation': next_observation,
             }
             yield sample
 
@@ -666,12 +667,6 @@ class TrajectoryIterableDataset(IterableDataset):
             for file_path in file_list:
                 trajectory_data = self.load_trajectory(file_path)
                 yield from self.trajectory_generator(trajectory_data)
-
-    def _flatten_obs(self, obs, observation_space):
-        """
-        Flatten a list of observations into a single dictionary.
-        """
-        return OrderedDict([(k, np.stack([o[k] for o in obs])) for k in observation_space.spaces.keys()])
 
 
 class RecurrentPPOAEWithExpert(RecurrentPPOAE):
@@ -721,8 +716,35 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         )
         expert_data = self.get_trajectory_files()  # Load file names only
         self.dataset = TrajectoryIterableDataset(expert_data, self.observation_space)
-        self.dataloader = DataLoader(self.dataset, batch_size=self.num_expert_envs, num_workers=self.num_expert_envs)
+        self.dataloader = DataLoader(self.dataset, batch_size=self.num_expert_envs, num_workers=self.num_expert_envs, collate_fn=self.np_collate_fn)
         self.data_iter = iter(self.dataloader)
+
+    @staticmethod
+    def np_collate_fn(batch):
+        """
+        Custom collate function that keeps the data as NumPy arrays instead of converting to tensors.
+
+        Args:
+            batch (list): A list of samples from the dataset, where each sample is a dictionary
+                          containing NumPy arrays (e.g., 'observation', 'action', 'reward', etc.).
+
+        Returns:
+            dict: A dictionary with batched NumPy arrays for each key in the sample dictionaries.
+        """
+        # Assuming each sample in the batch is a dictionary, and the keys are the same across samples
+        batch_dict = {}
+
+        # Collect keys from the first sample (assuming all samples have the same structure)
+        first_sample = batch[0]
+
+        for key in first_sample:
+            # Stack NumPy arrays along a new axis to batch them together
+            batch_dict[key] = np.stack([sample[key] for sample in batch], axis=0)  # Stack along batch dimension
+            # else:
+            #     # For non-NumPy data, keep them as lists
+            #     batch_dict[key] = np.stack([np.array(sample[key]) for sample in batch], axis=0)  # Stack along batch dimension
+
+        return batch_dict
 
     def get_trajectory_files(self):
         # Load expert data from expert_trajecotries folder. This is a list of pkl files
@@ -731,6 +753,11 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         expert_trajectories = glob.glob(self.path_trajectories + "/*.pkl")
         return list(expert_trajectories)
 
+    def _flatten_obs(self, obs, observation_space):
+        """
+        Flatten a list of observations into a single dictionary.
+        """
+        return OrderedDict([(k, np.stack([o[k] for o in obs])) for k in observation_space.spaces.keys()])
     def make_offline_rollouts(self, callback, expert_buffer: RolloutBuffer, n_rollout_steps) -> bool:
         # Make a list of offline observations, actions and trees
         if self.verbose > 0:
@@ -753,11 +780,14 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 batch = next(self.data_iter)
 
             # Unpack the batch
-            last_obs = batch['observation']
+            # print(batch)
+            # print(batch['observation'].keys())
+            last_obs = self._flatten_obs(batch['observation'], self.observation_space)
             rewards = batch['reward']
             dones = batch['done']
             actions = batch['action']
-
+            # print(type(rewards), type(dones), type(actions))
+            # print([(k, type(v)) for k, v in last_obs.items()])
             self.num_timesteps += self.num_expert_envs
             n_steps += 1
 
@@ -785,7 +815,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             self._last_episode_starts = dones
             self._last_lstm_states = lstm_states  # These get reset in forward_expert (process_sequence)
 
-        next_obs = batch['next_observation']  # Get the next observation to calculate the values
+        next_obs = self._flatten_obs(batch['next_observation'], self.observation_space)  # Get the next observation to calculate the values
         # Dont increment expert_batch_idx
         with th.no_grad():
             # Compute value for the last timestep
@@ -1564,10 +1594,10 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         print("Learning with bc", self.use_online_bc)
         print("Learning with online data", self.use_online_data)
         print("Learning with offline data", self.use_offline_data)
-        print("Learning with mix data", self.mix_data)
+        print("Learning with mix data", self.use_ppo_offline)
         print("Learning with awac", self.use_awac)
         while self.num_timesteps < total_timesteps:
-            if self.use_online_data or self.mix_data or self.use_online_bc or self.use_awac:
+            if self.use_online_data or self.use_ppo_offline or self.use_online_bc or self.use_awac:
                 # if self.num_timesteps > :
                 continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer,
                                                           n_rollout_steps=self.n_steps)
@@ -1614,7 +1644,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             path_expert_data: Optional[str] = None,
             use_online_data: bool = False,
             use_offline_data: bool = False,
-            mix_data: bool = True,
+            use_ppo_offline: bool = True,
             use_online_bc: bool = False,
             device: Union[th.device, str] = "auto",
             custom_objects: Optional[Dict[str, Any]] = None,
@@ -1713,7 +1743,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             use_online_data=use_online_data,
             use_offline_data=use_offline_data,
             use_online_bc=use_online_bc,
-            mix_data=mix_data,
+            use_ppo_offline=use_ppo_offline,
             policy=data["policy_class"],
             env=env,
             device=device,

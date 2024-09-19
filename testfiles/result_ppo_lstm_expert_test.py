@@ -51,7 +51,7 @@ if __name__ == "__main__":
     # env.logger = new_logger
 
     #load pkl file from expert_trajectories_temp
-    expert_trajectory_path = "expert_trajectories"
+    expert_trajectory_path = "expert_trajectories_temp"
     expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
 
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)

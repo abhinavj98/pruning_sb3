@@ -318,7 +318,7 @@ args = {
             'help': 'whether to use online data'
         },
 
-        'mix_data': {
+        'use_ppo_offline': {
             'action': "store_true",
             'default': False,
             'help': 'whether to mix data'

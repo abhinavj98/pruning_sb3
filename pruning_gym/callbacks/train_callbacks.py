@@ -122,7 +122,7 @@ class PruningCheckpointCallback(CheckpointCallback):
             
             self.model.save(model_path, exclude=["_last_obs", "_last_episode_starts", "_last_original_obs"
                                                  "expert_buffer", "expert_data", "expert_batch_idx",
-                                                 "rollout_buffer", "expert_batch"])
+                                                 "rollout_buffer", "expert_batch", "dataset", "data_iter", "dataloader",])
             if self.verbose >= 1:
                 print(f"Saving model checkpoint to {model_path}")
             mean_std_path = self._checkpoint_path(checkpoint_type="mean_std_", extension="pkl")
