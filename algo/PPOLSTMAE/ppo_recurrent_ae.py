@@ -1037,7 +1037,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         advantages_online = advantages[:len(advantages_online)]
         advantages_offline = advantages[len(advantages_online):]
 
-        log_prob_expert = 2.  # Variance of 0.04
+        log_prob_expert = 0.  # Variance of 0.04
         # ratio between old and new policy, should be one at the first iteration
         ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
         ratio_current_old_offline = th.exp(log_prob_offline - batch_offline.old_log_prob)
@@ -1054,9 +1054,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # clipped surrogate loss for offline
         # Create gaussian distribution
 
-        policy_loss_1_offline = advantages_offline * ratio_current_expert_offline
+        policy_loss_1_offline = advantages_offline * th.clamp(ratio_current_expert_offline, 0.5, 2)
         policy_loss_2_offline = advantages_offline * th.clamp(ratio_current_old_offline, 1 - clip_range,
-                                                              1 + clip_range) * ratio_old_expert_offline
+                                                              1 + clip_range) * th.clamp(ratio_old_expert_offline, 0.5, 2)
         policy_loss_offline = -th.mean(th.min(policy_loss_1_offline, policy_loss_2_offline)[mask_offline])
 
         # policy_loss_online = -th.mean(log_prob_online * th.exp(advantages_online/10))
@@ -1077,7 +1077,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # Value loss using the TD(gae_lambda) target
         value_loss_online = th.mean(((batch_online.returns - values_pred_online) ** 2)[mask_online]) * self.vf_coef
-        value_loss_offline = th.mean((((batch_offline.returns - values_pred_offline) ** 2) * ratio_old_expert_offline)[
+        value_loss_offline = th.mean((((batch_offline.returns - values_pred_offline) ** 2) * th.clamp(ratio_old_expert_offline, 0.5, 2))[
                                          mask_offline]) * self.vf_coef
 
         # Autoencoder loss
@@ -1098,7 +1098,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             entropy_loss_offline = -th.mean(entropy_offline[mask_offline]) * self.ent_coef
 
         online_loss = policy_loss_online + entropy_loss_online + value_loss_online + ae_l2_loss_online
-        offline_loss = policy_loss_offline / 500 + entropy_loss_offline / 50 + value_loss_offline + ae_l2_loss_offline / 10
+        offline_loss = policy_loss_offline + entropy_loss_offline + value_loss_offline + ae_l2_loss_offline
 
         with th.no_grad():
             log_ratio_online = log_prob_online - batch_online.old_log_prob
