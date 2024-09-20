@@ -1443,7 +1443,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 if self.use_online_bc:
                     offline_loss = bc_loss * 0.01
                     offline_loss.backward()
-                    self.optimizer_logstd.zero_grad()
+                    self.policy.optimizer_logstd.zero_grad()
                     online_loss.backward()
                     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     self.policy.optimizer.step()
