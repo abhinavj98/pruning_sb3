@@ -716,7 +716,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         )
         expert_data = self.get_trajectory_files()  # Load file names only
         self.dataset = TrajectoryIterableDataset(expert_data, self.observation_space)
-        self.dataloader = DataLoader(self.dataset, batch_size=self.num_expert_envs, num_workers=self.num_expert_envs, collate_fn=self.np_collate_fn)
+        self.dataloader = DataLoader(self.dataset, batch_size=self.num_expert_envs, num_workers=self.num_expert_envs,
+                                     collate_fn=self.np_collate_fn)
         self.data_iter = iter(self.dataloader)
 
     @staticmethod
@@ -758,6 +759,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         Flatten a list of observations into a single dictionary.
         """
         return OrderedDict([(k, np.stack([o[k] for o in obs])) for k in observation_space.spaces.keys()])
+
     def make_offline_rollouts(self, callback, expert_buffer: RolloutBuffer, n_rollout_steps) -> bool:
         # Make a list of offline observations, actions and trees
         if self.verbose > 0:
@@ -815,12 +817,14 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             self._last_episode_starts = dones
             self._last_lstm_states = lstm_states  # These get reset in forward_expert (process_sequence)
 
-        next_obs = self._flatten_obs(batch['next_observation'], self.observation_space)  # Get the next observation to calculate the values
+        next_obs = self._flatten_obs(batch['next_observation'],
+                                     self.observation_space)  # Get the next observation to calculate the values
         # Dont increment expert_batch_idx
         with th.no_grad():
             # Compute value for the last timestep
             episode_starts = th.tensor(dones, dtype=th.float32, device=self.device)
-            values = self.policy.predict_values(obs_as_tensor(next_obs, self.device), lstm_states.vf, episode_starts)  # pylint: disable=unexpected-keyword-arg
+            values = self.policy.predict_values(obs_as_tensor(next_obs, self.device), lstm_states.vf,
+                                                episode_starts)  # pylint: disable=unexpected-keyword-arg
         expert_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
 
         # callback.on_rollout_end()
@@ -1060,7 +1064,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         policy_loss_1_offline = advantages_offline * th.clamp(ratio_current_expert_offline, 0.5, 2)
         policy_loss_2_offline = advantages_offline * th.clamp(ratio_current_old_offline, 1 - clip_range,
-                                                              1 + clip_range) * th.clamp(ratio_old_expert_offline, 0.5, 2)
+                                                              1 + clip_range) * th.clamp(ratio_old_expert_offline, 0.5,
+                                                                                         2)
         policy_loss_offline = -th.mean(th.min(policy_loss_1_offline, policy_loss_2_offline)[mask_offline])
 
         # policy_loss_online = -th.mean(log_prob_online * th.exp(advantages_online/10))
@@ -1081,7 +1086,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # Value loss using the TD(gae_lambda) target
         value_loss_online = th.mean(((batch_online.returns - values_pred_online) ** 2)[mask_online]) * self.vf_coef
-        value_loss_offline = th.mean((((batch_offline.returns - values_pred_offline) ** 2) * th.clamp(ratio_old_expert_offline, 0.5, 2)[mask_offline]) * self.vf_coef
+        value_loss_offline = th.mean(
+            (((batch_offline.returns - values_pred_offline) ** 2) * th.clamp(ratio_old_expert_offline, 0.5, 2))[
+                mask_offline]) * self.vf_coef
 
         # Autoencoder loss
         ae_l2_loss_online = self.mse_loss(depth_proxy_online, depth_proxy_recon_online) * self.ae_coeff
@@ -1200,14 +1207,16 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         entropy_loss_offline = -th.mean(-log_prob_offline) * self.ent_coef
         entropy_loss_online = -th.mean(-log_prob_online) * self.ent_coef
 
-        loss_dict_online = {"policy_loss": policy_loss_online.item(), "value_loss": value_loss_online.item(), "entropy_loss": entropy_loss_online.item(), "advantages": th.mean(advantages_online).item()}
-        loss_dict_offline = {"policy_loss": policy_loss_offline.item(), "value_loss": value_loss_offline.item(), "entropy_loss": entropy_loss_offline.item(), "advantages": th.mean(advantages_offline).item()}
+        loss_dict_online = {"policy_loss": policy_loss_online.item(), "value_loss": value_loss_online.item(),
+                            "entropy_loss": entropy_loss_online.item(), "advantages": th.mean(advantages_online).item()}
+        loss_dict_offline = {"policy_loss": policy_loss_offline.item(), "value_loss": value_loss_offline.item(),
+                             "entropy_loss": entropy_loss_offline.item(),
+                             "advantages": th.mean(advantages_offline).item()}
         online_loss = policy_loss_online + value_loss_online
         offline_loss = policy_loss_offline + value_loss_offline
         entropy_loss = entropy_loss_online + entropy_loss_offline
 
         return online_loss, loss_dict_online, offline_loss, loss_dict_offline, entropy_loss
-
 
     def train_offline_batch(self, batch, clip_range, clip_range_vf):
         actions = batch.actions
