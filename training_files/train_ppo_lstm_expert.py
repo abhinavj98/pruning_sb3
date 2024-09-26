@@ -101,8 +101,8 @@ if __name__ == "__main__":
         load_dict = {"learning_rate": linear_schedule(args_policy['learning_rate']),
                      "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
                      "learning_rate_logstd": learning_rate_logstd}
-        model = RecurrentPPOAEWithExpert.load(load_path_model, env=env, path_expert_data=expert_trajectory_path, use_online_data=args_policy['use_online_data'],
-                                                use_offline_data=args_policy['use_offline_data'],
+        model = RecurrentPPOAEWithExpert.load(load_path_model, env=env, path_trajectories=expert_trajectory_path, use_online_data=args_policy['use_online_data'],
+                                                use_offline_data=args_policy['use_offline_data'], use_awac = args_policy['use_awac'],
                                                 use_ppo_offline=args_policy['use_ppo_offline'], use_online_bc = args_policy['use_online_bc'], custom_objects=load_dict)
 
         model.policy.load_running_mean_std_from_file(load_path_mean_std)

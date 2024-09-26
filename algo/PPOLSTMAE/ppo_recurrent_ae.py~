@@ -1048,7 +1048,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         log_prob_expert = 0.  # Variance of 0.04
         # ratio between old and new policy, should be one at the first iteration
         ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
-        ratio_current_old_offline = th.exp(log_prob_offline - th.clamp(batch_offline.old_log_prob, -10, 10))
+        ratio_current_old_offline = th.exp(log_prob_offline - batch_offline.old_log_prob)
         ratio_current_expert_offline = th.exp(
             log_prob_offline - log_prob_expert)  # Expert probability is 1, so log prob is 0
         ratio_old_expert_offline = th.exp(
