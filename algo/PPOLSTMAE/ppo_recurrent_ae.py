@@ -985,7 +985,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             batch_offline.actions
         )
 
-        log_prob_offline = th.clamp(log_prob_offline, -10, 10)
+        log_prob_offline = th.clamp(log_prob_offline, -5, 0)
         bc_loss = -th.mean(log_prob_offline)
         # Calculate approximate form of reverse KL Divergence for early stopping
         # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -1031,7 +1031,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             batch_offline.episode_starts,
         )
 
-        log_prob_offline = th.clamp(log_prob_offline, -10, 10)
+        log_prob_offline = th.clamp(log_prob_offline, -5, 0)
 
         values_online = values_online.flatten()
         values_offline = values_offline.flatten()
@@ -1048,7 +1048,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         log_prob_expert = 0.  # Variance of 0.04
         # ratio between old and new policy, should be one at the first iteration
         ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
-        ratio_current_old_offline = th.exp(log_prob_offline - th.clamp(batch_offline.old_log_prob, -10, 10))
+        ratio_current_old_offline = th.exp(log_prob_offline - th.clamp(batch_offline.old_log_prob, -5, 0))
         ratio_current_expert_offline = th.exp(
             log_prob_offline - log_prob_expert)  # Expert probability is 1, so log prob is 0
         ratio_old_expert_offline = th.exp(
@@ -1114,7 +1114,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             log_ratio_online = log_prob_online - batch_online.old_log_prob
             approx_kl_div_online = th.mean(
                 ((th.exp(log_ratio_online) - 1) - log_ratio_online)[mask_online]).cpu().numpy()
-            log_ratio_offline = log_prob_offline - th.clamp(batch_offline.old_log_prob, -10, 10)
+            log_ratio_offline = log_prob_offline - th.clamp(batch_offline.old_log_prob, -5, 0)
             approx_kl_div_offline = th.mean(
                 ((th.exp(log_ratio_offline) - 1) - log_ratio_offline)[mask_offline]).cpu().numpy()
 

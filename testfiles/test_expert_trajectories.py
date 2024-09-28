@@ -31,7 +31,7 @@ if __name__ == "__main__":
     load_timestep = args_global['load_timestep']
 
     env = PruningEnv(**args_record)
-    expert_trajectory_path = "expert_trajectories"
+    expert_trajectory_path = "expert_trajectories_temp"
     expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
     #shuffle the expert trajectories
     # random.shuffle(expert_trajectories)

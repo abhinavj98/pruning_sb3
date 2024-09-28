@@ -73,8 +73,11 @@ if __name__ == "__main__":
         # del expert_data
         actions = expert_data['actions']
         observations = expert_data['observations']
+        rewards = expert_data['rewards']
         # dones = expert_data['dones']
         env.set_tree_properties(*tree_info)
+
+
 
         # env.ur5.reset_ur5_arm()
         env.reset()
@@ -85,9 +88,9 @@ if __name__ == "__main__":
             # env.set_observation(observation)
             # env.set_action(action)
             obs, rew, term, trunc, _ = env.step(action)
-            print(rew, term)
-            time.sleep(0.1)
-
+            print(rew, rewards[i], term)
+            # time.sleep(0.1)
+        # input()
     # env.reset()
 
 
