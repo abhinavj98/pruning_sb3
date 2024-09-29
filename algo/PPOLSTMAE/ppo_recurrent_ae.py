@@ -911,7 +911,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # Train on mix of online and offline data
         # Normalize advantage for both online and offline data together
         if self.verbose > 1:
-            print("INFO: Training on mix batch")
+            print("INFO: Training bc")
         actions_online = batch_online.actions
         actions_offline = batch_offline.actions
         if isinstance(self.action_space, spaces.Discrete):
@@ -1453,9 +1453,10 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
                 # For BC loss remove variance from the optimization
                 if self.use_online_bc:
-                    offline_loss = bc_loss * 0.01
+                    offline_loss = bc_loss * 0.02 * self._current_progress_remaining
                     offline_loss.backward()
                     self.policy.optimizer_logstd.zero_grad()
+                    online_loss = loss_online
                     online_loss.backward()
                     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     self.policy.optimizer.step()
