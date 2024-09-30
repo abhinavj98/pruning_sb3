@@ -1355,9 +1355,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 online_data_buffer = self.rollout_buffer.get(self.batch_size)
             while True:
                 try:
-                    if self.collect_online_data:
-                        offline_data = next(offline_data_buffer)
                     if self.collect_offline_data:
+                        offline_data = next(offline_data_buffer)
+                    if self.collect_online_data:
                         online_data = next(online_data_buffer)
                 except StopIteration:
                     break
