@@ -78,7 +78,7 @@ def test_set_extended_observation(env):
     # Print the transformed position and orientation to check the results
     # print("Transformed position:", env.observation['achieved_goal'])
     assert np.isclose(env.observation['achieved_goal'], np.array([0, 0, 0]), atol=1e-2).all()
-    env.ur5.init_pos_base = [np.array([0, 1, 0]), np.array([0, 0, 0, 1])]
+    env.robot.init_pos_base = [np.array([0, 1, 0]), np.array([0, 0, 0, 1])]
     env.set_extended_observation()
     assert False
     # print("Transformed orientation:", env.observation['achieved_or'])

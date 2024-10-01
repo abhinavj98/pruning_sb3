@@ -28,8 +28,8 @@ if __name__ == "__main__":
 
     args_test = dict(parsed_args_dict['args_env'], **parsed_args_dict['args_test'])
     env = PruningEnv(**args_train)
-    env.ur5.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485,
-                              -0.7777109569760938, 3.210501267258541))
+    env.robot.set_joint_angles((-2.0435414506752583, -1.961562910279876, 2.1333764856444137, -2.6531903863259485,
+                                -0.7777109569760938, 3.210501267258541))
     for _ in range(100):
         env.pyb_con.con.stepSimulation()
 

@@ -77,7 +77,7 @@ if __name__ == "__main__":
     # Use keyboard to move the robot
     while True:
 
-        loc, orientation = env.ur5.get_current_pose(env.ur5.end_effector_index)
+        loc, orientation = env.robot.get_current_pose(env.robot.end_effector_index)
         orientation = np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
         # Read keyboard input using python input
         action = get_key_pressed(env)
@@ -123,10 +123,11 @@ if __name__ == "__main__":
 
         observation, reward, terminated, truncated, infos = env.step(val)
         set_goal_callback.locals = {"infos": [infos]}
+        print(env.robot.get_joint_angles())
         # print(np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3))
-        trans, ang = env.ur5.get_current_vel(env.ur5.end_effector_index)
-        print("Current velocity in ee frame", np.dot(orientation.T,trans))
-        print("Current angular velocity in ee frame", np.dot(orientation.T,ang))
+        # trans, ang = env.robot.get_current_vel(env.robot.end_effector_index)
+        # print("Current velocity in ee frame", np.dot(orientation.T,trans))
+        # print("Current angular velocity in ee frame", np.dot(orientation.T,ang))
         env.pyb.visualize_rot_mat(orientation, loc)
         time.sleep(0.1)
 

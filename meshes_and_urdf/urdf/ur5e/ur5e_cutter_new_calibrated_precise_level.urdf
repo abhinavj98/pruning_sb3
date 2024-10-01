@@ -4,29 +4,6 @@
 <!-- |    EDITING THIS FILE BY HAND IS NOT RECOMMENDED                                 | -->
 <!-- =================================================================================== -->
 <robot name="ur5e" xmlns:xacro="http://ros.org/wiki/xacro">
-  <gazebo>
-    <plugin filename="libgazebo_ros_control.so" name="ros_control">
-      <!--robotNamespace>/</robotNamespace-->
-      <!--robotSimType>gazebo_ros_control/DefaultRobotHWSim</robotSimType-->
-    </plugin>
-    <!--
-    <plugin name="gazebo_ros_power_monitor_controller" filename="libgazebo_ros_power_monitor.so">
-      <alwaysOn>true</alwaysOn>
-      <updateRate>1.0</updateRate>
-      <timeout>5</timeout>
-      <powerStateTopic>power_state</powerStateTopic>
-      <powerStateRate>10.0</powerStateRate>
-      <fullChargeCapacity>87.78</fullChargeCapacity>
-      <dischargeRate>-474</dischargeRate>
-      <chargeRate>525</chargeRate>
-      <dischargeVoltage>15.52</dischargeVoltage>
-      <chargeVoltage>16.41</chargeVoltage>
-    </plugin>
--->
-  </gazebo>
-  <!-- measured from model -->
-  <!-- link lengths used in model -->
-  <!-- manually measured -->
   <link name="mount_base">
           <inertial>
       <origin rpy="0 0 0" xyz="1.0E-08 1.0E-08 1.0E-08"/>
@@ -75,7 +52,6 @@
   <joint name="mount_base_joint" type="fixed">
     <parent link="mount"/>
     <child link="base_link"/>
-<!--    <origin rpy="0.0 1.570796 0.0" xyz="0.0 0.0 0.0"/>-->
     <origin rpy="0.0 0.0 -1.5708" xyz="0.0 0.0 0.0"/>
     <axis xyz="0 0 1"/>
   </joint>

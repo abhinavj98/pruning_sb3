@@ -55,13 +55,13 @@ def test_is_reachable(env):
     tree = env.tree
     assert len(tree.reachable_points) > 0
     for point in tree.reachable_points:
-        env.ur5.remove_ur5_robot()
-        env.ur5.setup_ur5_arm()
-        j_angles = tree.env.ur5.calculate_ik(point[0], None)
-        env.ur5.set_joint_angles(j_angles)
+        env.robot.remove_ur5_robot()
+        env.robot.setup_ur5_arm()
+        j_angles = tree.env.robot.calculate_ik(point[0], None)
+        env.robot.set_joint_angles(j_angles)
         for _ in range(100):
             env.pyb.con.stepSimulation()
-        ee_pos, _ = env.ur5.get_current_pose(tree.env.ur5.end_effector_index)
+        ee_pos, _ = env.robot.get_current_pose(tree.env.robot.end_effector_index)
         dist = np.linalg.norm(np.array(ee_pos) - point[0], axis=-1)
         # time.sleep(10)
         assert dist < 0.05

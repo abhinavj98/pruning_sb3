@@ -15,11 +15,11 @@ from nptyping import NDArray, Shape, Float
 import imageio
 import pickle
 from .tree import Tree
-from .ur5_utils import UR5
+from .ur5_utils import Robot
 from .pyb_utils import pyb_utils
 from .reward_utils import Reward
 from skimage.draw import disk
-from pruning_sb3.pruning_gym import ROBOT_URDF_PATH, SUPPORT_AND_POST_PATH
+from pruning_sb3.pruning_gym import UR5_URDF_PATH, PANDA_URDF_PATH,  SUPPORT_AND_POST_PATH
 import copy
 from scipy.spatial.transform import Rotation as R
 from collections import defaultdict
@@ -193,9 +193,24 @@ class PruningEnv(gym.Env):
         self.angle_threshold_perp_cosine = np.cos(angle_threshold_perp)
         self.angle_threshold_point_cosine = np.cos(angle_threshold_point)
 
-        # setup robot arm:
-        self.ur5 = UR5(self.pyb.con, ROBOT_URDF_PATH, pos=ur5_pos, orientation=ur5_or,
-                       randomize_pose=randomize_ur5_pose, verbose=verbose)
+        # self.robot = Robot(self.pyb.con, UR5_URDF_PATH, tool0_link_index=8, end_effector_index=13, success_link_index=14,
+        #                    base_index=3, init_joint_angles=(-np.pi / 2, -np.pi * 2 / 3, np.pi * 2 / 3, -np.pi, -np.pi / 2,
+        #                            np.pi),
+        #
+        #                    robot_collision_filter_idxs=[(11,14), (11, 8), (11,9)], pos = ur5_pos, orientation = ur5_or, randomize_pose = randomize_ur5_pose, verbose = verbose,
+        #                    control_joints=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint",
+        #                                  "wrist_2_joint", "wrist_3_joint"],
+        #                    joint_type_list=["REVOLUTE", "REVOLUTE", "REVOLUTE", "REVOLUTE", "REVOLUTE", "REVOLUTE"],
+        #                    )
+
+        self.robot = Robot(self.pyb.con, PANDA_URDF_PATH, tool0_link_index=10, end_effector_index=13, success_link_index=14,
+                           init_joint_angles=(-0.05401695554253757, 0.04926930100513825, -0.07629139311841915, 1.230265363004398, 1.1638634320773023, 0.35409597623916833, 0.9141027066444527)
+, base_index=0,
+                           control_joints=["panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4",
+                                           "panda_joint5", "panda_joint6", "panda_joint7"],
+                            joint_type_list=["REVOLUTE", "REVOLUTE", "REVOLUTE", "REVOLUTE", "REVOLUTE", "REVOLUTE",
+                                              "REVOLUTE"], robot_collision_filter_idxs=[(10,11), (11,9), (11, 14), ],
+                           pos=[0,-0.1,0], orientation=ur5_or, randomize_pose=randomize_ur5_pose, verbose=verbose)
         self.reset_env_variables()
         # Curriculum variables
         self.eval_counter = 0
@@ -288,7 +303,6 @@ class PruningEnv(gym.Env):
         self.is_goal_state = False
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
-        self.ur5_robot = None
 
     def set_curriculum_level(self, episode_counter, curriculum_level_steps):
         """Set curriculum level"""
@@ -311,7 +325,6 @@ class PruningEnv(gym.Env):
         """Environment reset function"""
         super().reset(seed=seed)
         self.pyb.con.resetSimulation()
-        self.ur5_robot = None
         self.tree_id = None
         self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None,
                                      'SUPPORT': None, }
@@ -338,7 +351,7 @@ class PruningEnv(gym.Env):
 
         # Create new ur5 arm body
         self.pyb.create_background()
-        self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
+        self.robot.setup_robot()  # Remember to remove previous body! Line 215
         # self.ur5.reset_ur5_arm()
         # Sample new point
         # Jitter the camera pose
@@ -357,10 +370,10 @@ class PruningEnv(gym.Env):
                                 lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
                                 lineWidth=400)
 
-        pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        pos, orient = self.robot.get_current_pose(self.robot.end_effector_index)
 
         # Logging
-        self.init_distance = np.linalg.norm(self.tree_goal_pos - self.ur5.init_pos_ee[0]) + 1e-4
+        self.init_distance = np.linalg.norm(self.tree_goal_pos - self.robot.init_pos_ee[0]) + 1e-4
         self.init_point_cosine_sim = self.reward.compute_pointing_cos_sim(np.array(pos), self.tree_goal_pos,
                                                                           np.array(orient),
                                                                           self.tree_goal_or) + 1e-4
@@ -387,7 +400,7 @@ class PruningEnv(gym.Env):
     def calculate_joint_velocities_from_ee_constrained(self, velocity):
         """Calculate joint velocities from end effector velocities adds constraints of max joint velocities"""
         if self.use_ik:
-            jv, jacobian = self.ur5.calculate_joint_velocities_from_ee_velocity_dls(velocity)
+            jv, jacobian = self.robot.calculate_joint_velocities_from_ee_velocity_dls(velocity)
         # If not using ik, just set joint velocities to be regressed by actor
         else:
             jv = velocity
@@ -418,8 +431,8 @@ class PruningEnv(gym.Env):
                                                             globalScaling=self.tree_scale)
 
         # Do not make the textured tree collide with the UR5, let the collision objects do
-        for i in range(self.ur5.num_joints):
-            pyb.con.setCollisionFilterPair(self.tree_id, self.ur5.ur5_robot, 0, i, 0)
+        for i in range(self.robot.num_joints):
+            pyb.con.setCollisionFilterPair(self.tree_id, self.robot.robot, 0, i, 0)
 
     def inactivate_tree(self, pyb):
         if self.tree_id:
@@ -475,7 +488,7 @@ class PruningEnv(gym.Env):
 
     def convert_local_action_to_global(self, action):
         """Convert local action to global action"""
-        pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        pos, orient = self.robot.get_current_pose(self.robot.end_effector_index)
         current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
         global_velocity = np.dot(current_or_mat, action[:3])
         global_angular_velocity = np.dot(current_or_mat, action[3:])
@@ -483,7 +496,7 @@ class PruningEnv(gym.Env):
 
     def convert_global_action_to_local(self, action):
         """Convert global action to local action"""
-        pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        pos, orient = self.robot.get_current_pose(self.robot.end_effector_index)
         current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
         local_velocity = np.dot(current_or_mat.T, action[:3])
         local_angular_velocity = np.dot(current_or_mat.T, action[3:])
@@ -498,15 +511,18 @@ class PruningEnv(gym.Env):
         action[:3] = action[:3] * self.action_scale
         action[3:] = action[3:] * self.action_scale
         self.action = self.convert_local_action_to_global(action)
+        # self.action = action
         # Calculate joint velocities from end effector velocities/or if ik is false, just use the action
-        self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
-        singularity = self.ur5.set_joint_velocities(self.ur5.action)
+        self.robot.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
+        # print("Action: ", self.robot.action)
+        self.robot.set_joint_velocities(self.robot.action)
 
+        singularity = False
         # Step simulation
         for i in range(self.num_control_simulation_steps):
             self.pyb.con.stepSimulation()
 
-            # print(self.pyb_con.con.getJointStateMultiDof(self.ur5.ur5_robot, self.ur5.end_effector_index))
+            # print(self.pyb_con.con.getJointStateMultiDof(self.ur5.robot, self.ur5.end_effector_index))
             # if self.renders: time.sleep(1./240.)
 
         # Need observations before reward
@@ -576,8 +592,8 @@ class PruningEnv(gym.Env):
 
         proj_matrix = np.asarray(self.pyb.proj_mat).reshape([4, 4], order="F")
         view_matrix = np.asarray(
-            self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt, xyz_offset=self.cam_xyz_offset
-                                               )).reshape([4, 4], order="F")
+            self.robot.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt, xyz_offset=self.cam_xyz_offset
+                                                 )).reshape([4, 4], order="F")
         projection = proj_matrix @ view_matrix @ np.array(
             [self.tree_goal_pos[0], self.tree_goal_pos[1], self.tree_goal_pos[2], 1])
         # Normalize by w
@@ -607,15 +623,15 @@ class PruningEnv(gym.Env):
         # TODO: define all these dict as named tuples/dict
         self.prev_observation_info = copy.deepcopy(self.observation_info)
         if 'achieved_pos' not in self.prev_observation_info.keys():
-            self.prev_observation_info['achieved_pos'] = self.ur5.init_pos_ee[0]
-            self.prev_observation_info['achieved_or_quat'] = self.ur5.init_pos_ee[1]
-            self.prev_observation_info['achieved_eebase_pos'] = self.ur5.init_pos_eebase[0]
-            self.prev_observation_info['achieved_eebase_or_quat'] = self.ur5.init_pos_eebase[1]
+            self.prev_observation_info['achieved_pos'] = self.robot.init_pos_ee[0]
+            self.prev_observation_info['achieved_or_quat'] = self.robot.init_pos_ee[1]
+            self.prev_observation_info['achieved_eebase_pos'] = self.robot.init_pos_eebase[0]
+            self.prev_observation_info['achieved_eebase_or_quat'] = self.robot.init_pos_eebase[1]
 
-        tool_pos, tool_orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
-        tool_base_pos, tool_base_orient = self.ur5.get_current_pose(self.ur5.success_link_index)
+        tool_pos, tool_orient = self.robot.get_current_pose(self.robot.end_effector_index)
+        tool_base_pos, tool_base_orient = self.robot.get_current_pose(self.robot.success_link_index)
 
-        achieved_vel, achieved_ang_vel = self.ur5.get_current_vel(self.ur5.end_effector_index)
+        achieved_vel, achieved_ang_vel = self.robot.get_current_vel(self.robot.end_effector_index)
 
         achieved_pos = np.array(tool_pos).astype(np.float32)
         achieved_or_quat = np.array(tool_orient).astype(np.float32)
@@ -625,14 +641,14 @@ class PruningEnv(gym.Env):
 
         desired_pos = np.array(self.tree_goal_pos).astype(np.float32)
 
-        joint_angles = np.array(self.ur5.get_joint_angles()).astype(np.float32)
+        joint_angles = np.array(self.robot.get_joint_angles()).astype(np.float32)
 
-        init_pos_ee = np.array(self.ur5.init_pos_ee[0]).astype(np.float32)
-        init_or_ee = np.array(self.ur5.init_pos_ee[1]).astype(np.float32)
+        init_pos_ee = np.array(self.robot.init_pos_ee[0]).astype(np.float32)
+        init_or_ee = np.array(self.robot.init_pos_ee[1]).astype(np.float32)
 
         rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot',
-                                               self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt,
-                                                                                  xyz_offset=self.cam_xyz_offset))
+                                               self.robot.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt,
+                                                                                    xyz_offset=self.cam_xyz_offset))
         if 'rgb' not in self.observation:
             prev_rgb = np.zeros((self.pyb.cam_height, self.pyb.cam_width, 3))
         else:
@@ -659,7 +675,7 @@ class PruningEnv(gym.Env):
 
         # Actual observation - All wrt base
         ############TODO: Check if this is correct
-        t_bw, r_bw = self.pyb.con.invertTransform(self.ur5.init_pos_base[0], self.ur5.init_pos_base[1])
+        t_bw, r_bw = self.pyb.con.invertTransform(self.robot.init_pos_base[0], self.robot.init_pos_base[1])
         achieved_pos_b, achieved_or_quat_b = self.pyb.con.multiplyTransforms(t_bw, r_bw, achieved_pos, achieved_or_quat)
         init_pos_ee_b, init_or_ee_b = self.pyb.con.multiplyTransforms(t_bw, r_bw, init_pos_ee, init_or_ee)
         desired_pos_b, desired_or_b = self.pyb.con.multiplyTransforms(t_bw, r_bw, desired_pos, [0, 0, 0, 1])
@@ -693,9 +709,9 @@ class PruningEnv(gym.Env):
             # add sphere
             sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1], )
             rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot',
-                                                   self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan,
-                                                                                      tilt=self.cam_tilt,
-                                                                                      xyz_offset=self.cam_xyz_offset))
+                                                   self.robot.get_view_mat_at_curr_pose(pan=self.cam_pan,
+                                                                                        tilt=self.cam_tilt,
+                                                                                        xyz_offset=self.cam_xyz_offset))
             # remove sphere
             self.observation_info['rgb'] = rgb
             self.pyb.con.removeBody(sphere)
@@ -765,13 +781,13 @@ class PruningEnv(gym.Env):
                                                                                               previous_or_eebase,
                                                                                               self.tree_goal_or)
         reward += perp_reward
-        condition_number = self.ur5.get_condition_number()
+        condition_number = self.robot.get_condition_number()
         reward += self.reward.calculate_condition_number_reward(condition_number)
 
         # If is successful
         self.is_goal_state = self.is_state_successful(achieved_pos, desired_pos, perp_cosine_sim, point_cosine_sim)
         reward += self.reward.calculate_termination_reward(self.is_goal_state)
-        is_collision, collision_info = self.ur5.check_collisions(self.collision_object_ids)
+        is_collision, collision_info = self.robot.check_collisions(self.collision_object_ids)
         reward += self.reward.calculate_acceptable_collision_reward(collision_info)
         reward += self.reward.calculate_unacceptable_collision_reward(collision_info)
 
@@ -787,8 +803,8 @@ class PruningEnv(gym.Env):
     def is_state_successful(self, achieved_pos, desired_pos, orientation_perp_value, orientation_point_value):
         terminated = False
         # TODO: Success only if the collision is in the branch plane
-        is_success_collision_spur = self.ur5.check_success_collision(self.collision_object_ids['SPUR'])
-        is_success_collision_water_branch = self.ur5.check_success_collision(self.collision_object_ids['WATER_BRANCH'])
+        is_success_collision_spur = self.robot.check_success_collision(self.collision_object_ids['SPUR'])
+        is_success_collision_water_branch = self.robot.check_success_collision(self.collision_object_ids['WATER_BRANCH'])
         is_success_collision = is_success_collision_spur or is_success_collision_water_branch
         dist_from_target = np.linalg.norm(achieved_pos - desired_pos)
         if is_success_collision and dist_from_target < self.distance_threshold:
@@ -853,7 +869,7 @@ class PruningEnvRRT(PruningEnv):
         rotation_axis_x = rotation_matrix[:, 0]
         #How much to rotate about this axis to make same as branch normal?
         #self.ur5.init_pos_ee[1] as rotation matrix
-        rot_ee = self.pyb.con.getMatrixFromQuaternion(self.ur5.init_pos_ee[1])
+        rot_ee = self.pyb.con.getMatrixFromQuaternion(self.robot.init_pos_ee[1])
         rot_ee = np.array(rot_ee).reshape(3, 3)
         rot_pointing = rot_ee[:, 2]
 
@@ -905,7 +921,7 @@ class PruningEnvRRT(PruningEnv):
         init_vec = rot @ init_vec
         position = self.tree_goal_pos - offset * init_vec
         if config:
-            joint_angles = self.ur5.calculate_ik(position, orientation)
+            joint_angles = self.robot.calculate_ik(position, orientation)
             return joint_angles
         return position, orientation
 
@@ -915,27 +931,27 @@ class PruningEnvRRT(PruningEnv):
         while attempts < total_attempts:
             start_time = time.time()
             self.pyb.remove_debug_items("step")
-            self.ur5.reset_ur5_arm()
+            self.robot.reset_robot()
             self.pyb.con.stepSimulation()
             collision = False
 
             goal, goal_orientation = self.sample_goal()
 
-            self.ur5.set_collision_filter_tree(self.collision_object_ids)
+            self.robot.set_collision_filter_tree(self.collision_object_ids)
             offset = np.random.uniform(-0.1, 0.1, 3)
             # scale the offset to be 15cm away from the goal
             offset = 0.15 * offset / np.linalg.norm(offset)
-            initial_guess = self.ur5.calculate_ik(goal + offset, goal_orientation)
+            initial_guess = self.robot.calculate_ik(goal + offset, goal_orientation)
             # if no_collision:
-            self.ur5.set_joint_angles_no_collision(initial_guess)
+            self.robot.set_joint_angles_no_collision(initial_guess)
             self.pyb.con.stepSimulation()
             # else:
             #     self.ur5.set_joint_angles(initial_guess)
             #     for j in range(30):
             #         self.pyb.con.stepSimulation()
 
-            joint_angles = self.ur5.calculate_ik(goal, goal_orientation)
-            self.ur5.set_joint_angles_no_collision(joint_angles)
+            joint_angles = self.robot.calculate_ik(goal, goal_orientation)
+            self.robot.set_joint_angles_no_collision(joint_angles)
             # else:
             #     self.ur5.set_joint_angles(joint_angles)
             #     for j in range(30):
@@ -950,9 +966,9 @@ class PruningEnvRRT(PruningEnv):
             #     attempts += 1
             #     continue
             if check_collision:
-                self.ur5.unset_collision_filter_tree(self.collision_object_ids)
+                self.robot.unset_collision_filter_tree(self.collision_object_ids)
                 self.pyb.con.stepSimulation()
-                collision_info = self.ur5.check_collisions(self.collision_object_ids)
+                collision_info = self.robot.check_collisions(self.collision_object_ids)
 
                 if collision_info[1]['collisions_unacceptable']:
                     collision = True
@@ -962,7 +978,7 @@ class PruningEnvRRT(PruningEnv):
                 self.pyb.con.stepSimulation()
                 collision = False
             if not collision:
-                current_ee_pose = self.ur5.get_current_pose(self.ur5.end_effector_index)
+                current_ee_pose = self.robot.get_current_pose(self.robot.end_effector_index)
                 delta_q = self.pyb.con.getDifferenceQuaternion(current_ee_pose[1], goal_orientation)
                 delta_angle = 2 * np.arccos(delta_q[3])
                 if np.linalg.norm(current_ee_pose[0] - goal) < 0.05 and delta_angle < 0.1:
@@ -974,7 +990,7 @@ class PruningEnvRRT(PruningEnv):
                     if self.verbose > 1:
                         print("DEBUG: Not close enough")
 
-            self.ur5.reset_ur5_arm()
+            self.robot.reset_robot()
             attempts += 1
             runtime = time.time() - start_time
             timing['time_find_end_config'] += runtime
@@ -994,9 +1010,9 @@ class PruningEnvRRT(PruningEnv):
         render = render.astype(np.uint8)
         render = cv2.resize(render, (512, 512), interpolation=cv2.INTER_NEAREST)
         robot_img, _ = self.pyb.get_rgbd_at_cur_pose('robot',
-                                                     self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan,
-                                                                                        tilt=self.cam_tilt,
-                                                                                        xyz_offset=self.cam_xyz_offset))
+                                                     self.robot.get_view_mat_at_curr_pose(pan=self.cam_pan,
+                                                                                          tilt=self.cam_tilt,
+                                                                                          xyz_offset=self.cam_xyz_offset))
         robot_img = robot_img * 255
         robot_img = robot_img.astype(np.uint8)
         robot_img = cv2.resize(robot_img, (512, 512), interpolation=cv2.INTER_NEAREST)
@@ -1020,19 +1036,19 @@ class PruningEnvRRT(PruningEnv):
             for sol in solutions:
                 if sol is not None:
                     success = True
-                    current_joint_angles = np.array(self.ur5.get_joint_angles())
+                    current_joint_angles = np.array(self.robot.get_joint_angles())
                     goal_joint_angles, goal_pos, goal_or = sol
                     linear_diff = (np.array(goal_joint_angles) - np.array(current_joint_angles))/500
 
                     for j in range(501):
-                        self.ur5.set_joint_angles(current_joint_angles + j * linear_diff)
+                        self.robot.set_joint_angles(current_joint_angles + j * linear_diff)
                         self.pyb.con.stepSimulation()
-                        is_collision, collision_info = self.ur5.check_collisions(self.collision_object_ids)
+                        is_collision, collision_info = self.robot.check_collisions(self.collision_object_ids)
                         if is_collision:
                             success = False
                             break
                     if success:
-                        j_a = np.array(self.ur5.get_joint_angles())
+                        j_a = np.array(self.robot.get_joint_angles())
                         if np.isclose(j_a, np.array(goal_joint_angles), atol=1e-2).all():
                             break
                         else:
@@ -1119,11 +1135,11 @@ class PruningEnvRRT(PruningEnv):
             # if np.linalg.norm(np.array(pos) - np.array(self.tree_goal_pos)) < 0.05:
             else:
                 goal, goal_pos, goal_or = i
-                self.ur5.set_joint_angles_no_collision(goal)
+                self.robot.set_joint_angles_no_collision(goal)
                 for j in range(2):
                     self.pyb.con.stepSimulation()
 
-                condition_number = self.ur5.get_condition_number()
+                condition_number = self.robot.get_condition_number()
                 return condition_number, tree_info, None, timing
 
 
@@ -1134,23 +1150,23 @@ class PruningEnvRRT(PruningEnv):
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
                      self.tree_pos, self.tree_goal_normal]
         controllable_joints = [3, 4, 5, 6, 7, 8]
-        distance_fn = get_distance_fn(self.ur5.ur5_robot, controllable_joints)
-        sample_position = get_sample_fn(self.ur5.ur5_robot, controllable_joints)
-        extend_fn = get_extend_fn(self.ur5.ur5_robot, controllable_joints)
+        distance_fn = get_distance_fn(self.robot.robot, controllable_joints)
+        sample_position = get_sample_fn(self.robot.robot, controllable_joints)
+        extend_fn = get_extend_fn(self.robot.robot, controllable_joints)
         goal_fn = self.sample_goal
         is_goal_fn = self.is_state_successful_rrt
         collision_objects = []
         for key, val in self.collision_object_ids.items():
             # if key != "SPUR":
             collision_objects.append(val)
-        collision_fn = get_collision_fn(self.ur5.ur5_robot, controllable_joints, collision_objects)
+        collision_fn = get_collision_fn(self.robot.robot, controllable_joints, collision_objects)
         start_find_path = time.time()
         if informed:
-            path = informed_rrt_star_multi_goal(self.ur5.get_joint_angles(), goal_fn, distance_fn, sample_position,
-                                            extend_fn, collision_fn, radius=0.4, is_goal_fn = is_goal_fn, max_iterations=5000)
+            path = informed_rrt_star_multi_goal(self.robot.get_joint_angles(), goal_fn, distance_fn, sample_position,
+                                                extend_fn, collision_fn, radius=0.4, is_goal_fn = is_goal_fn, max_iterations=5000)
         else:
-            path = rrt_star_multi_goal(self.ur5.get_joint_angles(), goal_fn, distance_fn, sample_position,
-                            extend_fn, collision_fn, radius=0.4, is_goal_fn = is_goal_fn, max_iterations=5000, informed = False)
+            path = rrt_star_multi_goal(self.robot.get_joint_angles(), goal_fn, distance_fn, sample_position,
+                                       extend_fn, collision_fn, radius=0.4, is_goal_fn = is_goal_fn, max_iterations=5000, informed = False)
         if path is not None:
             if save_video:
                 self.baseline_save_video(path, planner, tree_info[1])
@@ -1163,16 +1179,16 @@ class PruningEnvRRT(PruningEnv):
         if shortcutting:
             path = smooth_path(path, extend_fn, collision_fn, distance_fn, sample_fn=sample_position, coarse_waypoints = False)
         goal_config = path[-1]
-        self.ur5.set_joint_angles(goal_config)
+        self.robot.set_joint_angles(goal_config)
         for j in range(50):
             self.pyb.con.stepSimulation()
-        pos, goal_or = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        pos, goal_or = self.robot.get_current_pose(self.robot.end_effector_index)
         return (path, tree_info, goal_or, timing)
 
 
     def shortcut_and_refine_path(self, path, extend_fn, collision_fn, distance_fn, sample_fn, controllable_joints, task_threshold = 0.05):
         path = smooth_path(path, extend_fn, collision_fn, distance_fn, sample_fn=sample_fn, coarse_waypoints = True)
-        path = self.refine_waypoints_in_task_space(self.ur5.ur5_robot, controllable_joints, path, task_threshold=task_threshold)
+        path = self.refine_waypoints_in_task_space(self.robot.robot, controllable_joints, path, task_threshold=task_threshold)
         return path
 
     def baseline_save_video(self, path, planner, goal):
@@ -1182,7 +1198,7 @@ class PruningEnvRRT(PruningEnv):
         self.reset()
         frames.append(self.render_save_image(goal))
         for j_a in path:
-            self.ur5.set_joint_angles_no_collision(j_a)
+            self.robot.set_joint_angles_no_collision(j_a)
             frames.append(self.render_save_image(goal))
         if self.verbose > 0:
             print("INFO: Saving video " + "results_rrt_gifs/{}_{}.gif".format(planner, time.time()))
@@ -1191,14 +1207,14 @@ class PruningEnvRRT(PruningEnv):
 
     def get_planning_fns(self):
         controllable_joints = [3, 4, 5, 6, 7, 8]
-        distance_fn = get_distance_fn(self.ur5.ur5_robot, controllable_joints)
-        sample_position = get_sample_fn(self.ur5.ur5_robot, controllable_joints)
-        extend_fn = get_extend_fn(self.ur5.ur5_robot, controllable_joints)
+        distance_fn = get_distance_fn(self.robot.robot, controllable_joints)
+        sample_position = get_sample_fn(self.robot.robot, controllable_joints)
+        extend_fn = get_extend_fn(self.robot.robot, controllable_joints)
         collision_objects = []
         for key, val in self.collision_object_ids.items():
             # if key != "SPUR":
             collision_objects.append(val)
-        collision_fn = get_collision_fn(self.ur5.ur5_robot, controllable_joints, collision_objects)
+        collision_fn = get_collision_fn(self.robot.robot, controllable_joints, collision_objects)
         return distance_fn, sample_position, extend_fn, collision_fn
 
     def run_straight_line_ik(self, save_video=False):
@@ -1213,21 +1229,21 @@ class PruningEnvRRT(PruningEnv):
                 break
             path = []
             solution_found = True
-            self.ur5.reset_ur5_arm()
+            self.robot.reset_robot()
             self.pyb.con.stepSimulation()
-            start = self.ur5.get_joint_angles()
+            start = self.robot.get_joint_angles()
             goal, goal_pos, goal_or = i
             linear_diff = (np.array(goal) - np.array(start))/50
             for j in range(51):
-                self.ur5.set_joint_angles(np.array(start) + j * linear_diff)
+                self.robot.set_joint_angles(np.array(start) + j * linear_diff)
                 for _ in range(20):
                     self.pyb.con.stepSimulation()
-                is_collision, collision_info = self.ur5.check_collisions(self.collision_object_ids)
+                is_collision, collision_info = self.robot.check_collisions(self.collision_object_ids)
                 if is_collision:
                     path = None
                     break
                 else:
-                    path.append(self.ur5.get_joint_angles())
+                    path.append(self.robot.get_joint_angles())
             if path is None:
                 continue
             else:
@@ -1267,9 +1283,9 @@ class PruningEnvRRT(PruningEnv):
             if i is None:
                 break
             solution_found = True
-            self.ur5.reset_ur5_arm()
+            self.robot.reset_robot()
             self.pyb.con.stepSimulation()
-            start = self.ur5.get_joint_angles()
+            start = self.robot.get_joint_angles()
             goal, goal_pos, goal_or = i
             path = pp.rrt_connect(start, goal, distance_fn, sample_position, extend_fn, collision_fn,
                                   max_iterations=10000)
@@ -1296,19 +1312,19 @@ class PruningEnvRRT(PruningEnv):
         if path is not None and shortcutting:
             # path = smooth_path(path, extend_fn, collision_fn, distance_fn, sample_fn=sample_position, coarse_waypoints = True)
             # print("refining waypoints")
-            # path = self.refine_waypoints_in_task_space(self.ur5.ur5_robot, controllable_joints, path)
+            # path = self.refine_waypoints_in_task_space(self.ur5.robot, controllable_joints, path)
             path = self.shortcut_and_refine_path(path, extend_fn, collision_fn, distance_fn, sample_position, controllable_joints)
         return (path, tree_info, goal_or, timing)
 
 
     def task_space_distance(self, positions1, positions2):
         #Forward Kinematics
-        self.ur5.set_joint_angles_no_collision(positions1)
+        self.robot.set_joint_angles_no_collision(positions1)
         self.pyb.con.stepSimulation()
-        pos1, or1 = self.ur5.get_current_pose(self.ur5.end_effector_index)
-        self.ur5.set_joint_angles_no_collision(positions2)
+        pos1, or1 = self.robot.get_current_pose(self.robot.end_effector_index)
+        self.robot.set_joint_angles_no_collision(positions2)
         self.pyb.con.stepSimulation()
-        pos2, or2 = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        pos2, or2 = self.robot.get_current_pose(self.robot.end_effector_index)
         return np.linalg.norm(np.array(pos1) - np.array(pos2))
     def get_refine_fn_task(self, body, joints, task_threshold):
         #Decrease step size as gettin closer to the goal.
@@ -1342,7 +1358,7 @@ class PruningEnvRRT(PruningEnv):
         return refined_path
 
     def is_state_successful_rrt(self, config):
-        achieved_pos, achieved_or = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        achieved_pos, achieved_or = self.robot.get_current_pose(self.robot.end_effector_index)
         desired_pos = self.tree_goal_pos
         orientation_perp_value = self.reward.compute_perpendicular_cos_sim(achieved_or, self.tree_goal_or)
         orientation_point_value = self.reward.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or,
@@ -1359,12 +1375,12 @@ class PruningEnvRRT(PruningEnv):
 
     def append_goal_config(self, path):
         #Set to path[-1]
-        self.ur5.set_joint_angles_no_collision(path[-1])
+        self.robot.set_joint_angles_no_collision(path[-1])
         self.pyb.con.stepSimulation()
-        _, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
-        goal_config = self.ur5.calculate_ik(self.tree_goal_pos, orient)
+        _, orient = self.robot.get_current_pose(self.robot.end_effector_index)
+        goal_config = self.robot.calculate_ik(self.tree_goal_pos, orient)
         path.append(goal_config)
-        self.ur5.reset_ur5_arm()
+        self.robot.reset_robot()
         self.pyb.con.stepSimulation()
         return path
 
@@ -1410,7 +1426,7 @@ class PruningEnvRRT(PruningEnv):
             obs['prev_rgb'] = obs['prev_rgb'].transpose(2, 0, 1)
             if save_video:
                 self.baseline_save_video(refined_path, 'refined_path', final_point_pos)
-                self.ur5.reset_ur5_arm()
+                self.robot.reset_robot()
             count_in_frame = 0
             for i, vel in enumerate(ee_vel):
                 if np.isclose(vel, np.zeros(6), atol=0.001).all():
@@ -1436,7 +1452,7 @@ class PruningEnvRRT(PruningEnv):
 
             #Once we are done with the planner trajectory, we run a cartesian planner to get to the cut poitn
 
-            pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+            pos, orient = self.robot.get_current_pose(self.robot.end_effector_index)
             ee_vel_global = np.zeros(6)
             ee_vel_global[:3] = (np.array(final_point_pos) - np.array(pos))/self.control_time #Velocity needed to reach the goal in 1 sim step
             scaled_vel_global = ee_vel_global #Take at least 3 steps to reach the goal
@@ -1494,21 +1510,21 @@ class PruningEnvRRT(PruningEnv):
 
     def task_space_distance(self, positions1, positions2):
         #Forward Kinematics
-        self.ur5.set_joint_angles_no_collision(positions1)
+        self.robot.set_joint_angles_no_collision(positions1)
         self.pyb.con.stepSimulation()
-        pos1, or1 = self.ur5.get_current_pose(self.ur5.end_effector_index)
-        self.ur5.set_joint_angles_no_collision(positions2)
+        pos1, or1 = self.robot.get_current_pose(self.robot.end_effector_index)
+        self.robot.set_joint_angles_no_collision(positions2)
         self.pyb.con.stepSimulation()
-        pos2, or2 = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        pos2, or2 = self.robot.get_current_pose(self.robot.end_effector_index)
         return np.linalg.norm(np.array(pos1) - np.array(pos2))
 
     def convert_ja_to_ee_vel(self, path, control_freq = 2):
         ee_vel = []
         for i in range(len(path) - 1):
             joint_velocities = (np.array(path[i+1]) - np.array(path[i]))*control_freq
-            self.ur5.set_joint_angles_no_collision(path[i])
+            self.robot.set_joint_angles_no_collision(path[i])
             self.pyb.con.stepSimulation()
-            jacobian = self.ur5.calculate_jacobian()
+            jacobian = self.robot.calculate_jacobian()
             global_ee_vel = np.matmul(jacobian, joint_velocities)
             local_ee_vel = self.convert_global_action_to_local(global_ee_vel)
             #if any term in local_ee_vel > 1 or < -1, break the step into smaller steps

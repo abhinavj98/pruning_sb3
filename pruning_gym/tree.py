@@ -53,8 +53,8 @@ class Tree:
         self.curriculum_points = dict()
         self.curriculum_distances = curriculum_distances
         self.curriculum_level_steps = curriculum_level_steps
-        self.base_xyz = env.ur5.get_current_pose(env.ur5.base_index)[0]
-        self.ee_xyz = env.ur5.get_current_pose(env.ur5.end_effector_index)[0]
+        self.base_xyz = env.robot.get_current_pose(env.robot.base_index)[0]
+        self.ee_xyz = env.robot.get_current_pose(env.robot.end_effector_index)[0]
         self.label = label
         # Load the tree object
         tree_obj = pywavefront.Wavefront(obj_path, create_materials=True, collect_faces=True)
@@ -313,11 +313,11 @@ class Tree:
         if dist >= 0.98:
             return False
 
-        j_angles = env.ur5.calculate_ik(vertice[0], None)
-        env.ur5.set_joint_angles(j_angles)
+        j_angles = env.robot.calculate_ik(vertice[0], None)
+        env.robot.set_joint_angles(j_angles)
         for _ in range(100):
             pyb.con.stepSimulation()
-        ee_pos, _ = env.ur5.get_current_pose(env.ur5.end_effector_index)
+        ee_pos, _ = env.robot.get_current_pose(env.robot.end_effector_index)
         dist = np.linalg.norm(np.array(ee_pos) - vertice[0], axis=-1)
         if dist <= 0.03:
             return True
