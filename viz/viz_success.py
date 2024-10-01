@@ -322,9 +322,8 @@ def plot_bar(df, label, save=False):
 
 # Step 1: Read the csv file
 df_policy = pd.read_csv('results_data/policy_uniform.csv')
-df_rrt = pd.read_csv('rrt_connect_new_uniform.csv')
+df_rrt = pd.read_csv('rrt_connect_reachability_pandas.csv')
 
-df_rrt = df_policy
 #reset index
 df_rrt = df_rrt.reset_index(drop=True)
 #what dows reset_index do?
@@ -338,7 +337,7 @@ print(len(df_rrt))
 num_latitude_bins = 18
 num_longitude_bins = 36
 bins = create_bins(num_latitude_bins, num_longitude_bins)
-idx_name = 'is_success'
+idx_name = 'fail_mode'
 title = 'Reachability'
 df_rrt[title] = df_rrt[idx_name]
 bins = populate_bins(bins, df_rrt, idx_name)
@@ -348,10 +347,10 @@ perp_bins = {}
 print((bins.values()))
 a = ResultMode
 for key in bins.keys():
-   perp_bins[key] = np.mean(np.array(bins[key]))
+   # perp_bins[key] = np.mean(np.array(bins[key]))
 #count all the ResultMode.NO_SOLUTION in each bin
     # perp_bins[key] = 1 - len([x for x in bins[key] if x == 'ResultMode.NO_PATH'])/(len(bins[key])+1e-6)
-    # bins[key] = [1 - 1/float(x) if x != 'ResultMode.NO_PATH' else 0 for x in bins[key]]
+    bins[key] = [1 - 1/float(x) if x != 'ResultMode.NO_PATH' else 0 for x in bins[key]]
     #invalid syntax on the line above
 #give me why
 #I think it's because you can't use else in a list comprehension
@@ -362,7 +361,7 @@ for key in bins.keys():
 #Show me how to do it
 #bins[key] = [1/float(x) if x != 'ResultMode.NO_PATH' else 1e-6 for x in bins[key]]
 
-    # perp_bins[ke/y] = np.mean(np.array(bins[key]))
+    perp_bins[key] = np.mean(np.array(bins[key]))
 # Assign each latitude and longitude to a bin
 # print(perp_bins)
 visualize_2d(perp_bins, 'Reachability', 'asd')
