@@ -372,6 +372,11 @@ args = {
             'default': 'results.csv',
             'help': 'path to load the results to smooth'
         },
+        "tree_set": {
+            'type': str,
+            'default': 'train',
+            'help': 'tree set to use'
+        }
 
     }
 }

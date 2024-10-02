@@ -50,6 +50,11 @@ class UR5:
 
         self.setup_ur5_arm()  # Changes pos and orientation if randomize is True
 
+    def set_ur5_pose(self, pos, orientation):
+        assert not self.randomize_pose
+        self.init_pos = pos
+        self.init_orientation = orientation
+        self.setup_ur5_arm()
     def setup_ur5_arm(self) -> None:
         if self.ur5_robot is not None:
             self.con.removeBody(self.ur5_robot)

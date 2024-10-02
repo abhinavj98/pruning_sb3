@@ -1,6 +1,5 @@
 import os
 import sys
-
 import cv2
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -34,6 +33,9 @@ import pandas as pd
 from enum import Enum
 from scipy.stats import vonmises
 from filelock import FileLock
+import h5py
+
+
 class PruningEnv(gym.Env):
     """
         PruningEnv is a custom environment that extends the gym.Env class from OpenAI Gym.
@@ -273,10 +275,13 @@ class PruningEnv(gym.Env):
                                 lineColorRGB=[1, 0, 0],
                                 lineWidth=400)
         self.pyb.add_debug_item('line', 'reset', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
-                                    lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
-                                    lineWidth=400)
+                                lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
+                                lineWidth=400)
 
         self.activate_tree(self.pyb)
+
+    def set_ur5_pose(self, pos, orientation):
+        self.ur5.set_ur5_pose(pos, orientation)
 
     def reset_env_variables(self) -> None:
         # Env variables that will change
@@ -393,9 +398,8 @@ class PruningEnv(gym.Env):
             jv = velocity
         return jv
 
-
-    #Instead of deleting move all trees to the corner
-    #Make a mapping from urdf to tree id and use that
+    # Instead of deleting move all trees to the corner
+    # Make a mapping from urdf to tree id and use that
     def activate_tree(self, pyb):
         if self.verbose > 1:
             print("DEBUG: Activating tree")
@@ -488,8 +492,6 @@ class PruningEnv(gym.Env):
         local_velocity = np.dot(current_or_mat.T, action[:3])
         local_angular_velocity = np.dot(current_or_mat.T, action[3:])
         return np.hstack((local_velocity, local_angular_velocity))
-
-
 
     def step(self, action: NDArray[Shape['6, 1'], Float]) -> Tuple[dict, float, bool, bool, dict]:
 
@@ -833,13 +835,13 @@ class PruningEnvRRT(PruningEnv):
                  verbose=1
                  ) -> None:
 
-            super().__init__(tree_urdf_path, tree_obj_path, tree_labelled_path, renders, max_steps, distance_threshold,
-                            angle_threshold_perp, angle_threshold_point, tree_count, cam_width, cam_height, algo_width,
-                            algo_height, evaluate, num_points, action_dim, name, action_scale, movement_reward_scale,
-                            distance_reward_scale, condition_reward_scale, terminate_reward_scale, collision_reward_scale,
-                            slack_reward_scale, perpendicular_orientation_reward_scale, pointing_orientation_reward_scale,
-                            curriculum_distances, curriculum_level_steps, use_ik, make_trees, ur5_pos, ur5_or,
-                            randomize_ur5_pose, randomize_tree_pose, verbose)
+        super().__init__(tree_urdf_path, tree_obj_path, tree_labelled_path, renders, max_steps, distance_threshold,
+                         angle_threshold_perp, angle_threshold_point, tree_count, cam_width, cam_height, algo_width,
+                         algo_height, evaluate, num_points, action_dim, name, action_scale, movement_reward_scale,
+                         distance_reward_scale, condition_reward_scale, terminate_reward_scale, collision_reward_scale,
+                         slack_reward_scale, perpendicular_orientation_reward_scale, pointing_orientation_reward_scale,
+                         curriculum_distances, curriculum_level_steps, use_ik, make_trees, ur5_pos, ur5_or,
+                         randomize_ur5_pose, randomize_tree_pose, verbose)
 
     def generate_goal_pos(self):
         # self.pyb.remove_debug_items("step")
@@ -851,16 +853,16 @@ class PruningEnvRRT(PruningEnv):
         rotation_matrix = R.from_matrix(rotation_matrix).as_matrix()
 
         rotation_axis_x = rotation_matrix[:, 0]
-        #How much to rotate about this axis to make same as branch normal?
-        #self.ur5.init_pos_ee[1] as rotation matrix
+        # How much to rotate about this axis to make same as branch normal?
+        # self.ur5.init_pos_ee[1] as rotation matrix
         rot_ee = self.pyb.con.getMatrixFromQuaternion(self.ur5.init_pos_ee[1])
         rot_ee = np.array(rot_ee).reshape(3, 3)
         rot_pointing = rot_ee[:, 2]
 
-        #Project rot_pointing perpendicular to rotation_axis_x
+        # Project rot_pointing perpendicular to rotation_axis_x
         rot_pointing = rot_pointing - np.dot(rot_pointing, rotation_axis_x) * rotation_axis_x
         rot_pointing = rot_pointing / np.linalg.norm(rot_pointing)
-        #Minimize the angle between the branch normal and the rotation matrix [2] axis
+        # Minimize the angle between the branch normal and the rotation matrix [2] axis
         cos_theta = np.dot(rot_pointing, rotation_matrix[:, 2])
         sin_theta = np.linalg.norm(np.cross(rot_pointing, rotation_matrix[:, 2]))
         theta = np.arctan2(sin_theta, cos_theta)
@@ -870,10 +872,10 @@ class PruningEnvRRT(PruningEnv):
         # if theta > np.pi:
         #     theta = theta - np.pi
         # print(np.rad2deg(theta), theta)
-        #Make this concentration lower to make the solutions more random as num_attempts increases.
+        # Make this concentration lower to make the solutions more random as num_attempts increases.
         concentration = 0.85
 
-        rotation_angle_x = vonmises(loc = theta, kappa = concentration).rvs(1)
+        rotation_angle_x = vonmises(loc=theta, kappa=concentration).rvs(1)
         # rotation_angle_x = np.random.uniform(0, 2 * np.pi)
         random_rotation_x = R.from_rotvec(rotation_angle_x * rotation_axis_x).as_matrix()
 
@@ -1004,11 +1006,12 @@ class PruningEnvRRT(PruningEnv):
         self.pyb.con.removeBody(sphere)
         return render
 
-    def set_dataset(self, dataset):
+    def set_dataset(self, dataset, dataset_file_path):
         self.dataset = dataset
+        self.dataset_file_path = dataset_file_path
 
-
-    def run_naive_ik(self, planner, file_path, save_video=False, shortcutting=False): #Consistent with the other run functions
+    def run_naive_ik(self, planner, file_path, save_video=False,
+                     shortcutting=False):  # Consistent with the other run functions
         for i in range(len(self.dataset)):
             self.reset()
 
@@ -1022,7 +1025,7 @@ class PruningEnvRRT(PruningEnv):
                     success = True
                     current_joint_angles = np.array(self.ur5.get_joint_angles())
                     goal_joint_angles, goal_pos, goal_or = sol
-                    linear_diff = (np.array(goal_joint_angles) - np.array(current_joint_angles))/500
+                    linear_diff = (np.array(goal_joint_angles) - np.array(current_joint_angles)) / 500
 
                     for j in range(501):
                         self.ur5.set_joint_angles(current_joint_angles + j * linear_diff)
@@ -1038,14 +1041,14 @@ class PruningEnvRRT(PruningEnv):
                         else:
                             success = False
 
-
             if sol is None:
                 success = False
-            result = {"success": success}#, "total_solutions": total_solutions}
+            result = {"success": success}  # , "total_solutions": total_solutions}
             result = pd.DataFrame([result])
             self.append_row_to_csv(result, file_path)
 
         # print(total_solutions/total_attempts)
+
     def run_baseline(self, planner, file_path, save_video=False, shortcutting=False):
         for i in range(len(self.dataset)):
             print("Starting", i, len(self.dataset))
@@ -1058,11 +1061,14 @@ class PruningEnvRRT(PruningEnv):
                                      tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,
                                      point_branch_normal=current_branch_normal)
             if planner == "rrt_connect":
-                path, tree_info, goal_orientation, timing = self.run_rrt_connect(save_video=save_video, shortcutting=shortcutting)
+                path, fail_mode, env_info_dict, goal_orientation, timing = self.run_rrt_connect(save_video=save_video,
+                                                                                                shortcutting=shortcutting)
             elif planner == "informed_rrt_star":
-                path, tree_info, goal_orientation, timing = self.run_rrt_star(save_video=save_video, informed = True, shortcutting = shortcutting)
+                path, tree_info, goal_orientation, timing = self.run_rrt_star(save_video=save_video, informed=True,
+                                                                              shortcutting=shortcutting)
             elif planner == "rrt_star":
-                path, tree_info, goal_orientation, timing = self.run_rrt_star(save_video=save_video, informed = False, shortcutting = shortcutting)
+                path, tree_info, goal_orientation, timing = self.run_rrt_star(save_video=save_video, informed=False,
+                                                                              shortcutting=shortcutting)
             elif planner == "straight_line_ik":
                 path, tree_info, goal_orientation, timing = self.run_straight_line_ik(save_video=save_video)
             elif planner == "reachability":
@@ -1070,23 +1076,15 @@ class PruningEnvRRT(PruningEnv):
             else:
                 raise ValueError("Planner not found")
 
-            goal_pos = tree_info[1]
-            goal_or = tree_info[2]
-
-            success = isinstance(path, list)
-            if success:
-                fail_mode = 1
-                #path = self.append_goal_config(path)
-            else:
-                fail_mode = path
-            print("Completed", i, success, fail_mode)
-            result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
-                      "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}#, "path": path, "tree_info": tree_info}
-            result.update(timing)
-
-            # write to existing file
-            result = pd.DataFrame([result])
-            self.append_row_to_csv(result, file_path)
+            self.save_waypoints_to_hdf5(env_info_dict, fail_mode, path, file_path + '_waypoints.hdf5')
+            print("Completed", i, fail_mode)
+            # result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
+            #           "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}#, "path": path, "tree_info": tree_info}
+            # result.update(timing)
+            #
+            # # write to existing file
+            # result = pd.DataFrame([result])
+            # self.append_row_to_csv(result, file_path)
             # result_df = pd.concat([result_df, result], ignore_index=True)
         self.pyb.con.disconnect()
         return
@@ -1104,11 +1102,11 @@ class PruningEnvRRT(PruningEnv):
                 row.to_csv(file_path, index=False, mode='a', header=False)
 
     def run_reachability(self, save_video=False):
-        #Return true if my arm can reach the given pose without considering collisions
+        # Return true if my arm can reach the given pose without considering collisions
         timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
         solutions = self.get_different_ik_results(total_attempts=100, timing=timing)
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
-                        self.tree_pos, self.tree_goal_normal]
+                     self.tree_pos, self.tree_goal_normal]
         for i in solutions:
             if i is None:
                 return ResultMode.NO_PATH, tree_info, None, timing
@@ -1126,9 +1124,7 @@ class PruningEnvRRT(PruningEnv):
                 condition_number = self.ur5.get_condition_number()
                 return condition_number, tree_info, None, timing
 
-
-
-    def run_rrt_star(self, save_video=False, informed = True, shortcutting = False):
+    def run_rrt_star(self, save_video=False, informed=True, shortcutting=False):
         planner = "informed_rrt_star" if informed else "rrt_star"
         timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
@@ -1147,10 +1143,12 @@ class PruningEnvRRT(PruningEnv):
         start_find_path = time.time()
         if informed:
             path = informed_rrt_star_multi_goal(self.ur5.get_joint_angles(), goal_fn, distance_fn, sample_position,
-                                            extend_fn, collision_fn, radius=0.4, is_goal_fn = is_goal_fn, max_iterations=5000)
+                                                extend_fn, collision_fn, radius=0.4, is_goal_fn=is_goal_fn,
+                                                max_iterations=5000)
         else:
             path = rrt_star_multi_goal(self.ur5.get_joint_angles(), goal_fn, distance_fn, sample_position,
-                            extend_fn, collision_fn, radius=0.4, is_goal_fn = is_goal_fn, max_iterations=5000, informed = False)
+                                       extend_fn, collision_fn, radius=0.4, is_goal_fn=is_goal_fn, max_iterations=5000,
+                                       informed=False)
         if path is not None:
             if save_video:
                 self.baseline_save_video(path, planner, tree_info[1])
@@ -1161,7 +1159,8 @@ class PruningEnvRRT(PruningEnv):
             return ResultMode.NO_PATH, tree_info, None, timing
 
         if shortcutting:
-            path = smooth_path(path, extend_fn, collision_fn, distance_fn, sample_fn=sample_position, coarse_waypoints = False)
+            path = smooth_path(path, extend_fn, collision_fn, distance_fn, sample_fn=sample_position,
+                               coarse_waypoints=False)
         goal_config = path[-1]
         self.ur5.set_joint_angles(goal_config)
         for j in range(50):
@@ -1169,10 +1168,11 @@ class PruningEnvRRT(PruningEnv):
         pos, goal_or = self.ur5.get_current_pose(self.ur5.end_effector_index)
         return (path, tree_info, goal_or, timing)
 
-
-    def shortcut_and_refine_path(self, path, extend_fn, collision_fn, distance_fn, sample_fn, controllable_joints, task_threshold = 0.05):
-        path = smooth_path(path, extend_fn, collision_fn, distance_fn, sample_fn=sample_fn, coarse_waypoints = True)
-        path = self.refine_waypoints_in_task_space(self.ur5.ur5_robot, controllable_joints, path, task_threshold=task_threshold)
+    def shortcut_and_refine_path(self, path, extend_fn, collision_fn, distance_fn, sample_fn, controllable_joints,
+                                 task_threshold=0.05):
+        path = smooth_path(path, extend_fn, collision_fn, distance_fn, sample_fn=sample_fn, coarse_waypoints=True)
+        path = self.refine_waypoints_in_task_space(self.ur5.ur5_robot, controllable_joints, path,
+                                                   task_threshold=task_threshold)
         return path
 
     def baseline_save_video(self, path, planner, goal):
@@ -1217,7 +1217,7 @@ class PruningEnvRRT(PruningEnv):
             self.pyb.con.stepSimulation()
             start = self.ur5.get_joint_angles()
             goal, goal_pos, goal_or = i
-            linear_diff = (np.array(goal) - np.array(start))/50
+            linear_diff = (np.array(goal) - np.array(start)) / 50
             for j in range(51):
                 self.ur5.set_joint_angles(np.array(start) + j * linear_diff)
                 for _ in range(20):
@@ -1249,13 +1249,20 @@ class PruningEnvRRT(PruningEnv):
 
         print("Path found")
         return (path, tree_info, goal_or, timing)
+
     def run_rrt_connect(self, save_video=False, shortcutting=False):
         timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
         solutions = self.get_different_ik_results(total_attempts=100, timing=timing)
 
-        tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
-                     self.tree_pos, self.tree_goal_normal]
+        # tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
+        #              self.tree_pos, self.tree_goal_normal]
 
+        env_info_dict = {"tree_urdf": self.tree_urdf, "tree_goal_pos": self.tree_goal_pos,
+                         "tree_goal_or": self.tree_goal_or,
+                         "tree_orientation": self.tree_orientation, "tree_scale": self.tree_scale,
+                         "tree_pos": self.tree_pos,
+                         "tree_goal_normal": self.tree_goal_normal, "robot_pos": self.ur5.pos,
+                         "robot_or": self.ur5.orientation}
 
         distance_fn, sample_position, extend_fn, collision_fn = self.get_planning_fns()
         controllable_joints = [3, 4, 5, 6, 7, 8]
@@ -1286,23 +1293,22 @@ class PruningEnvRRT(PruningEnv):
 
         if not solution_found:
             print("No valid solutions found")
-            return ResultMode.NO_SOLUTION, tree_info, None, timing
+            return [], ResultMode.NO_SOLUTION, env_info_dict, None, timing
 
         if path is None:
             print("No valid path found")
-            return ResultMode.NO_PATH, tree_info, None, timing
-
+            return [], ResultMode.NO_PATH, env_info_dict, None, timing
 
         if path is not None and shortcutting:
             # path = smooth_path(path, extend_fn, collision_fn, distance_fn, sample_fn=sample_position, coarse_waypoints = True)
             # print("refining waypoints")
             # path = self.refine_waypoints_in_task_space(self.ur5.ur5_robot, controllable_joints, path)
-            path = self.shortcut_and_refine_path(path, extend_fn, collision_fn, distance_fn, sample_position, controllable_joints)
-        return (path, tree_info, goal_or, timing)
-
+            path = self.shortcut_and_refine_path(path, extend_fn, collision_fn, distance_fn, sample_position,
+                                                 controllable_joints)
+        return path, ResultMode.SUCCESS, env_info_dict, goal_or, timing
 
     def task_space_distance(self, positions1, positions2):
-        #Forward Kinematics
+        # Forward Kinematics
         self.ur5.set_joint_angles_no_collision(positions1)
         self.pyb.con.stepSimulation()
         pos1, or1 = self.ur5.get_current_pose(self.ur5.end_effector_index)
@@ -1310,16 +1316,19 @@ class PruningEnvRRT(PruningEnv):
         self.pyb.con.stepSimulation()
         pos2, or2 = self.ur5.get_current_pose(self.ur5.end_effector_index)
         return np.linalg.norm(np.array(pos1) - np.array(pos2))
+
     def get_refine_fn_task(self, body, joints, task_threshold):
-        #Decrease step size as gettin closer to the goal.
+        # Decrease step size as gettin closer to the goal.
         difference_fn = get_difference_fn(body, joints)
+
         def fn(q1, q2):
             yield q1
-            num_steps = int(np.ceil(np.linalg.norm(np.divide(difference_fn(q2, q1), 0.1), ord=2)))+1
+            num_steps = int(np.ceil(np.linalg.norm(np.divide(difference_fn(q2, q1), 0.1), ord=2))) + 1
             prev_positions = q1
             for i in range(num_steps):
                 positions = (i / (num_steps - 1)) * np.array(difference_fn(q2, q1)) + q1
-                if (not (i == (num_steps - 1))) and self.task_space_distance(positions, prev_positions) < task_threshold:
+                if (not (i == (num_steps - 1))) and self.task_space_distance(positions,
+                                                                             prev_positions) < task_threshold:
                     continue
 
                 # q = tuple(positions)
@@ -1327,14 +1336,14 @@ class PruningEnvRRT(PruningEnv):
                 if i == num_steps - 1:
                     yield q2
                 else:
-                    position_within_threshold = ( (i - 1)/ (num_steps - 1)) * np.array(difference_fn(q2, q1)) + q1
+                    position_within_threshold = ((i - 1) / (num_steps - 1)) * np.array(difference_fn(q2, q1)) + q1
                     yield position_within_threshold
                     prev_positions = position_within_threshold
                 # yield q
 
         return fn
 
-    def refine_waypoints_in_task_space(self, body, joints, waypoints, task_threshold = 0.05):
+    def refine_waypoints_in_task_space(self, body, joints, waypoints, task_threshold=0.05):
         refine_fn = self.get_refine_fn_task(body, joints, task_threshold)
         refined_path = []
         for v1, v2 in zip(waypoints, waypoints[1:]):
@@ -1358,7 +1367,7 @@ class PruningEnvRRT(PruningEnv):
         return terminated
 
     def append_goal_config(self, path):
-        #Set to path[-1]
+        # Set to path[-1]
         self.ur5.set_joint_angles_no_collision(path[-1])
         self.pyb.con.stepSimulation()
         _, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
@@ -1368,132 +1377,222 @@ class PruningEnvRRT(PruningEnv):
         self.pyb.con.stepSimulation()
         return path
 
-    def run_smoothing(self, save_video=False, save_path = None):
+    def load_waypoints_from_hdf5(self, file_path, key):
+        with h5py.File(file_path, 'r') as f:
+            tree_info_dict = {}
+            tree_info_dict['tree_urdf'] = f[key].attrs['tree_urdf']
+            tree_info_dict['point_pos'] = f[key].attrs['tree_goal_pos']
+            tree_info_dict['point_branch_or'] = f[key].attrs['tree_goal_or']
+            tree_info_dict['tree_orientation'] = f[key].attrs['tree_orientation']
+            tree_info_dict['tree_scale'] = f[key].attrs['tree_scale']
+            tree_info_dict['tree_pos'] = f[key].attrs['tree_pos']
+            tree_info_dict['point_branch_normal'] = f[key].attrs['tree_goal_normal']
+            robot_pos = f[key].attrs['robot_pos']
+            robot_or = f[key].attrs['robot_or']
+            waypoints_dataset = f[key]['waypoints']
+
+            waypoints = waypoints_dataset[:]
+        return tree_info_dict, waypoints, robot_pos, robot_or
+
+
+    def get_transitions_from_ee_vel(self, ee_vel):
+        observations = []
+        new_observations = []
+        rewards = []
+        dones = []
+        actions = []
+
+        obs, _ = self.reset()
+        obs = copy.deepcopy(obs)
+        # Change rgb, prev_rgb, to CHW from HWC. SB3 does this when wrapping env
+        obs['rgb'] = obs['rgb'].transpose(2, 0, 1)
+        obs['prev_rgb'] = obs['prev_rgb'].transpose(2, 0, 1)
+        count_in_frame = 0
+        for i, vel in enumerate(ee_vel):
+            if np.isclose(vel, np.zeros(6), atol=0.001).all():
+                continue
+            # Unscale the velocity because step function will scale it back
+            scaled_vel = vel / self.action_scale  # Value passed by name, will get unscaled after step
+            action = copy.deepcopy(scaled_vel)
+            new_obs, reward, terminated, truncated, _ = self.step(scaled_vel)
+            # Change rgb, prev_rgb, to CHW from HWC. SB3 does this somewhere automatically, find if time
+            new_obs = copy.deepcopy(new_obs)
+            new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
+            new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
+            new_observations.append(new_obs)
+            observations.append(obs)
+            rewards.append(reward)
+            dones.append(terminated)
+            actions.append(action)
+
+            if (self.observation['point_mask'] > 0).any():
+                count_in_frame += 1
+            else:
+                pass
+            obs = new_obs
+        return observations, new_observations, rewards, dones, actions, obs, count_in_frame
+
+    def append_transition_using_cartesian_planner(self, last_obs, tree_info_dict, observations, new_observations,
+                                                  rewards, dones, actions, count_in_frame):
+        obs = last_obs
+        pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        ee_vel_global = np.zeros(6)
+        ee_vel_global[:3] = (np.array(tree_info_dict['point_pos']) - np.array(
+            pos)) / self.control_time  # Velocity needed to reach the goal in 1 sim step
+        scaled_vel_global = ee_vel_global  # Take at least 3 steps to reach the goal
+
+        ee_vel_local = self.convert_global_action_to_local(scaled_vel_global)
+        scale = 1  # np.max(np.abs(ee_vel_local))
+        if (ee_vel_local > 1).any() or (ee_vel_local < -1).any():
+            scale = np.max(np.abs(ee_vel_local))
+            ee_vel_local = ee_vel_local / (scale + 1e-4)
+
+        # We run the simulation for self.pyb.step_time seconds
+        if not dones[-1]:
+            for j in range(
+                    int(2 * int(scale) / self.action_scale)):  # At most twice the time needed to reach the goal
+                # Move towards the goal
+                if np.isclose(ee_vel_local, np.zeros(6), atol=0.001).all():
+                    dones[-1] = True
+                    break
+                action = copy.deepcopy(ee_vel_local)
+                new_obs, reward, terminated, truncated, info = self.step(copy.deepcopy(ee_vel_local)) #Deepcopy as np array and scaling changes
+                actions.append(action)
+                new_obs = copy.deepcopy(new_obs)
+                # Change rgb, prev_rgb, to CHW from HWC. SB3 does this automatically using VecEnvWrapper
+
+                new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
+                new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
+
+                new_observations.append(new_obs)
+                observations.append(obs)
+                rewards.append(reward)
+                if (self.observation['point_mask'] > 0).any():
+                    count_in_frame += 1
+                # if last step, done is true
+
+                if terminated or info['collision_unacceptable_reward'] < 0 or info[
+                    'collision_acceptable_reward'] < 0:
+                    dones.append(True)
+                    break
+                if j == int(2 * int(scale) / self.action_scale) - 1:
+                    dones.append(True)
+                else:
+                    dones.append(terminated)
+
+                obs = new_obs
+        return observations, new_observations, rewards, dones, actions, count_in_frame
+
+    def run_smoothing(self, save_video=False, save_path=None):
         controllable_joints = [3, 4, 5, 6, 7, 8]
         paths_success = self.dataset
-        for i in range(len(paths_success)):
-            observations = []
-            new_observations = []
-            rewards = []
-            dones = []
-            actions = []
-            terminated = False
-            tree_info = paths_success.iloc[i]['tree_info']
-            path = paths_success.iloc[i]['path']
 
-            tree_urdf, final_point_pos, current_branch_or, tree_orientation, scale, tree_pos, current_branch_normal = tree_info
+        for i in paths_success:
+            tree_info_dict, waypoints, robot_pos, robot_or = self.load_waypoints_from_hdf5(self.dataset_file_path, i)
+            # Convert waypoints to list
+            waypoints = waypoints.tolist()
 
-            #Set tree info
+            # Set tree info
             self.pyb.remove_debug_items('step')
             self.pyb.remove_debug_items('reset')
-            self.set_tree_properties(tree_urdf=tree_urdf,
-                                    point_pos=final_point_pos, point_branch_or=current_branch_or,
-                                    tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,
-                                    point_branch_normal=current_branch_normal)
+            self.set_tree_properties(tree_urdf=tree_info_dict['tree_urdf'],
+                                     point_pos=tree_info_dict['point_pos'],
+                                     point_branch_or=tree_info_dict['point_branch_or'],
+                                     tree_orientation=tree_info_dict['tree_orientation'],
+                                     tree_scale=tree_info_dict['tree_scale'],
+                                     tree_pos=tree_info_dict['tree_pos'],
+                                     point_branch_normal=tree_info_dict['point_branch_normal'])
+            self.set_ur5_pose(robot_pos, robot_or)
             self.pyb.con.stepSimulation()
+
             if self.verbose > 0:
                 print("INFO: Refining path", i)
 
             distance_fn, sample_position, extend_fn, collision_fn = self.get_planning_fns()
+            print("Length of waypoints", len(waypoints))
 
-            refined_path = self.shortcut_and_refine_path(path, extend_fn, collision_fn, distance_fn, sample_position,
-                                                        controllable_joints, task_threshold=0.05)
-            # refined_path = self.append_goal_config(refined_path)
-            # refined_path = self.append_goal_config(refined_path)
+            refined_path = self.shortcut_and_refine_path(waypoints, extend_fn, collision_fn, distance_fn,
+                                                         sample_position,
+                                                         controllable_joints, task_threshold=0.05)
 
+            #Convert joint angle steps to end-effector velocity
+            ee_vel = self.convert_ja_to_ee_vel(refined_path, control_freq=int(1. / self.control_time))
 
-            ee_vel = self.convert_ja_to_ee_vel(refined_path, control_freq=int(1./self.control_time))
-            obs, _ = self.reset()
-            obs = copy.deepcopy(obs)
-            # Change rgb, prev_rgb, to CHW from HWC. SB3 does this somewhere automatically, find if time
-            obs['rgb'] = obs['rgb'].transpose(2, 0, 1)
-            obs['prev_rgb'] = obs['prev_rgb'].transpose(2, 0, 1)
             if save_video:
-                self.baseline_save_video(refined_path, 'refined_path', final_point_pos)
+                self.baseline_save_video(refined_path, 'refined_path', tree_info_dict['point_pos'])
                 self.ur5.reset_ur5_arm()
-            count_in_frame = 0
-            for i, vel in enumerate(ee_vel):
-                if np.isclose(vel, np.zeros(6), atol=0.001).all():
-                    continue
-                scaled_vel = vel/self.action_scale #Value passed by name, will get unscaled after step
-                action = copy.deepcopy(scaled_vel)
-                new_obs, reward, terminated, truncated, _ = self.step(scaled_vel)
-                #Change rgb, prev_rgb, to CHW from HWC. SB3 does this somewhere automatically, find if time
-                new_obs = copy.deepcopy(new_obs)
-                new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
-                new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
-                new_observations.append(new_obs)
-                observations.append(obs)
-                rewards.append(reward)
-                dones.append(terminated)
-                actions.append(action)
 
-                if (self.observation['point_mask'] > 0).any():
-                    count_in_frame += 1
+            observations, new_observations, rewards, dones, actions, last_obs, count_in_frame = self.get_transitions_from_ee_vel(ee_vel)
+
+            # Once we are done with the planner trajectory, we run a cartesian planner to get to the cut poitn
+            observations, new_observations, rewards, dones, actions, count_in_frame = self.append_transition_using_cartesian_planner(last_obs, tree_info_dict, observations, new_observations, rewards, dones, actions, count_in_frame)
+
+            print("Length of velocity actions", len(actions))
+            info = {} #Future use
+            self.save_experiences_to_hdf5(observations, actions, rewards, dones, new_observations, info, tree_info_dict,
+                                  save_path+".hdf5")
+
+    def save_experiences_to_hdf5(self, observations, actions, rewards, dones, next_observations, info, tree_info, save_path):
+        # include fillock
+        with FileLock(save_path + '.lock'):
+            if not os.path.exists(save_path):
+                mode = 'w'
+            else:
+                mode = 'a'
+            with h5py.File(save_path, mode) as f:
+                # Create group with current timestamp
+                name = str(time.time())
+                f.create_group(name)
+                # Add attributes to the group
+                for key, value in tree_info.items():
+                    f[name].attrs[key] = value
+                f.create_group(name + '/observations')
+                # Each key in the dictionary is a dataset
+                obs_keys = observations[0].keys()
+                # Stack each observation key
+                for key in obs_keys:
+                    stacked_value = np.stack([obs[key] for obs in observations])
+                    f.create_dataset(name + '/observations/' + key, data=stacked_value)
+
+                # Create another group for next_observations as it is a dictionary
+                f.create_group(name + '/next_observations')
+                # Each key in the dictionary is a dataset
+                for key in obs_keys:
+                    stacked_value = np.stack([obs[key] for obs in next_observations])
+                    f.create_dataset(name + '/next_observations/' + key, data=stacked_value)
+                actions = np.stack(actions)
+                f.create_dataset(name + '/actions', data=actions)
+                rewards = np.stack(rewards)
+                f.create_dataset(name + '/rewards', data=rewards)
+                dones = np.stack(dones)
+                f.create_dataset(name + '/dones', data=dones)
+                # f.create_group(name + '/info')
+                # f.create_dataset(name + '/info', data=info)
+
+    def save_waypoints_to_hdf5(self, env_info, fail_mode, waypoints, save_path):
+        with FileLock(save_path + '.lock'):
+            if not os.path.exists(save_path):
+                mode = 'w'
+            else:
+                mode = 'a'
+
+            with h5py.File(save_path, mode) as f:
+                # Create group with current timestamp
+                name = str(time.time())
+                f.create_group(name)
+                # Add env_info as attribute to the group
+                for key, value in env_info.items():
+                    f[name].attrs[key] = value
+                f[name].attrs['fail_mode'] = fail_mode.value
+                # Add attributes to the group
+                if len(waypoints) == 0:
+                    waypoints = np.array([])
                 else:
-                    pass
-                obs = new_obs
-
-            #Once we are done with the planner trajectory, we run a cartesian planner to get to the cut poitn
-
-            pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
-            ee_vel_global = np.zeros(6)
-            ee_vel_global[:3] = (np.array(final_point_pos) - np.array(pos))/self.control_time #Velocity needed to reach the goal in 1 sim step
-            scaled_vel_global = ee_vel_global #Take at least 3 steps to reach the goal
-
-            ee_vel_local = self.convert_global_action_to_local(scaled_vel_global)
-            scale = 1#np.max(np.abs(ee_vel_local))
-            if (ee_vel_local > 1).any() or (ee_vel_local < -1).any():
-                scale = np.max(np.abs(ee_vel_local))
-                ee_vel_local = ee_vel_local/(scale+1e-4)
-            #We run the simulation for self.pyb.step_time seconds
-            if not terminated:
-                for j in range(int(2*int(scale)/self.action_scale)): #At most twice the time needed to reach the goal
-                    #Move towards the goal
-                    if np.isclose(ee_vel_local, np.zeros(6), atol=0.001).all():
-                        dones[-1] = True
-                        break
-                    action = copy.deepcopy(ee_vel_local)
-                    new_obs, reward, terminated, truncated, info = self.step(copy.deepcopy(ee_vel_local))
-                    actions.append(action)
-                    new_obs = copy.deepcopy(new_obs)
-                    # Change rgb, prev_rgb, to CHW from HWC. SB3 does this somewhere automatically using VecEnvWrapper
-
-                    new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
-                    new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
-
-                    new_observations.append(new_obs)
-                    observations.append(obs)
-                    rewards.append(reward)
-                    if (self.observation['point_mask'] > 0).any():
-                        count_in_frame += 1
-                    #if last step, done is true
-
-
-                    if terminated or info['collision_unacceptable_reward'] < 0 or info['collision_acceptable_reward'] < 0:
-                        dones.append(True)
-                        break
-                    if j == int(2*int(scale)/self.action_scale) - 1:
-                        dones.append(True)
-                    else:
-                        dones.append(terminated)
-
-                    obs = new_obs
-            print("Length of velo", len(actions))
-            save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions), "next_observations": new_observations, "info": info}
-            #Calculate optical flow
-
-            with open('expert_trajectories/{}.pkl'.format(time.time()), 'wb') as f:
-                pickle.dump(save_dict, f)
-
-            if save_path is not None:
-                result = {"path": ee_vel, "len_refined_path": len(refined_path), "trajectory_in_frame": count_in_frame / len(ee_vel),
-                            "tree_info": tree_info}
-                result = pd.DataFrame([result])
-                self.append_row_to_csv(result, save_path)
+                    waypoints = np.stack(waypoints)
+                f.create_dataset(name + '/waypoints', data=waypoints)
 
     def task_space_distance(self, positions1, positions2):
-        #Forward Kinematics
+        # Forward Kinematics
         self.ur5.set_joint_angles_no_collision(positions1)
         self.pyb.con.stepSimulation()
         pos1, or1 = self.ur5.get_current_pose(self.ur5.end_effector_index)
@@ -1502,23 +1601,24 @@ class PruningEnvRRT(PruningEnv):
         pos2, or2 = self.ur5.get_current_pose(self.ur5.end_effector_index)
         return np.linalg.norm(np.array(pos1) - np.array(pos2))
 
-    def convert_ja_to_ee_vel(self, path, control_freq = 2):
+    def convert_ja_to_ee_vel(self, path, control_freq=2):
         ee_vel = []
         for i in range(len(path) - 1):
-            joint_velocities = (np.array(path[i+1]) - np.array(path[i]))*control_freq
+            joint_velocities = (np.array(path[i + 1]) - np.array(path[i])) * control_freq
             self.ur5.set_joint_angles_no_collision(path[i])
             self.pyb.con.stepSimulation()
             jacobian = self.ur5.calculate_jacobian()
             global_ee_vel = np.matmul(jacobian, joint_velocities)
             local_ee_vel = self.convert_global_action_to_local(global_ee_vel)
-            #if any term in local_ee_vel > 1 or < -1, break the step into smaller steps
-            if np.any(local_ee_vel > 1*self.action_scale) or np.any(local_ee_vel < -1*self.action_scale):
-                num_steps = int(np.ceil(np.max(np.abs(local_ee_vel/(1*self.action_scale)))))
+            # if any term in local_ee_vel > 1 or < -1, break the step into smaller steps
+            if np.any(local_ee_vel > 1 * self.action_scale) or np.any(local_ee_vel < -1 * self.action_scale):
+                num_steps = int(np.ceil(np.max(np.abs(local_ee_vel / (1 * self.action_scale)))))
                 for j in range(num_steps):
-                    ee_vel.append(local_ee_vel/num_steps)
+                    ee_vel.append(local_ee_vel / num_steps)
             else:
                 ee_vel.append(local_ee_vel)
         return ee_vel
+
 
 class ResultMode(Enum):
     NO_SOLUTION = 0

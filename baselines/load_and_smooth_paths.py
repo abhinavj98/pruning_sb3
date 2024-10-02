@@ -14,14 +14,12 @@ from pruning_sb3.args.args import \
 from pruning_sb3.pruning_gym.helpers import set_args, organize_args, make_or_bins, convert_string
 import argparse
 import pandas as pd
+import h5py
 parser = argparse.ArgumentParser()
 
 
 
 if __name__ == "__main__":
-
-
-
     parser = argparse.ArgumentParser()
     set_args(args, parser)
     parsed_args = vars(parser.parse_args())
@@ -29,25 +27,40 @@ if __name__ == "__main__":
         parsed_args)
 
     print(parsed_args_dict)
+    #Instead of csv read from hdf5 file
+    #After reading the file, collect all successful paths and put them in a list
+    #Then, split the list into n_envs parts and send each part to each environment
+    paths_success = []
+    #read file
+    with h5py.File(args_baseline['load_file_path']+'.hdf5', 'r') as f:
+        #go through all datasets and append the successful paths to path_success
+        for key in f.keys():
+            dataset = f[key]
+            #print all attributes
+            if dataset.attrs['fail_mode'] == 1:
+                paths_success.append(key)
+
+    # return
+
     or_bins = make_or_bins(args_train, "train")
-    path_file = args_baseline['load_file_path']+'.csv'
+    file_path = args_baseline['load_file_path']+'.hdf5'
     env = make_vec_env(PruningEnvRRT, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
 
-    paths_df = pd.read_csv(path_file)
-    paths_success = paths_df[paths_df['is_success'] == True]
-    paths_success['tree_info'] = paths_success['tree_info'].apply(convert_string)
-    paths_success['path'] = paths_success['path'].apply(convert_string)
-    # paths_success = paths_success[624:]
-    num_paths = len(paths_success)
+    # paths_df = pd.read_csv(path_file)
+    # paths_success = paths_df[paths_df['is_success'] == True]
+    # paths_success['tree_info'] = paths_success['tree_info'].apply(convert_string)
+    # paths_success['path'] = paths_success['path'].apply(convert_string)
+    # # paths_success = paths_success[624:]
+    # num_paths = len(paths_success)
     num_points_per_env = len(paths_success)//env.num_envs
 
     for i in range(env.num_envs):
-        dataset = paths_success.iloc[i*num_points_per_env:(i+1)*num_points_per_env]
-        env.env_method("set_dataset", dataset=dataset, indices=i)
+        dataset = paths_success[i*num_points_per_env:(i+1)*num_points_per_env]
+        env.env_method("set_dataset", dataset=dataset, dataset_file_path = file_path, indices=i)
 
 
     controllable_joints = [3, 4, 5, 6, 7, 8]
     #create expert_trajectories folder
     if not os.path.exists('expert_trajectories'):
         os.makedirs('expert_trajectories')
-    env.env_method("run_smoothing", save_video = args_baseline['save_video'], save_path = None)
+    env.env_method("run_smoothing", save_video = args_baseline['save_video'], save_path = "trajectories")

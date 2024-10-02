@@ -49,9 +49,14 @@ if __name__ == "__main__":
     env.logger = new_logger
 
     dataset = None
-    if os.path.exists(f"{type}_dataset.pkl"):
-        with open(f"{type}_dataset.pkl", "rb") as f:
+    num_points_per_or = args_callback['n_points_per_orientation']
+    num_orientations = args_callback['n_eval_orientations']
+    if os.path.exists(f"{type}_dataset_{num_points_per_or}_{num_orientations}.pkl"):
+        with open(f"{type}_dataset_{num_points_per_or}_{num_orientations}.pkl", "rb") as f:
             dataset = pickle.load(f)
+    # if os.path.exists(f"{type}_dataset.pkl"):
+    #     with open(f"{type}_dataset.pkl", "rb") as f:
+    #         dataset = pickle.load(f)
 
     set_goal_callback = PruningEvalSetGoalCallback(or_bins=or_bins, type=type, dataset=dataset,
                                                    num_orientations=args_callback['n_eval_orientations'],

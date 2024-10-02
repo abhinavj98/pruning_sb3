@@ -25,11 +25,9 @@ if __name__ == "__main__":
         parsed_args)
 
     print(parsed_args_dict)
-    or_bins = make_or_bins(args_train, "test")
+    or_bins = make_or_bins(args_train, args_baseline["tree_set"])
 
     env = make_vec_env(PruningEnvRRT, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
-
-
     #read a csv file with the dataset
     # result_df = pd.read_csv(args_baseline['results_save_path']+'.csv')
 
@@ -37,8 +35,11 @@ if __name__ == "__main__":
     dataset = None
     planner = args_baseline['planner']
     type = args_baseline['dataset_type']
-    if os.path.exists(f"dataset_{type}.pkl"):
-        with open(f"dataset_{type}.pkl", "rb") as f:
+    print(args_callback)
+    num_points_per_or = args_callback['n_points_per_orientation']
+    num_orientations = args_callback['n_eval_orientations']
+    if os.path.exists(f"{type}_dataset_{num_points_per_or}_{num_orientations}.pkl"):
+        with open(f"{type}_dataset_{num_points_per_or}_{num_orientations}.pkl", "rb") as f:
             dataset = pickle.load(f)
     # Shuffle dataset
     if dataset is not None:
@@ -56,4 +57,4 @@ if __name__ == "__main__":
         dataset = set_goal_callback.dataset[i*num_points_per_env:(i+1)*num_points_per_env]
         env.env_method("set_dataset", dataset=dataset, indices=i)
     results_method = GenerateResults(env, set_goal_callback, planner, save_video = args_baseline['save_video'], shortcutting = args_baseline['shortcutting'])
-    results_method.run(args_baseline['results_save_path']+'.csv') #keep multiples of n_envs
+    results_method.run(args_baseline['results_save_path']) #keep multiples of n_envs

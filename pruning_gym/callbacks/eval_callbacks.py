@@ -22,7 +22,7 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
         self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(0.95, 0.05)
         self.type = type
         self.num_orientations = num_orientations
-        self.num_points_per_or = num_points_per_or
+        self.num_points_per_orientation = num_points_per_or
 
     def get_polar_grid(self, resolution):
         lat_range = (-85, 95)
@@ -46,7 +46,7 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
             print("DEBUG: Orientation List: ", or_list)
 
         num_bins = len(or_list)
-        num_points_per_or = self.num_points_per_or
+        num_points_per_or = self.num_points_per_orientation
 
         dataset = []
         for i in range(num_bins):
@@ -69,7 +69,7 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
         print("Orientations: ", len(orientations))
         or_list = [self.get_bin_from_orientation(x) for x in orientations]
         num_bins = len(or_list)
-        num_points_per_or = self.num_points_per_or
+        num_points_per_or = self.num_points_per_orientation
 
         dataset = []
         for i in range(num_bins):
@@ -82,7 +82,7 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
                 dataset.append(point)
 
         if self.verbose > 1:
-            print("DEBUG: Length of dataset: ", len(dataset), self.num_orientations*self.num_points_per_or)
+            print("DEBUG: Length of dataset: ", len(dataset), self.num_orientations * self.num_points_per_orientation)
         return dataset
 
     def _init_callback(self) -> None:
@@ -112,6 +112,8 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
             self.dataset = self.make_analysis_dataset()
             if self.verbose > 0:
                 print("INFO: Dataset made", len(self.dataset))
+        with open(f"{self.type}_dataset_{self.num_points_per_orientation}_{self.num_orientations}.pkl", "wb") as f:
+            pickle.dump(self.dataset, f)
     def _sample_tree_and_point(self, idx):
         if self.verbose > 0:
             print("DEBUG: Sampling tree and point")
@@ -123,8 +125,7 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
             self.current_index = [(len(self.dataset)) // self.training_env.num_envs * i for i in
                                   range(self.training_env.num_envs)]
 
-        with open(f"{self.type}_dataset.pkl", "wb") as f:
-            pickle.dump(self.dataset, f)
+
 
         if self.verbose > 1:
             print("DEBUG: Sampling for {} with id {}".format(idx, self.current_index[idx]))
