@@ -985,7 +985,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             batch_offline.actions
         )
 
-        log_prob_offline = th.clamp(log_prob_offline, -5, 0)
+        log_prob_offline = th.clamp(log_prob_offline, -100, 100)
         bc_loss = -th.mean(log_prob_offline)
         # Calculate approximate form of reverse KL Divergence for early stopping
         # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -1031,7 +1031,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             batch_offline.episode_starts,
         )
 
-        log_prob_offline = th.clamp(log_prob_offline, -5, 0)
+        log_prob_offline = th.clamp(log_prob_offline, -100, 100)
 
         values_online = values_online.flatten()
         values_offline = values_offline.flatten()
@@ -1453,7 +1453,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
                 # For BC loss remove variance from the optimization
                 if self.use_online_bc:
-                    offline_loss = bc_loss * 0.02 * self._current_progress_remaining
+                    offline_loss = bc_loss * 0.05 * self._current_progress_remaining
                     offline_loss.backward()
                     self.policy.optimizer_logstd.zero_grad()
                     online_loss = loss_online
