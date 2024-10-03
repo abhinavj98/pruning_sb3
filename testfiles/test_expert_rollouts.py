@@ -46,8 +46,8 @@ if __name__ == "__main__":
     # Create or_bins
     or_bins = make_or_bins(args_train, "train")
 
-    # env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=DummyVecEnv)
-    env = PruningEnv(**args_record)
+    env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=DummyVecEnv)
+    # env = PruningEnv(**args_train)
     # new_logger = utils.configure_logger(verbose=verbose, tensorboard_log="./runs/", reset_num_timesteps=True)
     # env.logger = new_logger
     # set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     policy = RecurrentActorCriticPolicy
 
 
-    expert_trajectory_path = "expert_trajectories_temp"
+    expert_trajectory_path = "trajectories.hdf5"
     model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
                          args_policy['use_offline_data'],
                          args_policy['use_ppo_offline'],
@@ -81,22 +81,23 @@ if __name__ == "__main__":
                            ae_coeff=args_policy['ae_coeff'])
 
     model.make_offline_rollouts(None, model.expert_buffer, args_policy['steps_per_epoch'])
-    samples = model.expert_buffer.get(1)
+    # print("Expert buffer length: ", (model.expert_buffer.)
+    samples = model.expert_buffer.get(None)
     #read the pkl file from expert_Data
-    import glob
-    import pickle
-    expert_path = glob.glob(expert_trajectory_path + "/*.pkl")[0]
-    with open(expert_path, "rb") as f:
-        expert_data = pickle.load(f)
-    env.set_tree_properties(*expert_data['tree_info'])
-    env.reset()
+    # import glob
+    # import pickle
+    # expert_path = glob.glob(expert_trajectory_path + "/*.pkl")[0]
+    # with open(expert_path, "rb") as f:
+    #     expert_data = pickle.load(f)
+    # env.set_tree_properties(*expert_data['tree_info'])
+    # env.reset()
 
     # env.set_tree_properties(*model.expert_data[0]['tree_info'])
     # print("Expert data length: ", len(model.expert_data[0]['actions']))
     # print("Samples: ", len(samples))
     for j in samples:
-        print(j.actions.cpu().numpy(), env.action_scale)
-        env.step(j.actions.cpu().numpy()[0])
+        print(j.actions.cpu().numpy())
+        # env.step(j.actions.cpu().numpy()[0])
 
 
     print("Expert buffer length: ", (model.expert_buffer.pos))

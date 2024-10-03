@@ -32,40 +32,50 @@ if __name__ == "__main__":
 
     env = PruningEnv(**args_record)
     expert_trajectory_path = "trajectories.hdf5"
-    file = h5py.File(expert_trajectory_path, 'r')
+    with h5py.File(expert_trajectory_path, 'r') as file:
+        traj_names = list(file.keys())
     #Loop through the all the datasets in the hdf5 file
+    print("Trajectories: ", len(traj_names))
 
-    for dname in file.keys():
-        expert_traj = file[dname]
-        # tree_info = expert_traj['tree_info']
-        #Print attributes of the dataset
-        print("Expert trajectory: ", dname)
-        print(expert_traj.attrs.keys())
-        for attr_name, attr_value in expert_traj.attrs.items():
-            print(f"Attribute: {attr_name} -> {attr_value} -> {type(attr_value)}")
-        env.set_tree_properties(tree_urdf=expert_traj.attrs['tree_urdf'],point_pos=expert_traj.attrs['point_pos'],
-                                point_branch_or=expert_traj.attrs['point_branch_or'],tree_orientation=expert_traj.attrs['tree_orientation'],
-                                tree_scale=expert_traj.attrs['tree_scale'],tree_pos=expert_traj.attrs['tree_pos'],
-                                point_branch_normal=expert_traj.attrs['point_branch_normal'])
+    for dname in traj_names:
+        with h5py.File(expert_trajectory_path, 'r') as file:
+            observation_dict = {}
+            expert_traj = file[dname]
+            # tree_info = expert_traj['tree_info']
+            #Print attributes of the dataset
+            print("Expert trajectory: ", dname)
+            print(expert_traj.attrs.keys())
+            for attr_name, attr_value in expert_traj.attrs.items():
+                print(f"Attribute: {attr_name} -> {attr_value} -> {type(attr_value)}")
+            env.set_tree_properties(tree_urdf=expert_traj.attrs['tree_urdf'],point_pos=expert_traj.attrs['point_pos'],
+                                    point_branch_or=expert_traj.attrs['point_branch_or'],tree_orientation=expert_traj.attrs['tree_orientation'],
+                                    tree_scale=expert_traj.attrs['tree_scale'],tree_pos=expert_traj.attrs['tree_pos'],
+                                    point_branch_normal=expert_traj.attrs['point_branch_normal'])
+            env.set_ur5_pose(expert_traj.attrs['robot_pos'], expert_traj.attrs['robot_or'])
+            actions = expert_traj['actions']
+            #read all actions from the dataset
+            actions = actions[:]
+            observations = expert_traj['observations']
+            for key, value in observations.items():
+                observation_dict[key] = value[:]
 
-        actions = expert_traj['actions']
-        observations = expert_traj['observations']
+            # next_observations = expert_traj['next_observations']
+            rewards = expert_traj['rewards']
+            rewards = rewards[:]
+            dones = expert_traj['dones']
+            dones = dones[:]
+            # print("Tree info: ", tree_info)
+            print("Actions: ", actions.shape)
+            print("Observations: ", observations)
+            print("Rewards: ", rewards.shape)
+            print("Dones: ", dones.shape)
+            # print("Next observations: ", next_observations)
 
-        next_observations = expert_traj['next_observations']
-        rewards = expert_traj['rewards']
-        dones = expert_traj['dones']
-        # print("Tree info: ", tree_info)
-        print("Actions: ", actions.shape)
-        print("Observations: ", observations)
-        print("Rewards: ", rewards.shape)
-        print("Dones: ", dones.shape)
-        print("Next observations: ", next_observations)
         for i in range(len(actions)):
             action = actions[i]
             print("Action: ", action)
             observation_dict = {}
-            for key, value in observations.items():
-                observation_dict[key] = value[i]
+
             # env.set_observation(observation)
             # env.set_action(action)
             obs, rew, term, trunc, _ = env.step(action)
@@ -73,9 +83,7 @@ if __name__ == "__main__":
             print("file", rewards[i], dones[i])
 
     # Get dataset names
-    dnames = [n for n in file.keys()]
-    print(dnames)
-    #shuffle the expert trajectories
+     #shuffle the expert trajectories
     # # random.shuffle(expert_trajectories)
     # for expert_trajectory in expert_trajectories:
     #     print("Expert trajectory: ", expert_trajectory)

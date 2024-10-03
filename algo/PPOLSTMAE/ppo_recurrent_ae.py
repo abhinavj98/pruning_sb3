@@ -27,7 +27,7 @@ from stable_baselines3.common.utils import update_learning_rate
 from stable_baselines3.common.vec_env import VecEnv
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, IterableDataset
-
+import h5py
 SelfRecurrentPPOAE = TypeVar("SelfRecurrentPPOAE", bound="RecurrentPPOAE")
 
 
@@ -602,72 +602,76 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
 
 class TrajectoryIterableDataset(IterableDataset):
-    """ Returns numpy observations from the dataset. Manually convert to torch tensors. """
+    """ Returns numpy observations from the dataset stored in a single HDF5 file. """
 
-    def __init__(self, file_list, observation_space):
+    def __init__(self, hdf5_file_path, observation_space):
         """
-        :param file_list: List of all trajectory files
+        :param hdf5_file_path: Path to the single HDF5 file containing all trajectories
         :param observation_space: Observation space of the environment
         """
-        self.file_list = file_list  # List of all trajectory files
+        self.hdf5_file_path = hdf5_file_path
         self.observation_space = observation_space
-
-    def load_trajectory(self, file_path):
+    def trajectory_generator(self, expert_traj, worker_id):
         """
-        Loads a trajectory from a .pkl file.
+        Generator that yields each step from the trajectory inside an HDF5 file.
         """
-        with open(file_path, 'rb') as f:
-            trajectory_data = pickle.load(f)
-        return trajectory_data
+        actions = expert_traj['actions']
+        observations_group = expert_traj['observations']
+        next_observations_group = expert_traj['next_observations']
+        rewards = expert_traj['rewards']
+        dones = expert_traj['dones']
 
-    def trajectory_generator(self, trajectory_data):
-        """
-        Generator that yields each step from the trajectory.
-        """
-        for step in range(len(trajectory_data['observations'])):
-            observation = trajectory_data['observations'][step]
-            action = trajectory_data['actions'][step]
-            reward = trajectory_data['rewards'][step]
-            done = trajectory_data['dones'][step]
-            next_observation = trajectory_data['next_observations'][step]
+        num_steps = len(actions)
 
-            # flattened_observation = self._flatten_obs(observation, self.observation_space)
-            # flattened_next_observation = self._flatten_obs(next_observation, self.observation_space)
-
-            # sample are numpy arrays
-            # print(type(observation), type(action), type(reward), type(done), type(next_observation))
+        for step in range(num_steps):
+            action = actions[step]
+            reward = rewards[step]
+            done = dones[step]
+            observation_dict = {}
+            for key, value in observations_group.items():
+                observation_dict[key] = value[step]
+            next_observation_dict = {}
+            for key, value in next_observations_group.items():
+                next_observation_dict[key] = value[step]
+            # Yielding a dictionary containing all components for a single step
             sample = {
-                'observation': observation,
+                'observation': observation_dict,
                 'action': action,
                 'reward': reward,
                 'done': done,
-                'next_observation': next_observation,
+                'next_observation': next_observation_dict,
+                'worker_id': worker_id,
+                'step': step,
             }
+            # if self.verbose > 1:
+            # print(f"Worker {worker_id} yielding step {step}")
             yield sample
 
     def __iter__(self):
         """
         This method is called separately for each worker when using multiple workers.
         Each worker will randomly select files and process them.
-        Make sure that num_workers is set to num_envs
         """
         worker_info = torch.utils.data.get_worker_info()
 
-        if worker_info is None:  # Single-worker case (or num_workers=0)
-            file_list = self.file_list
-        else:
-            # Multi-worker case, each worker will have its own copy of the dataset and iterate independently
-            worker_id = worker_info.id
-            # Shuffle the file list for each worker (optional)
-            file_list = self.file_list.copy()
-            random.shuffle(file_list)
+        # Open the single HDF5 file (shared across all workers)
+        with h5py.File(self.hdf5_file_path, 'r') as hdf5_file:
+            # Get the list of all trajectory datasets in the HDF5 file
+            trajectory_names = list(hdf5_file.keys())  # Each trajectory is a key (group) in the HDF5 file
 
-        # Loop through the files indefinitely (allows repetition)
-        while True:
-            for file_path in file_list:
-                trajectory_data = self.load_trajectory(file_path)
-                yield from self.trajectory_generator(trajectory_data)
+            if worker_info is not None:  # Multi-worker case
+                # Shuffle the dataset list for each worker (optional)
+                worker_id = worker_info.id
+                # random.shuffle(trajectory_names)
 
+            # Loop through the trajectories indefinitely (for continual sampling)
+            while True:
+                for trajectory_name in trajectory_names:
+                    # print("Trajectory name", trajectory_name)
+                    trajectory_name = trajectory_names[0]
+                    expert_traj = hdf5_file[trajectory_name]
+                    # Yield each step from the trajectory using the generator
+                    yield from self.trajectory_generator(expert_traj, worker_id)
 
 class RecurrentPPOAEWithExpert(RecurrentPPOAE):
     """Allows use of data collected offline along with online data for training. The offline data is stored in a folder as pkl files."""
@@ -714,14 +718,17 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             gae_lambda=self.gae_lambda,
             n_envs=self.n_envs,
         )
-        expert_data = self.get_trajectory_files()  # Load file names only
-        self.dataset = TrajectoryIterableDataset(expert_data, self.observation_space)
-        self.dataloader = DataLoader(self.dataset, batch_size=self.num_expert_envs, num_workers=self.num_expert_envs,
-                                     collate_fn=self.np_collate_fn)
+        # expert_data = self.get_trajectory_files()  # Load file names only
+        self.dataset = TrajectoryIterableDataset(self.path_trajectories, self.observation_space)
+        self.dataloader = DataLoader(self.dataset, batch_size=1, num_workers=self.num_expert_envs,
+                                     collate_fn=self.ds_collate)
         self.data_iter = iter(self.dataloader)
 
     @staticmethod
-    def np_collate_fn(batch):
+    def ds_collate(batch):
+        return batch
+    @staticmethod
+    def np_collate_fn(batch, num_expert_envs):
         """
         Custom collate function that keeps the data as NumPy arrays instead of converting to tensors.
 
@@ -737,22 +744,27 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # Collect keys from the first sample (assuming all samples have the same structure)
         first_sample = batch[0]
-
+        #Sort batch by key 'worker_id'
+        batch = sorted(batch, key=lambda x: x['worker_id'])
+        workers = tuple([sample['worker_id'] for sample in batch])
+        assert len(set(workers)) == num_expert_envs
+        # print([sample['step'] for sample in batch])
         for key in first_sample:
+            if key == 'worker_id' or key == 'step':
+                continue
             # Stack NumPy arrays along a new axis to batch them together
             batch_dict[key] = np.stack([sample[key] for sample in batch], axis=0)  # Stack along batch dimension
             # else:
             #     # For non-NumPy data, keep them as lists
             #     batch_dict[key] = np.stack([np.array(sample[key]) for sample in batch], axis=0)  # Stack along batch dimension
-
         return batch_dict
 
-    def get_trajectory_files(self):
-        # Load expert data from expert_trajecotries folder. This is a list of pkl files
-        # Each pkl file contains save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions)}
-        # Load all the pkl files into a list
-        expert_trajectories = glob.glob(self.path_trajectories + "/*.pkl")
-        return list(expert_trajectories)
+    # def get_trajectory_files(self):
+    #     # Load expert data from expert_trajecotries folder. This is a list of pkl files
+    #     # Each pkl file contains save_dict = {"tree_info": tree_info, "observations": observations, "actions": actions, "rewards": rewards, "dones": dones, "trajectory_in_frame": count_in_frame/len(actions)}
+    #     # Load all the pkl files into a list
+    #     expert_trajectories = glob.glob(self.path_trajectories + "/*.pkl")
+    #     return list(expert_trajectories)
 
     def _flatten_obs(self, obs, observation_space):
         """
@@ -773,17 +785,19 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # Sample expert episode
         self._last_episode_starts = np.ones((self.num_expert_envs,), dtype=bool)
         while n_steps < n_rollout_steps:
-            try:
-                # Get a batch of expert data from the DataLoader
-                batch = next(self.data_iter)
-            except StopIteration:
-                # Reinitialize the iterator if we run out of data
-                self.data_iter = iter(self.dataloader)
-                batch = next(self.data_iter)
+            batches = []
+            for _ in range(self.num_expert_envs):
+                try:
+                    #Batch expects 1 step from n_envs trajectories
+                    batch = next(self.data_iter)
+                except StopIteration:
+                    # Reinitialize the iterator if we run out of data
+                    self.data_iter = iter(self.dataloader)
+                    batch = next(self.data_iter)
+                batches.append(batch[0])
+            batch = self.np_collate_fn(batches, self.num_expert_envs)
 
-            # Unpack the batch
-            # print(batch)
-            # print(batch['observation'].keys())
+
             last_obs = self._flatten_obs(batch['observation'], self.observation_space)
             rewards = batch['reward']
             dones = batch['done']
@@ -897,6 +911,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         online_loss = policy_loss + entropy_loss + value_loss + ae_l2_loss
 
+
         # Calculate approximate form of reverse KL Divergence for early stopping
         # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
         # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
@@ -904,8 +919,11 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         with th.no_grad():
             log_ratio = log_prob - batch.old_log_prob
             approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask]).cpu().numpy()
+        online_loss_dict = {"policy_loss": policy_loss.item(), "entropy_loss": entropy_loss.item(),
+                            "value_loss": value_loss.item(), "ae_loss": ae_l2_loss.item(),
+                            "clip_fraction": clip_fraction, "approx_kl_div": approx_kl_div, }
 
-        return online_loss, pg_loss, clip_fraction, ae_l2_loss.item(), value_loss.item(), entropy_loss.item(), approx_kl_div, depth_proxy, depth_proxy_recon
+        return online_loss, online_loss_dict, depth_proxy, depth_proxy_recon
 
     def train_online_bc(self, batch_online, batch_offline, clip_range, clip_range_vf):
         # Train on mix of online and offline data
@@ -1303,7 +1321,10 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             log_ratio = log_prob - batch.old_log_prob
             approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask]).cpu().numpy()
 
-        return offline_loss, pg_loss, clip_fraction, ae_l2_loss.item(), value_loss.item(), entropy_loss.item(), approx_kl_div, depth_proxy, depth_proxy_recon
+        offline_loss_dict = {"policy_loss": pg_loss.item(), "ae_loss": ae_l2_loss.item(), "entropy_loss": entropy_loss.item(),
+                            "approx_kl_div": approx_kl_div}
+
+        return offline_loss, offline_loss_dict, depth_proxy, depth_proxy_recon
 
     def train_expert(self, clip_range, clip_range_vf):
         self.policy.set_training_mode(True)
@@ -1370,30 +1391,23 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
                 # Train the expert
                 if self.use_offline_data:
-                    (loss_offline, pg_loss_offline, clip_fraction_offline, ae_l2_loss_offline, value_loss_offline,
-                     entropy_loss_offline, approx_kl_div_offline, depth_proxy,
+                    (loss_offline,offline_loss_dict, depth_proxy,
                      depth_proxy_recon) = self.train_offline_batch(
                         offline_data, clip_range, clip_range_vf)
-                    pg_losses_offline.append(pg_loss_offline)
-                    clip_fractions_offline.append(clip_fraction_offline)
-                    ae_losses_offline.append(ae_l2_loss_offline)
-                    value_losses_offline.append(value_loss_offline)
-                    entropy_losses_offline.append(entropy_loss_offline)
-                    approx_kl_divs_offline.append(approx_kl_div_offline)
+
 
                     loss_offline.backward()
 
                 elif self.use_online_data:
-                    (loss_online, pg_loss_online, clip_fraction_online, ae_l2_loss_online, value_loss_online,
-                     entropy_loss_online, approx_kl_div_online, depth_proxy,
+                    (loss_online, online_loss_dict, depth_proxy,
                      depth_proxy_recon) = self.train_online_batch(
                         online_data, clip_range, clip_range_vf)
-                    pg_losses_online.append(pg_loss_online)
-                    clip_fractions_online.append(clip_fraction_online)
-                    ae_losses_online.append(ae_l2_loss_online)
-                    value_losses_online.append(value_loss_online)
-                    entropy_losses_online.append(entropy_loss_online)
-                    approx_kl_divs_online.append(approx_kl_div_online)
+                    pg_losses_online.append(online_loss_dict["policy_loss"])
+                    clip_fractions_online.append(online_loss_dict["clip_fraction"])
+                    ae_losses_online.append(online_loss_dict["ae_loss"])
+                    value_losses_online.append(online_loss_dict["value_loss"])
+                    entropy_losses_online.append(online_loss_dict["entropy_loss"])
+                    approx_kl_divs_online.append(online_loss_dict["approx_kl_div"])
 
                     loss_online.backward()
 
@@ -1489,6 +1503,16 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     self.policy.optimizer_ae.step()
                     if self.learning_rate_logstd is not None:
                         self.policy.optimizer_logstd.step()
+
+                pg_losses_offline.append(offline_loss_dict["policy_loss"])
+                clip_fractions_offline.append(offline_loss_dict["clip_fraction"])
+                ae_losses_offline.append(offline_loss_dict["ae_loss"])
+                value_losses_offline.append(offline_loss_dict["value_loss"])
+                entropy_losses_offline.append(offline_loss_dict["entropy_loss"])
+                approx_kl_divs_offline.append(offline_loss_dict["approx_kl_div"])
+
+
+
 
                 if not continue_training:
                     break

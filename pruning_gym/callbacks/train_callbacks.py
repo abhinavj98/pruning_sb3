@@ -20,7 +20,7 @@ class Pruning1TreeSetGoalCallback(PruningSetGoalCallback):
                                          tree_orientation=self.tree_info[3], tree_scale=self.tree_info[4],
                                          tree_pos=self.tree_info[5], point_branch_normal=self.tree_info[6])
 
-
+            # self.training_env.env_method("set_ur5_pose", indices=i, pos=self.tree_info[7], orien=self.tree_info[8])
     def _sample_tree_and_point(self, idx):
         return
 

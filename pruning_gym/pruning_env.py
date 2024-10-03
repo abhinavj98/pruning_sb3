@@ -65,6 +65,7 @@ class PruningEnv(gym.Env):
                  ) -> None:
         """
         Initializes the environment with the following parameters:
+
         :param tree_urdf_path: Path to the folder containing URDF files of the trees
         :param tree_obj_path: Path to the folder containing OBJ files of the trees with UV coordinates and mtl files
         :param tree_labelled_path: Path to the folder containing labelled OBJ files of the trees - Directly from Lpy
@@ -1529,10 +1530,20 @@ class PruningEnvRRT(PruningEnv):
 
             print("Length of velocity actions", len(actions))
             info = {} #Future use
-            self.save_experiences_to_hdf5(observations, actions, rewards, dones, new_observations, info, tree_info_dict,
+            #Truncate length of observations, new_observations, rewards, dones, actions to max_steps
+            observations = observations[:self.maxSteps]
+            new_observations = new_observations[:self.maxSteps]
+            rewards = rewards[:self.maxSteps]
+            dones = dones[:self.maxSteps]
+            actions = actions[:self.maxSteps]
+            dones[-1] = True
+
+
+
+            self.save_experiences_to_hdf5(observations, actions, rewards, dones, new_observations, info, tree_info_dict, robot_pos, robot_or,
                                   save_path+".hdf5")
 
-    def save_experiences_to_hdf5(self, observations, actions, rewards, dones, next_observations, info, tree_info, save_path):
+    def save_experiences_to_hdf5(self, observations, actions, rewards, dones, next_observations, info, tree_info, robot_pos, robot_or, save_path):
         # include fillock
         with FileLock(save_path + '.lock'):
             if not os.path.exists(save_path):
@@ -1546,20 +1557,23 @@ class PruningEnvRRT(PruningEnv):
                 # Add attributes to the group
                 for key, value in tree_info.items():
                     f[name].attrs[key] = value
+                f[name].attrs['robot_pos'] = robot_pos
+                f[name].attrs['robot_or'] = robot_or
+
                 f.create_group(name + '/observations')
                 # Each key in the dictionary is a dataset
                 obs_keys = observations[0].keys()
                 # Stack each observation key
                 for key in obs_keys:
                     stacked_value = np.stack([obs[key] for obs in observations])
-                    f.create_dataset(name + '/observations/' + key, data=stacked_value)
+                    f.create_dataset(name + '/observations/' + key, data=stacked_value, compression="gzip", compression_opts=4)
 
                 # Create another group for next_observations as it is a dictionary
                 f.create_group(name + '/next_observations')
                 # Each key in the dictionary is a dataset
                 for key in obs_keys:
                     stacked_value = np.stack([obs[key] for obs in next_observations])
-                    f.create_dataset(name + '/next_observations/' + key, data=stacked_value)
+                    f.create_dataset(name + '/next_observations/' + key, data=stacked_value, compression="gzip", compression_opts=4)
                 actions = np.stack(actions)
                 f.create_dataset(name + '/actions', data=actions)
                 rewards = np.stack(rewards)

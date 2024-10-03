@@ -22,6 +22,7 @@ from pruning_sb3.args.args import \
     args
 from pruning_sb3.pruning_gym.helpers import linear_schedule, set_args, organize_args, init_wandb, make_or_bins, \
     get_policy_kwargs
+import h5py
 import pickle
 import glob
 
@@ -48,19 +49,33 @@ if __name__ == "__main__":
 
     print(parsed_args_dict)
     or_bins = make_or_bins(args_train, "train")
-    expert_trajectory_path = "expert_trajectories_temp"
-    expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
-    # shuffle the expert trajectories
-    # random.shuffle(expert_trajectories)
-    for expert_trajectory in expert_trajectories:
-        print("Expert trajectory: ", expert_trajectory)
-        with open(expert_trajectory, "rb") as f:
-            expert_data = pickle.load(f)
+    expert_trajectory_path = "trajectories.hdf5"
+    # expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
+    # # shuffle the expert trajectories
+    # # random.shuffle(expert_trajectories)
+    # for expert_trajectory in expert_trajectories:
+    #     print("Expert trajectory: ", expert_trajectory)
+    #     with open(expert_trajectory, "rb") as f:
+    #         expert_data = pickle.load(f)
 
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
     #Replace \\ with / in the tree_info
+    with h5py.File(expert_trajectory_path, 'r') as f:
+        trajectory_names = list(f.keys())
+        expert_traj = f[trajectory_names[0]]
+        expert_data = {}
+        # ree_urdf = self.tree_info[0],
+        # point_pos = self.tree_info[1], point_branch_or = self.tree_info[2],
+        # tree_orientation = self.tree_info[3], tree_scale = self.tree_info[4],
+        # tree_pos = self.tree_info[5], point_branch_normal = self.tree_info[6])
+
+        expert_data['tree_info'] = [expert_traj.attrs['tree_urdf'], expert_traj.attrs['point_pos'],
+                                    expert_traj.attrs['point_branch_or'], expert_traj.attrs['tree_orientation'],
+                                    expert_traj.attrs['tree_scale'], expert_traj.attrs['tree_pos'],
+                                    expert_traj.attrs['point_branch_normal']]
+        # env.set_ur5_pose(expert_traj.attrs['robot_pos'], expert_traj.attrs['robot_or'])
     expert_data['tree_info'][0] = expert_data['tree_info'][0].replace("\\", "/")
     # set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
     print("INFO: Using expert data: ", expert_data['tree_info'])
