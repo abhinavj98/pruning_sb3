@@ -31,13 +31,13 @@ if __name__ == "__main__":
     load_timestep = args_global['load_timestep']
 
     env = PruningEnv(**args_record)
-    expert_trajectory_path = "trajectories.hdf5"
+    expert_trajectory_path = "trajectories_test.hdf5"
     with h5py.File(expert_trajectory_path, 'r') as file:
         traj_names = list(file.keys())
     #Loop through the all the datasets in the hdf5 file
     print("Trajectories: ", len(traj_names))
 
-    for dname in traj_names:
+    for dname in traj_names: #{"trajectory_0", "trajectory_1", "trajectory_2"
         with h5py.File(expert_trajectory_path, 'r') as file:
             observation_dict = {}
             expert_traj = file[dname]

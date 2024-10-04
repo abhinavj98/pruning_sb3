@@ -65,7 +65,7 @@ if __name__ == "__main__":
     policy = RecurrentActorCriticPolicy
 
 
-    expert_trajectory_path = "trajectories.hdf5"
+    expert_trajectory_path = "trajectories_test.hdf5"
     model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
                          args_policy['use_offline_data'],
                          args_policy['use_ppo_offline'],
