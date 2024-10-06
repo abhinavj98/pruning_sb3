@@ -15,7 +15,8 @@ from stable_baselines3.common.torch_layers import (
 from stable_baselines3.common.distributions import (
     Distribution,
     StateDependentNoiseDistribution,
-    SquashedDiagGaussianDistribution
+    SquashedDiagGaussianDistribution,
+    DiagGaussianDistribution,
 )
 from stable_baselines3.common.type_aliases import Schedule
 from stable_baselines3.common.utils import zip_strict
@@ -243,7 +244,7 @@ class ActorCriticPolicySquashed(BasePolicy):
 
         # Action distribution
         # Replace action distribution with a Squashed
-        self.action_dist = SquashedDiagGaussianDistribution(get_action_dim(action_space))  # , self.full_std)
+        self.action_dist = DiagGaussianDistribution(get_action_dim(action_space))  # , self.full_std)
 
         self._build(lr_schedule)
 
