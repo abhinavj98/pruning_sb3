@@ -611,6 +611,16 @@ class TrajectoryIterableDataset(IterableDataset):
         """
         self.hdf5_file_path = hdf5_file_path
         self.observation_space = observation_space
+        #hdf5 files
+        self.hdf5_files = glob.glob(hdf5_file_path + '/*.hdf5')
+        print("Files reading from: ", self.hdf5_files)
+        assert len(self.hdf5_files) > 0, "No HDF5 files found"
+        #Make key to file mapping
+        self.traj_to_file = {}
+        for file in self.hdf5_files:
+            with h5py.File(file, 'r') as f:
+                for key in f.keys():
+                    self.traj_to_file[key] = file
     def trajectory_generator(self, expert_traj, worker_id):
         """
         Generator that yields each step from the trajectory inside an HDF5 file.
@@ -652,24 +662,29 @@ class TrajectoryIterableDataset(IterableDataset):
         This method is called separately for each worker when using multiple workers.
         Each worker will randomly select files and process them.
         """
+        worker_id = 0
         worker_info = torch.utils.data.get_worker_info()
 
         # Open the single HDF5 file (shared across all workers)
-        with h5py.File(self.hdf5_file_path, 'r') as hdf5_file:
+        # with h5py.File(self.hdf5_file_path, 'r') as hdf5_file:
             # Get the list of all trajectory datasets in the HDF5 file
-            trajectory_names = list(hdf5_file.keys())  # Each trajectory is a key (group) in the HDF5 file
+            # trajectory_names = list(hdf5_file.keys())  # Each trajectory is a key (group) in the HDF5 file
+        trajectory_names = list(self.traj_to_file.keys())
+        if worker_info is not None:  # Multi-worker case
+            # Shuffle the dataset list for each worker (optional)
+            worker_id = worker_info.id
+            random.shuffle(trajectory_names)
 
-            if worker_info is not None:  # Multi-worker case
-                # Shuffle the dataset list for each worker (optional)
-                worker_id = worker_info.id
-                # random.shuffle(trajectory_names)
-
-            # Loop through the trajectories indefinitely (for continual sampling)
-            while True:
-                for trajectory_name in trajectory_names:
+        # Loop through the trajectories indefinitely (for continual sampling)
+        while True:
+            for trajectory_name in trajectory_names:
+                # Open the trajectory group in the HDF5 file
+                with h5py.File(self.traj_to_file[trajectory_name], 'r') as hdf5_file:
+                    # Open the trajectory group in the HDF5 file
                     expert_traj = hdf5_file[trajectory_name]
                     # Yield each step from the trajectory using the generator
                     yield from self.trajectory_generator(expert_traj, worker_id)
+
 
 class RecurrentPPOAEWithExpert(RecurrentPPOAE):
     """Allows use of data collected offline along with online data for training. The offline data is stored in a folder as pkl files."""
@@ -795,7 +810,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             actions = batch['action']
             # print(type(rewards), type(dones), type(actions))
             # print([(k, type(v)) for k, v in last_obs.items()])
-            self.num_timesteps += self.num_expert_envs
+            # self.num_timesteps += self.num_expert_envs
             n_steps += 1
 
             self._last_obs = last_obs
@@ -832,6 +847,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                                                 episode_starts)  # pylint: disable=unexpected-keyword-arg
         expert_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
 
+        if self.verbose > 0:
+            print("INFO: Finished making offline rollouts")
         # callback.on_rollout_end()
         # offline = False
         # callback.update_locals(locals())
@@ -993,8 +1010,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             batch_offline.episode_starts,
             batch_offline.actions
         )
-
-        log_prob_offline = th.clamp(log_prob_offline, -100, 100)
+        min_log_prob = -5
+        log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
         bc_loss = -th.mean(log_prob_offline)
         # Calculate approximate form of reverse KL Divergence for early stopping
         # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -1043,8 +1060,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             batch_offline.lstm_states,
             batch_offline.episode_starts,
         )
-
-        log_prob_offline = th.clamp(log_prob_offline, -100, 100)
+        min_log_prob = -5
+        log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
 
         values_online = values_online.flatten()
         values_offline = values_offline.flatten()
@@ -1061,7 +1078,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         log_prob_expert = 0.  # Variance of 0.04
         # ratio between old and new policy, should be one at the first iteration
         ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
-        ratio_current_old_offline = th.exp(log_prob_offline - th.clamp(batch_offline.old_log_prob, -100, 100))
+        ratio_current_old_offline = th.exp(log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100))
         ratio_current_expert_offline = th.exp(
             log_prob_offline - log_prob_expert)  # Expert probability is 1, so log prob is 0
         ratio_old_expert_offline = th.exp(
@@ -1120,13 +1137,13 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             entropy_loss_offline = -th.mean(entropy_offline[mask_offline]) * self.ent_coef
 
         online_loss = policy_loss_online + entropy_loss_online + value_loss_online + ae_l2_loss_online
-        offline_loss = policy_loss_offline + entropy_loss_offline + value_loss_offline + ae_l2_loss_offline
+        offline_loss = policy_loss_offline + entropy_loss_offline + value_loss_offline + ae_l2_loss_offline - th.mean(log_prob_offline)*0.001
 
         with th.no_grad():
             log_ratio_online = log_prob_online - batch_online.old_log_prob
             approx_kl_div_online = th.mean(
                 ((th.exp(log_ratio_online) - 1) - log_ratio_online)[mask_online]).cpu().numpy()
-            log_ratio_offline = log_prob_offline - th.clamp(batch_offline.old_log_prob, -100, 100)
+            log_ratio_offline = log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100)
             approx_kl_div_offline = th.mean(
                 ((th.exp(log_ratio_offline) - 1) - log_ratio_offline)[mask_offline]).cpu().numpy()
 
@@ -1437,7 +1454,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     # loss.backward()
                     # th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     loss_offline.backward()
-                    # self.policy.optimizer_logstd.zero_grad()
+                    self.policy.optimizer_logstd.zero_grad()
                     loss_online.backward()
                     # self.policy.optimizer.step()
                     # self.policy.optimizer_ae.step()
@@ -1447,7 +1464,10 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     # self.policy.optimizer_logstd.zero_grad()
                     # offline_loss.backward()
                     th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                    #clup by value
+                    # th.nn.utils.clip_grad_value_(self.policy.parameters(), self.max_grad_norm)
                     self.policy.optimizer.step()
+
                     self.policy.optimizer_ae.step()
                     self.policy.optimizer_logstd.step()
                 else:
@@ -1501,7 +1521,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 for name, param in self.policy.named_parameters():
                     if param.grad is not None:
                         mean_grad = param.grad.abs().mean()
-                        gradient.append(mean_grad.item())
+                        gradient.append(np.abs(mean_grad.item()))
 
                 # print(loss_offline.item(), loss_online.item())
                 if not continue_training:
@@ -1541,6 +1561,15 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # self.logger.record("autoencoder/depth_proxy_y", Image(of_image_y_grid, "CHW"),
         #                    exclude=("stdout", "log", "json", "csv"))
         if self.collect_online_data:
+            #Action statistics for online data
+            actions = self.rollout_buffer.actions
+            #Do inverse tanh to get the actual action
+            actions = actions.flatten()
+            actions = np.arctanh(actions)
+            self.logger.record("percent_saturation", np.mean(np.abs(actions) > 3))
+            self.logger.record("train_online/action_mean", np.mean(actions))
+            self.logger.record("train_online/min_action", np.min(actions))
+            self.logger.record("train_online/max_action", np.max(actions))
             self.logger.record("train_online/ae_loss", np.mean(ae_losses_online))
             self.logger.record("train_online/entropy_loss", np.mean(entropy_losses_online))
             self.logger.record("train_online/policy_gradient_loss", np.mean(pg_losses_online))
@@ -1562,6 +1591,16 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             if self.clip_range_vf is not None:
                 self.logger.record("train_online/clip_range_vf", clip_range_vf)
         if self.collect_offline_data:
+            #Action statistics for offline data
+            actions = self.expert_buffer.actions
+            actions = actions.flatten()
+            actions = np.arctanh(actions)
+
+            self.logger.record("train_offline/action_mean", np.mean(actions))
+            self.logger.record("train_offline/min_action", np.min(actions))
+            self.logger.record("train_offline/max_action", np.max(actions))
+            #percetage of actions greateer than +-3
+            self.logger.record("percent_saturation", np.mean(np.abs(actions) > 3))
             self.logger.record("train_offline/ae_loss", np.mean(ae_losses_offline))
             self.logger.record("train_offline/entropy_loss", np.mean(entropy_losses_offline))
             self.logger.record("train_offline/policy_gradient_loss", np.mean(pg_losses_offline))
