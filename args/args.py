@@ -362,6 +362,11 @@ args = {
             'default': False,
             'help': 'whether to save the video'
         },
+        'save_file_path': {
+            'type': str,
+            'default': 'trajectories',
+            'help': 'path to save the results'
+        },
         'shortcutting': {
             'action': "store_true",
             'default': False,

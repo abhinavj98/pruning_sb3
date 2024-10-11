@@ -49,8 +49,8 @@ if __name__ == "__main__":
     print(parsed_args_dict)
     or_bins = make_or_bins(args_train, "train")
     expert_trajectory_path = "expert_trajectories"
-    print("Number of expert trajectories: ", len(glob.glob(expert_trajectory_path + "/*.pkl")))
-    expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
+    # print("Number of expert trajectories: ", len(glob.glob(expert_trajectory_path + "/*.pkl")))
+    # expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
     # shuffle the expert trajectories
     # random.shuffle(expert_trajectories)
     # for expert_trajectory in expert_trajectories:

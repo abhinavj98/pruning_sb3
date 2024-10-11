@@ -185,9 +185,7 @@ class ActorCriticWithAePolicy(BasePolicy):
         Orthogonal initialization (used in PPO and A2C)
         """
         if isinstance(module, (nn.Linear, nn.Conv2d)):
-            print("nbas")
             nn.init.orthogonal_(module.weight, gain=gain)
-            print("aa")
             if module.bias is not None:
                 module.bias.data.fill_(0.0)
 

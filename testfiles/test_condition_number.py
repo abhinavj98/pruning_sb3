@@ -77,8 +77,11 @@ if __name__ == "__main__":
     # Use keyboard to move the robot
     while True:
 
-        loc, orientation = env.ur5.get_current_pose(env.ur5.end_effector_index)
-        orientation = np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+        tf = env.ur5.get_camera_location()
+        # orientation = np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+        orientation = tf[:3, :3]
+        loc = tf[:3, 3]
+        print(env.ur5.get_view_mat_at_curr_pose(0,0,0))
         # Read keyboard input using python input
         action = get_key_pressed(env)
         # if action is wasd, then move the robot

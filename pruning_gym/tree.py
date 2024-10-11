@@ -344,7 +344,7 @@ class Tree:
         for urdf, obj, labelled_obj in zip(sorted(glob.glob(trees_urdf_path + '/*.urdf')),
                                            sorted(glob.glob(trees_obj_path + '/*.obj')),
                                            sorted(glob.glob(trees_labelled_path + '/*.obj'))):
-            print(urdf, obj, labelled_obj)
+            print("Making tree from urdf: ", urdf, obj, labelled_obj)
             if len(trees) >= num_trees:
                 break
             trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,

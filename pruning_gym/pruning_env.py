@@ -474,7 +474,7 @@ class PruningEnv(gym.Env):
                                                             self.observation_info['desired_pos'])
             infos["angular_error"] = theta
             infos['velocity'] = np.linalg.norm(self.action)
-            infos['time'] = time.time() - self.start_time
+            # infos['time'] = time.time() - self.start_time
 
         return infos
 
@@ -1523,13 +1523,18 @@ class PruningEnvRRT(PruningEnv):
                 self.baseline_save_video(refined_path, 'refined_path', tree_info_dict['point_pos'])
                 self.ur5.reset_ur5_arm()
 
-            observations, new_observations, rewards, dones, actions, last_obs, count_in_frame = self.get_transitions_from_ee_vel(ee_vel)
+            observations, new_observations, rewards, dones, actions, last_obs, count_in_frame = \
+                self.get_transitions_from_ee_vel(ee_vel)
 
             # Once we are done with the planner trajectory, we run a cartesian planner to get to the cut poitn
-            observations, new_observations, rewards, dones, actions, count_in_frame = self.append_transition_using_cartesian_planner(last_obs, tree_info_dict, observations, new_observations, rewards, dones, actions, count_in_frame)
+            observations, new_observations, rewards, dones, actions, count_in_frame = \
+                self.append_transition_using_cartesian_planner(last_obs, tree_info_dict, observations,\
+                                                               new_observations,\
+                                                               rewards, dones, actions, count_in_frame)
 
             print("Length of velocity actions", len(actions))
-            info = {} #Future use
+            info = {}
+            success = dones[-1]
             #Truncate length of observations, new_observations, rewards, dones, actions to max_steps
             observations = observations[:self.maxSteps]
             new_observations = new_observations[:self.maxSteps]
@@ -1540,10 +1545,10 @@ class PruningEnvRRT(PruningEnv):
 
 
 
-            self.save_experiences_to_hdf5(observations, actions, rewards, dones, new_observations, info, tree_info_dict, robot_pos, robot_or,
+            self.save_experiences_to_hdf5(observations, actions, rewards, dones, new_observations, info, success,  tree_info_dict, robot_pos, robot_or,
                                   save_path+".hdf5")
 
-    def save_experiences_to_hdf5(self, observations, actions, rewards, dones, next_observations, info, tree_info, robot_pos, robot_or, save_path):
+    def save_experiences_to_hdf5(self, observations, actions, rewards, dones, next_observations, info, success, tree_info, robot_pos, robot_or, save_path):
         # include fillock
         with FileLock(save_path + '.lock'):
             if not os.path.exists(save_path):
@@ -1559,6 +1564,7 @@ class PruningEnvRRT(PruningEnv):
                     f[name].attrs[key] = value
                 f[name].attrs['robot_pos'] = robot_pos
                 f[name].attrs['robot_or'] = robot_or
+                f[name].attrs['success'] = success
 
                 f.create_group(name + '/observations')
                 # Each key in the dictionary is a dataset
@@ -1593,7 +1599,11 @@ class PruningEnvRRT(PruningEnv):
             with h5py.File(save_path, mode) as f:
                 # Create group with current timestamp
                 name = str(time.time())
-                f.create_group(name)
+                try:
+                    f.create_group(name)
+                except ValueError:
+                    name = str(time.time() + 1)
+                    f.create_group(name)
                 # Add env_info as attribute to the group
                 for key, value in env_info.items():
                     f[name].attrs[key] = value

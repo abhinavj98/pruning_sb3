@@ -63,4 +63,4 @@ if __name__ == "__main__":
     #create expert_trajectories folder
     if not os.path.exists('expert_trajectories'):
         os.makedirs('expert_trajectories')
-    env.env_method("run_smoothing", save_video = args_baseline['save_video'], save_path = "trajectories")
+    env.env_method("run_smoothing", save_video = args_baseline['save_video'], save_path = args_baseline['save_file_path'],)

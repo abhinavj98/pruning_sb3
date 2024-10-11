@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     print(parsed_args_dict)
     or_bins = make_or_bins(args_train, "train")
-    expert_trajectory_path = "trajectories_test.hdf5"
+    expert_trajectory_path = "trajectories_test"
     # expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
     # # shuffle the expert trajectories
     # # random.shuffle(expert_trajectories)

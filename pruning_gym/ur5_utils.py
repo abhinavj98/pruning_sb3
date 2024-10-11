@@ -108,8 +108,8 @@ class UR5:
         # self.set_collision_filter()
         self.init_joint_angles = (-np.pi / 2, -np.pi * 2 / 3, np.pi * 2 / 3, -np.pi, -np.pi / 2,
                                   np.pi)  # (-np.pi/2, -np.pi/6, np.pi*2/3, -np.pi*3/2, -np.pi/2, np.pi)#
-        self.set_joint_angles(self.init_joint_angles)
-        for _ in range(100):
+        self.set_joint_angles_no_collision(self.init_joint_angles)
+        for _ in range(10):
             self.con.stepSimulation()
 
         self.init_pos_ee = self.get_current_pose(self.end_effector_index)
@@ -385,7 +385,6 @@ class UR5:
         camera_vector = np.array([0, 0, 1]) @ camera_tf[:3, :3].T  #
         up_vector = np.array([0, 1, 0]) @ camera_tf[:3, :3].T  #
         # Rotated vectors
-        # print(camera_vector, up_vector)
         view_matrix = self.con.computeViewMatrix(camera_tf[:3, 3], camera_tf[:3, 3] + 0.1 * camera_vector, up_vector)
         return view_matrix
 
@@ -393,7 +392,7 @@ class UR5:
         pose, orientation = self.get_current_pose(self.tool0_link_index)
         tilt = np.pi / 180 * 8
 
-        camera_tf = self.create_camera_transform(pose, orientation, tilt)
+        camera_tf = self.create_camera_transform(pose, orientation, 0, tilt, [0, 0, 0])
         return camera_tf
 
     def get_condition_number(self) -> float:
