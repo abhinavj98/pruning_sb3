@@ -51,10 +51,11 @@ if __name__ == "__main__":
 
     if set_goal_callback.dataset is None:
         set_goal_callback.make_dataset()
-    # random.shuffle(set_goal_callback.dataset)
+    random.shuffle(set_goal_callback.dataset)
+    # set_goal_callback.dataset = [set_goal_callback.dataset[0]]*100
     num_points_per_env = len(set_goal_callback.dataset)//env.num_envs
     for i in range(env.num_envs):
         dataset = set_goal_callback.dataset[i*num_points_per_env:(i+1)*num_points_per_env]
-        env.env_method("set_dataset", dataset=dataset, indices=i)
+        env.env_method("set_dataset", dataset=dataset, indices=i, dataset_file_path = None)
     results_method = GenerateResults(env, set_goal_callback, planner, save_video = args_baseline['save_video'], shortcutting = args_baseline['shortcutting'])
     results_method.run(args_baseline['results_save_path']) #keep multiples of n_envs

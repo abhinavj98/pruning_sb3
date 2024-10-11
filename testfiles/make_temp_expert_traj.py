@@ -3,26 +3,27 @@
 import h5py
 import numpy as np
 
-expert_trajectory_path = "trajectories.hdf5"
-new_expert_trajectory_path = "trajectories_test.hdf5"
+expert_trajectory_path = "trajectories_test.hdf5"
+new_expert_trajectory_path = "trajectories_test_1.hdf5"
 
 
 new_file = h5py.File(new_expert_trajectory_path, 'w')
 with h5py.File(expert_trajectory_path, 'r') as file:
     dnames = list(file.keys())
-    first_traj = dnames[0]
-    expert_traj = file[first_traj]
-    new_file.create_group(first_traj)
-    for key, value in expert_traj.attrs.items():
-        new_file[first_traj].attrs[key] = value
-    for key, value in expert_traj.items():
-        if isinstance(value, h5py.Dataset):
-            new_file[first_traj].create_dataset(key, data=value[:])
-        elif isinstance(value, h5py.Group):
-            key = first_traj + '/' + key
-            new_file.create_group(key)
-            for k, v in value.items():
-                new_file[key].create_dataset(k, data=v[:])
+    dnames = dnames[1:]
+    for name in dnames:
+        expert_traj = file[name]
+        new_file.create_group(name)
+        for key, value in expert_traj.attrs.items():
+            new_file[name].attrs[key] = value
+        for key, value in expert_traj.items():
+            if isinstance(value, h5py.Dataset):
+                new_file[name].create_dataset(key, data=value[:])
+            elif isinstance(value, h5py.Group):
+                key = name + '/' + key
+                new_file.create_group(key)
+                for k, v in value.items():
+                    new_file[key].create_dataset(k, data=v[:])
 new_file.close()
 
 

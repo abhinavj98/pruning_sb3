@@ -142,3 +142,6 @@ results*/
 *.mp4
 *.py~
 *.hdf5
+*.bat
+tanh_results.txt
+testfiles/combine_hdf5.py
