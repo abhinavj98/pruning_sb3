@@ -244,7 +244,7 @@ class ActorCriticPolicySquashed(BasePolicy):
 
         # Action distribution
         # Replace action distribution with a Squashed
-        self.action_dist = DiagGaussianDistribution(get_action_dim(action_space))  # , self.full_std)
+        self.action_dist = SquashedDiagGaussianDistribution(get_action_dim(action_space))  # , self.full_std)
 
         self._build(lr_schedule)
 
