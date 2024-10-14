@@ -833,7 +833,7 @@ class PruningEnvRRT(PruningEnv):
                  curriculum_distances: Tuple = (0.8,), curriculum_level_steps: Tuple = (),
                  use_ik: bool = True, make_trees: bool = False,
                  ur5_pos=[0, 0, 0], ur5_or=[0, 0, 0, 1], randomize_ur5_pose: bool = False,
-                 randomize_tree_pose: bool = False,
+                 randomize_tree_pose: bool = False, save_optical_flow: bool = False, shared_var: Tuple = None,
                  verbose=1
                  ) -> None:
 
@@ -844,6 +844,21 @@ class PruningEnvRRT(PruningEnv):
                          slack_reward_scale, perpendicular_orientation_reward_scale, pointing_orientation_reward_scale,
                          curriculum_distances, curriculum_level_steps, use_ik, make_trees, ur5_pos, ur5_or,
                          randomize_ur5_pose, randomize_tree_pose, verbose)
+
+        self.save_optical_flow = save_optical_flow
+        if self.save_optical_flow:
+            self.shared_queue = shared_var[0]
+            self.shared_dict = shared_var[1]
+            self.pid = os.getpid()
+
+    def get_optical_flow(self, rgb, prev_rgb):
+        self.shared_queue.put((rgb, prev_rgb, self.pid, self.name))
+        while not self.pid in self.shared_dict.keys():
+            # print("Waiting for optical flow", self.name, self.pid, self.shared_queue)
+            pass
+        optical_flow = self.shared_dict[self.pid]
+        del self.shared_dict[self.pid]
+        return optical_flow
 
     def generate_goal_pos(self):
         # self.pyb.remove_debug_items("step")
@@ -1405,10 +1420,7 @@ class PruningEnvRRT(PruningEnv):
         actions = []
 
         obs, _ = self.reset()
-        obs = copy.deepcopy(obs)
-        # Change rgb, prev_rgb, to CHW from HWC. SB3 does this when wrapping env
-        obs['rgb'] = obs['rgb'].transpose(2, 0, 1)
-        obs['prev_rgb'] = obs['prev_rgb'].transpose(2, 0, 1)
+
         count_in_frame = 0
         for i, vel in enumerate(ee_vel):
             if np.isclose(vel, np.zeros(6), atol=0.001).all():
@@ -1417,10 +1429,6 @@ class PruningEnvRRT(PruningEnv):
             scaled_vel = vel / self.action_scale  # Value passed by name, will get unscaled after step
             action = copy.deepcopy(scaled_vel)
             new_obs, reward, terminated, truncated, _ = self.step(scaled_vel)
-            # Change rgb, prev_rgb, to CHW from HWC. SB3 does this somewhere automatically, find if time
-            new_obs = copy.deepcopy(new_obs)
-            new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
-            new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
             new_observations.append(new_obs)
             observations.append(obs)
             rewards.append(reward)
@@ -1460,11 +1468,6 @@ class PruningEnvRRT(PruningEnv):
                 action = copy.deepcopy(ee_vel_local)
                 new_obs, reward, terminated, truncated, info = self.step(copy.deepcopy(ee_vel_local)) #Deepcopy as np array and scaling changes
                 actions.append(action)
-                new_obs = copy.deepcopy(new_obs)
-                # Change rgb, prev_rgb, to CHW from HWC. SB3 does this automatically using VecEnvWrapper
-
-                new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
-                new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
 
                 new_observations.append(new_obs)
                 observations.append(obs)
@@ -1476,13 +1479,48 @@ class PruningEnvRRT(PruningEnv):
                 if terminated:
                     dones.append(True)
                     break
-                if j == int(2 * int(scale) / self.action_scale) - 1:
-                    dones.append(True)
+                elif info['collision_unacceptable_reward'] < 0 or info[
+                    'collision_acceptable_reward'] < 0:
+                    dones.append(False)
+                    break
+                elif j == int(2 * int(scale) / self.action_scale) - 1: #Last step
+                    dones.append(False)
+                    break
                 else:
                     dones.append(terminated)
 
                 obs = new_obs
         return observations, new_observations, rewards, dones, actions, count_in_frame
+
+    def step(self, action):
+        new_obs, reward, terminated, truncated, info = super().step(action)
+        new_obs = copy.deepcopy(new_obs) #Deep copy as obs is a reference and changing that will change things in step
+
+        # Change rgb, prev_rgb, to CHW from HWC. SB3 does this when wrapping env
+
+        new_obs['rgb'] = new_obs['rgb'].transpose(2, 0, 1)
+        new_obs['prev_rgb'] = new_obs['prev_rgb'].transpose(2, 0, 1)
+        if self.save_optical_flow:
+            optical_flow = self.get_optical_flow(new_obs['rgb'], new_obs['prev_rgb'])
+            new_obs['optical_flow'] = optical_flow
+            del new_obs['rgb']
+            del new_obs['prev_rgb']
+        return new_obs, reward, terminated, truncated, info
+
+    def reset(self, seed=None):
+        obs, info = super().reset(seed)
+        obs = copy.deepcopy(obs)  # Deep copy as obs is a reference and changing that will change things in step
+
+        # Change rgb, prev_rgb, to CHW from HWC. SB3 does this when wrapping env
+
+        obs['rgb'] = obs['rgb'].transpose(2, 0, 1)
+        obs['prev_rgb'] = obs['prev_rgb'].transpose(2, 0, 1)
+        if self.save_optical_flow:
+            optical_flow = self.get_optical_flow(obs['rgb'], obs['prev_rgb'])
+            obs['optical_flow'] = optical_flow
+            del obs['rgb']
+            del obs['prev_rgb']
+        return obs, info
 
     def run_smoothing(self, save_video=False, save_path=None):
         controllable_joints = [3, 4, 5, 6, 7, 8]
@@ -1517,7 +1555,7 @@ class PruningEnvRRT(PruningEnv):
                                                          controllable_joints, task_threshold=0.05)
 
             #Convert joint angle steps to end-effector velocity
-            ee_vel = self.convert_ja_to_ee_vel(refined_path, control_freq=int(1. / self.control_time))
+            ee_vel = self.convert_ja_to_ee_vel(refined_path, control_freq=int(1. / self.control_time), max_ee_vel=0.7)
 
             if save_video:
                 self.baseline_save_video(refined_path, 'refined_path', tree_info_dict['point_pos'])

@@ -87,6 +87,7 @@ if __name__ == "__main__":
                                          args_policy['use_ppo_offline'],
                                          args_policy['use_online_bc'],
                                          args_policy['use_awac'],
+                                         policy_kwargs['algo_size'],
                                          policy, env, policy_kwargs=policy_kwargs,
                                          learning_rate=linear_schedule(args_policy['learning_rate']),
                                          learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),

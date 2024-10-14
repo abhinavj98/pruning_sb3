@@ -31,7 +31,7 @@ if __name__ == "__main__":
     load_timestep = args_global['load_timestep']
 
     env = PruningEnv(**args_record)
-    expert_trajectory_path = "trajectories_test.hdf5"
+    expert_trajectory_path = "test_trajectories.hdf5"
     with h5py.File(expert_trajectory_path, 'r') as file:
         traj_names = list(file.keys())
     #Loop through the all the datasets in the hdf5 file
@@ -57,6 +57,7 @@ if __name__ == "__main__":
             actions = actions[:]
             observations = expert_traj['observations']
             for key, value in observations.items():
+                print("Key: ", key)
                 observation_dict[key] = value[:]
 
             # next_observations = expert_traj['next_observations']
@@ -74,13 +75,14 @@ if __name__ == "__main__":
         for i in range(len(actions)):
             action = actions[i]
             print("Action: ", action)
-            observation_dict = {}
+            # observation_dict = {}
 
             # env.set_observation(observation)
             # env.set_action(action)
             obs, rew, term, trunc, _ = env.step(action)
             print("env", rew, term)
             print("file", rewards[i], dones[i])
+            print("Observation: ", observation_dict['optical_flow'][i].shape)
 
     # Get dataset names
      #shuffle the expert trajectories

@@ -771,7 +771,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         return actions, values, log_prob, RNNStates(lstm_states_pi, lstm_states_vf)
 
     def forward_expert(self, obs, lstm_states, episode_starts, action):
-        features, _, _ = self.extract_features(obs) #TODO: Cache Optical Flow
+        features, _, _ = self.extract_features(obs, is_expert=True)
 
         if self.share_features_extractor:
             pi_features = vf_features = features  # alis
@@ -807,7 +807,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
 
         return depth_proxy
 
-    def extract_features(self, obs: th.Tensor):  # -> tuple[th.Tensor, th.Tensor]:
+    def extract_features(self, obs: th.Tensor, is_expert:bool = False):  # -> tuple[th.Tensor, th.Tensor]:
         """
         Preprocess the observation if needed and extract features.
 
@@ -815,89 +815,27 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         :return:
         """
         assert self.features_extractor is not None, "No features extractor was set"
-        # preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
-        # Add running mean and var
-        # TODO: compute depth proxy here
-        # from PIL import Image
-        # import numpy as np
-        # import time
-        # #resize obs['rgb']
-        # rgb = F.resize(obs['rgb'], size = (512, 512))
-        # depth_proxy_resize = F.resize(depth_proxy, size = (512, 512))
-        # optical_flow_x = depth_proxy_resize[:, 0, :, :]
-        # optical_flow_y = depth_proxy_resize[:, 1, :, :]
-        # #comvert to rgb
-        # # optical_flow_x = (optical_flow_x - optical_flow_x.min()) / (optical_flow_x.max() - optical_flow_x.min())
-        # # optical_flow_y = (optical_flow_y - optical_flow_y.min()) / (optical_flow_y.max() - optical_flow_y.min())
-        # # optical_flow_x = (optical_flow_x * 255)#.cpu().detach().numpy()
-        # # optical_flow_y = (optical_flow_y * 255)#.cpu().detach().numpy()
-        # # optical_flow_x = optical_flow_x.astype(np.uint8)
-        # # optical_flow_y = optical_flow_y.astype(np.uint8)
-        # #Make 3 channel
-        # # optical_flow_x = th.stack((optical_flow_x, optical_flow_x, optical_flow_x), axis = 1)
-        # # optical_flow_y = th.stack((optical_flow_y, optical_flow_y, optical_flow_y), axis = 1)
-        # from torchvision.utils import flow_to_image
-        # from PIL import Image
-        # import time
-        # flow = th.cat((optical_flow_x, optical_flow_y), dim = 0)
-        #
-        # flow_imgs = flow_to_image(flow).unsqueeze(0)
-        # # print(optical_flow_y.shape, optical_flow_x.shape)
-        # # optical_flow_x = Image.fromarray(optical_flow_x)
-        # # optical_flow_y = Image.fromarray(optical_flow_y)
-        # # print(rgb.shape, optical_flow_x.shape, optical_flow_y.shape)
-        # save_img = th.cat((rgb, flow_imgs), dim = 3)
-        # # print(save_img.shape)
-        # #Save image
-        # save_img = save_img[0].permute(1, 2, 0).cpu().detach().numpy()
-        # # save_img = (save_img - save_img.min()) / (save_img.max() - save_img.min())
-        # save_img = (save_img * 255).astype(np.uint8)
-        # save_img = Image.fromarray(save_img)
-        # save_img.save('sim_of/save_img_{}.png'.format(time.time()))
-        # #concatenate rgb and depth_proxy
-        # resize depth_proxy to 224x224
+        if is_expert: #Using cached optical flow
+            depth_proxy = th.cat((obs['optical_flow'], obs['point_mask']), dim=1).to(self.device)
+        else:
+            depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
 
-        depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
-
-        # depth_proxy = F.resize(depth_proxy, size=[224, 224], antialias=True)
-        # if self.training:
-        #     self.running_mean_var_oflow_x.update(depth_proxy[:, 0, :, :].reshape(depth_proxy.shape[0], -1))
-        #     self.running_mean_var_oflow_y.update(depth_proxy[:, 1, :, :].reshape(depth_proxy.shape[0], -1))
-        # image_features = self.features_extractor(
-        #     self._normalize_using_running_mean_std(depth_proxy, (self.running_mean_var_oflow_x,
-        #                                                          self.running_mean_var_oflow_y)))
         image_features = self.features_extractor(depth_proxy)
         features_actor = th.cat([obs[i] for i in obs.keys() if 'critic' not in i and 'rgb' not in i
-                                 and 'prev_rgb' not in i and 'point_mask' not in i], dim=1).to(th.float32)
+                                 and 'prev_rgb' not in i and 'point_mask' not in i and 'optical_flow' not in i], dim=1).to(th.float32)
         features_actor = th.cat([features_actor, image_features[0]], dim=1).to(th.float32)
-        # features_actor = th.cat(
-        #     [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
-        #      image_features[0], obs['relative_distance']], dim=1).to(th.float32)
 
         features = features_actor
 
         if self.share_features_extractor is False:
             features_critic = th.cat([obs[i] for i in obs.keys() if 'rgb' not in i
-                                      and 'prev_rgb' not in i and 'point_mask' not in i],
+                                      and 'prev_rgb' not in i and 'point_mask' not in i and 'optical_flow' not in i],
                                      dim=1).to(th.float32)
             features_critic = th.cat([features_critic, image_features[0]], dim=1).to(th.float32)
-            # features_critic = th.cat(
-            #     [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action'],
-            #         image_features[0],  obs['relative_distance'], obs['critic_pointing_cosine_sim'],
-            #         obs['critic_perpendicular_cosine_sim']], dim=1).to(th.float32)
             features = (features_actor, features_critic)
 
-        # return actor features and critic features
-        # unnormalize in place
-        # unnormalize_recon = self._unnormalize_using_running_mean_std(image_features[1], (self.running_mean_var_oflow_x,
-        #                                                                                  self.running_mean_var_oflow_y))
         return features, depth_proxy, image_features[1]
 
-    # def make_state_from_obs(self, obs):
-    #     depth_features = self.extract_features(obs['depth_proxy'])
-    #     #TODO: Normalize inputs
-    #     robot_features = th.cat([obs['achieved_goal'], obs['desired_goal'], obs['joint_angles'], obs['prev_action']],  dim = 1)
-    #     return depth_features, robot_features
 
     def get_distribution(
             self,
@@ -914,7 +852,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             or not (we reset the lstm states in that case).
         :return: the action distribution and new hidden states.
         """
-        # Call the method from the parent of the parent class WHYYYY
+
         features, _, _ = self.extract_features(obs)
         if self.features_dim_critic_add is not None:
             actor_features = features[0]
@@ -927,8 +865,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
     def predict_values(self,
                        obs: th.Tensor,
                        lstm_states: Tuple[th.Tensor, th.Tensor],
-                       episode_starts: th.Tensor,
-                       ) -> th.Tensor:
+                       episode_starts: th.Tensor, is_expert: bool = False) -> th.Tensor:
         """
         Get the estimated values according to the current policy given the observations.
 
@@ -939,7 +876,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         :return: the estimated values.
         """
         # Call the method from the parent of the parent class
-        features, _, _ = self.extract_features(obs)  # , self.vf_features_extractor)
+        features, _, _ = self.extract_features(obs, is_expert)  # , self.vf_features_extractor)
 
         if self.lstm_critic is not None:
             if self.features_dim_critic_add is not None:
@@ -959,7 +896,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         return self.value_net(latent_vf)
 
     def evaluate_actions(
-            self, obs: th.Tensor, actions: th.Tensor, lstm_states: RNNStates, episode_starts: th.Tensor
+            self, obs: th.Tensor, actions: th.Tensor, lstm_states: RNNStates, episode_starts: th.Tensor, is_expert: bool = False
     ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
         """
         Evaluate actions according to the current policy,
@@ -976,7 +913,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         # Calculate running mean and var for observation normalization
 
         # Preprocess the observation if needed
-        features, depth_proxy, depth_proxy_recon = self.extract_features(obs)
+        features, depth_proxy, depth_proxy_recon = self.extract_features(obs, is_expert)
         #Check if any nan values
         # for i, feat in enumerate(features):
         #     assert not th.isnan(feat).any(), "Nan values in features "+str(i) + " " + str(feat)

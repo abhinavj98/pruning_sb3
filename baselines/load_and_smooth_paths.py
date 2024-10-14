@@ -11,7 +11,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 from pruning_sb3.args.args import \
     args
-from pruning_sb3.pruning_gym.helpers import set_args, organize_args, make_or_bins, convert_string
+from pruning_sb3.pruning_gym.helpers import set_args, organize_args, make_or_bins, convert_string, optical_flow_create_shared_vars
 import argparse
 import pandas as pd
 import h5py
@@ -44,7 +44,9 @@ if __name__ == "__main__":
 
     or_bins = make_or_bins(args_train, "train")
     file_path = args_baseline['load_file_path']+'.hdf5'
-    env = make_vec_env(PruningEnvRRT, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
+    args_train['save_optical_flow'] = True
+    args_train['shared_var'] = optical_flow_create_shared_vars(args_global['n_envs'], (args_env['algo_height'], args_env['algo_width']))
+    env = make_vec_env(PruningEnvRRT, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
 
     # paths_df = pd.read_csv(path_file)
     # paths_success = paths_df[paths_df['is_success'] == True]
@@ -64,3 +66,6 @@ if __name__ == "__main__":
     if not os.path.exists('expert_trajectories'):
         os.makedirs('expert_trajectories')
     env.env_method("run_smoothing", save_video = args_baseline['save_video'], save_path = args_baseline['save_file_path'],)
+    #Kill the processes
+    env.close()
+    print("Done!")

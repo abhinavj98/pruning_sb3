@@ -689,7 +689,7 @@ class TrajectoryIterableDataset(IterableDataset):
 class RecurrentPPOAEWithExpert(RecurrentPPOAE):
     """Allows use of data collected offline along with online data for training. The offline data is stored in a folder as pkl files."""
 
-    def __init__(self, path_trajectories, use_online_data, use_offline_data, use_ppo_offline, use_online_bc, use_awac,
+    def __init__(self, path_trajectories, use_online_data, use_offline_data, use_ppo_offline, use_online_bc, use_awac, algo_size,
                  *args, **kwargs):
         if "_init_setup_model" in kwargs:
             super().__init__(*args, **kwargs)
@@ -701,11 +701,20 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         self.use_ppo_offline = use_ppo_offline  # Use both online and offline data
         self.use_online_bc = use_online_bc  # Use online data for behavior cloning
         self.use_awac = use_awac
+        self.algo_size = algo_size
         self.collect_online_data = self.use_online_data or self.use_ppo_offline or self.use_online_bc or self.use_awac
         self.collect_offline_data = self.use_offline_data or self.use_ppo_offline or self.use_awac or self.use_online_bc
 
         self.path_trajectories = path_trajectories
+        cached_optical_flow = True
+        self.observation_space_expert = deepcopy(self.observation_space)
 
+        if cached_optical_flow:
+            del self.observation_space_expert.spaces['rgb']
+            del self.observation_space_expert.spaces['prev_rgb']
+            self.observation_space_expert.spaces['optical_flow'] = spaces.Box(low=-100, high=+100, shape=(2, self.algo_size[0], self.algo_size[1]), dtype=np.float32)
+        self._last_obs_expert = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
+        self._last_episode_starts_expert = None  # type: Optional[np.ndarray]
         # This is for loading purpose when model is not init but saved data is copied.
         _init_setup_model = kwargs.get("_init_setup_model", True)
         if _init_setup_model:
@@ -720,10 +729,21 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                                                               spaces.Dict) else RecurrentRolloutBuffer
         lstm = self.policy.lstm_actor
         hidden_state_buffer_shape = (self.n_steps, lstm.num_layers, self.num_expert_envs, lstm.hidden_size)
-
+        single_hidden_state_shape = (lstm.num_layers, self.n_envs, lstm.hidden_size)
+        # hidden and cell states for actor and critic
+        self._last_lstm_states_expert = RNNStates(
+            (
+                th.zeros(single_hidden_state_shape, device=self.device),
+                th.zeros(single_hidden_state_shape, device=self.device),
+            ),
+            (
+                th.zeros(single_hidden_state_shape, device=self.device),
+                th.zeros(single_hidden_state_shape, device=self.device),
+            ),
+        )
         self.expert_buffer = buffer_cls(
             self.n_steps,
-            self.observation_space,
+            self.observation_space_expert,
             self.action_space,
             hidden_state_buffer_shape,
             self.device,
@@ -784,9 +804,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         expert_buffer.reset()
         # callback.update_locals(locals())
         # callback.on_rollout_start()
-
+        lstm_states = deepcopy(self._last_lstm_states_expert)
         # Sample expert episode
-        self._last_episode_starts = np.ones((self.num_expert_envs,), dtype=bool)
+        self._last_episode_starts_expert = np.ones((self.num_expert_envs,), dtype=bool)
         while n_steps < n_rollout_steps:
             batches = []
             for _ in range(self.num_expert_envs):
@@ -804,7 +824,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             batch = self.np_collate_fn(batches, self.num_expert_envs)
 
 
-            last_obs = self._flatten_obs(batch['observation'], self.observation_space)
+            last_obs = self._flatten_obs(batch['observation'], self.observation_space_expert)
             rewards = batch['reward']
             dones = batch['done']
             actions = batch['action']
@@ -813,38 +833,38 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             # self.num_timesteps += self.num_expert_envs
             n_steps += 1
 
-            self._last_obs = last_obs
+            self._last_obs_expert = last_obs
             with th.no_grad():
                 # Convert to pytorch tensor or to TensorDict
-                obs_tensor = obs_as_tensor(self._last_obs, self.device)
+                obs_tensor = obs_as_tensor(self._last_obs_expert, self.device)
                 actions = obs_as_tensor(actions, self.device)
-                episode_starts = th.tensor(self._last_episode_starts, dtype=th.float32, device=self.device)
-                actions, values, log_probs, lstm_states = self.policy.forward_expert(obs_tensor, self._last_lstm_states,
+                episode_starts = th.tensor(self._last_episode_starts_expert, dtype=th.float32, device=self.device)
+                actions, values, log_probs, lstm_states = self.policy.forward_expert(obs_tensor, lstm_states,
                                                                                      episode_starts, actions)
 
             actions = actions.cpu().numpy()
 
             expert_buffer.add(
-                self._last_obs,
+                self._last_obs_expert,
                 actions,
                 rewards,
-                self._last_episode_starts,
+                self._last_episode_starts_expert,
                 values,
                 log_probs,
-                lstm_states=self._last_lstm_states,
+                lstm_states=self._last_lstm_states_expert,
             )
 
-            self._last_episode_starts = dones
-            self._last_lstm_states = lstm_states  # These get reset in forward_expert (process_sequence)
+            self._last_episode_starts_expert = dones
+            self._last_lstm_states_expert = lstm_states  # These get reset in forward_expert (process_sequence)
 
         next_obs = self._flatten_obs(batch['next_observation'],
-                                     self.observation_space)  # Get the next observation to calculate the values
+                                     self.observation_space_expert)  # Get the next observation to calculate the values
         # Dont increment expert_batch_idx
         with th.no_grad():
             # Compute value for the last timestep
             episode_starts = th.tensor(dones, dtype=th.float32, device=self.device)
             values = self.policy.predict_values(obs_as_tensor(next_obs, self.device), lstm_states.vf,
-                                                episode_starts)  # pylint: disable=unexpected-keyword-arg
+                                                episode_starts, is_expert = True)  # pylint: disable=unexpected-keyword-arg
         expert_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
 
         if self.verbose > 0:
@@ -1010,8 +1030,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             batch_offline.episode_starts,
             batch_offline.actions
         )
-        min_log_prob = -5
-        log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
+        # min_log_prob = -5
+        # log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
         bc_loss = -th.mean(log_prob_offline)
         # Calculate approximate form of reverse KL Divergence for early stopping
         # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -1285,8 +1305,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # ratio between old and new online policy, should be one at the first iteration
         ratio_current_old = th.exp(log_prob - batch.old_log_prob)
-        ratio_current_expert = th.exp(log_prob - 30)  # Expert probability is 1, so log prob is 0
-        ratio_old_expert = th.exp(batch.old_log_prob - 30)  # Expert probability is 1, so log prob is 0
+        ratio_current_expert = th.exp(log_prob - 0)  # Expert probability is 1, so log prob is 0
+        ratio_old_expert = th.exp(batch.old_log_prob - 0)  # Expert probability is 1, so log prob is 0
 
         # print("ratio_current_old", ratio_current_old, "log_prob", log_prob, "old_log_prob", rollout_data.old_log_prob)
         # print("ratio_current_expert", ratio_current_expert)
@@ -1566,7 +1586,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             #Do inverse tanh to get the actual action
             actions = actions.flatten()
             actions = np.arctanh(actions)
-            self.logger.record("percent_saturation", np.mean(np.abs(actions) > 3))
+            self.logger.record("train_online/percent_saturation", np.mean(np.abs(actions) > 3))
             self.logger.record("train_online/action_mean", np.mean(actions))
             self.logger.record("train_online/min_action", np.min(actions))
             self.logger.record("train_online/max_action", np.max(actions))
@@ -1595,11 +1615,11 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             actions = self.expert_buffer.actions
             actions = actions.flatten()
             actions = np.arctanh(actions)
-
+            self.logger.record("train_offline/percent_saturation", np.mean(np.abs(actions) > 3))
             self.logger.record("train_offline/action_mean", np.mean(actions))
             self.logger.record("train_offline/min_action", np.min(actions))
             self.logger.record("train_offline/max_action", np.max(actions))
-            #percetage of actions greateer than +-3
+            #percetage of actions greater than +-3
             self.logger.record("percent_saturation", np.mean(np.abs(actions) > 3))
             self.logger.record("train_offline/ae_loss", np.mean(ae_losses_offline))
             self.logger.record("train_offline/entropy_loss", np.mean(entropy_losses_offline))
@@ -1622,7 +1642,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             if hasattr(self.policy, "log_std"):
                 self.logger.record("train_offline/std", th.exp(self.policy.log_std).mean().item())
         self.logger.record("train/gradient", np.mean(gradient))
+        self.logger.record("train/gradient_max", np.max(gradient))
         return continue_training
+
 
     def train(self) -> None:
         """

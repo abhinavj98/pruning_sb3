@@ -32,21 +32,19 @@ class OpticalFlow:
             previous_rgb_array = []
             pid_list = []
 
-            while len(pid_list) < self.num_envs:
+            # while len(pid_list) < self.num_envs:
                 # make an array of all the elements in the queue
-                rgb, previous_rgb, pid, name = self.shared_queue.get()
-                rgb_array.append(rgb)
-                previous_rgb_array.append(previous_rgb)
-                pid_list.append(pid)
-                # print(name)
-                # Different queues for record/eval/test
-                if "test" in name or "eval" in name or "record" in name:
-                    break
-                # print("of len", len(pid_list))
-            optical_flow = self.calculate_optical_flow(rgb_array, previous_rgb_array)
-
-            for i, pid in enumerate(pid_list):
-                self.shared_dict[pid] = optical_flow[i]
+                # rgb, previous_rgb, pid, name = self.shared_queue.get()
+                # rgb_array.append(rgb)
+                # previous_rgb_array.append(previous_rgb)
+                # pid_list.append(pid)
+            rgb, previous_rgb, pid, name = self.shared_queue.get()
+            rgb = th.tensor(rgb)
+            previous_rgb = th.tensor(previous_rgb)
+            # optical_flow = self.calculate_optical_flow(rgb_array, previous_rgb_array)
+            optical_flow = self.calculate_optical_flow(rgb, previous_rgb)
+            # print(optical_flow.shape)
+            self.shared_dict[pid] = optical_flow.cpu().numpy()[0]
 
     def _preprocess(self, img1, img2):
         img1 = F.resize(img1, size=self.size, antialias=False)

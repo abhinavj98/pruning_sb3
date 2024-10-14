@@ -84,7 +84,7 @@ def set_seed(seed: int = 42) -> None:
     print(f"Random seed set as {seed}")
 
 
-def optical_flow_create_shared_vars(num_envs: int = 1):
+def optical_flow_create_shared_vars(num_envs: int = 1, algo_size=(224, 224)):
     manager = mp.Manager()
 
     # queue = multiprocessing.Queue()
@@ -96,7 +96,7 @@ def optical_flow_create_shared_vars(num_envs: int = 1):
     else:
         ctx = mp.get_context("spawn")
     # replace shared dict and queue with pipe?
-    process = ctx.Process(target=OpticalFlow, args=((224, 224), True, shared_var, num_envs),
+    process = ctx.Process(target=OpticalFlow, args=(algo_size, True, shared_var, num_envs),
                           daemon=True)  # type: ignore[attr-defined]
     # pytype: enable=attribute-error
     process.start()
