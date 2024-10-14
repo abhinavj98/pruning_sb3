@@ -57,8 +57,8 @@ class UR5:
         self.setup_ur5_arm()
     def setup_ur5_arm(self) -> None:
         if self.ur5_robot is not None:
-            self.con.removeBody(self.ur5_robot)
-            del self.ur5_robot
+            self.con.removeBody(self.ur5_robot) #This trigger "Failed to remove body" warning
+            self.ur5_robot = None
         self.tool0_link_index = 8
         self.end_effector_index = 13
         self.success_link_index = 14
@@ -122,8 +122,7 @@ class UR5:
         self.set_collision_filter()
 
     def reset_ur5_arm(self) -> None:
-        if self.ur5_robot is None:
-            return
+        assert self.ur5_robot is not None
 
         for i, name in enumerate(self.control_joints):
             joint_id = self.joints[name].id

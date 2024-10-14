@@ -9,7 +9,7 @@ from pybullet_utils import bullet_client as bc
 
 
 class pyb_utils:
-    def __init__(self, env, renders: bool = False, cam_height: int = 224, cam_width: int = 224) -> None:
+    def __init__(self, env, renders: bool = False, cam_height: int = 224, cam_width: int = 224, verbose = 0) -> None:
         self.viz_view_matrix = None
         self.viz_proj_matrix = None
         self.renders = renders
@@ -19,6 +19,7 @@ class pyb_utils:
         self.far_val = 100
         self.env = env
         self.step_time = 1 / 4
+        self.verbose = verbose
 
         self.con = None
         # Debug parameters
@@ -79,6 +80,8 @@ class pyb_utils:
         self.back_wall_id = self.create_wall_with_texture([0.01, 5, 5], [0, 2, 5], [np.pi / 2, 0, np.pi / 2],
                                                           self.wall_texture)
     def remove_debug_items(self, where) -> None:
+        if self.verbose > 1:
+            print("DEBUG: Removing debug items")
         if where == 'step':
             for item in self.debug_items_step:
                 self.con.removeUserDebugItem(item)
@@ -105,6 +108,7 @@ class pyb_utils:
         sphereUid = self.con.createMultiBody(0.0, colSphereId, visualShapeId,
                                              pos, [0, 0, 0, 1])
         return sphereUid
+    #
 
     def get_image_at_curr_pose(self, type, view_matrix=None) -> List:
         """Take the current pose of the end effector and set the camera to that pose"""

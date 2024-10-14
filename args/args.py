@@ -294,7 +294,7 @@ args = {
         },
         'log_std_init': {
             'type': float,
-            'default': -0.9,  # -3.5,
+            'default': -1.5,  # -3.5,
             'help': 'initial value for the log standard deviation'
         },
         'ae_coeff': {

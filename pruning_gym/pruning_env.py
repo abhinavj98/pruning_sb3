@@ -140,7 +140,7 @@ class PruningEnv(gym.Env):
                              perpendicular_orientation_reward_scale, terminate_reward_scale, collision_reward_scale,
                              slack_reward_scale, condition_reward_scale)
 
-        self.pyb = pyb_utils(self, renders=renders, cam_height=cam_height, cam_width=cam_width)
+        self.pyb = pyb_utils(self, renders=renders, cam_height=cam_height, cam_width=cam_width, verbose=verbose)
 
         self.observation_space = spaces.Dict({
             # rgb is hwc but pytorch is chw
@@ -294,7 +294,7 @@ class PruningEnv(gym.Env):
         self.is_goal_state = False
         self.collisions_acceptable = 0
         self.collisions_unacceptable = 0
-        self.ur5_robot = None
+        # self.ur5_robot = None
 
     def set_curriculum_level(self, episode_counter, curriculum_level_steps):
         """Set curriculum level"""
@@ -317,7 +317,8 @@ class PruningEnv(gym.Env):
         """Environment reset function"""
         super().reset(seed=seed)
         self.pyb.con.resetSimulation()
-        self.ur5_robot = None
+        # Due to reset simulation, everything is deleted
+        self.ur5.ur5_robot = None
         self.tree_id = None
         self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None,
                                      'SUPPORT': None, }
@@ -344,7 +345,7 @@ class PruningEnv(gym.Env):
 
         # Create new ur5 arm body
         self.pyb.create_background()
-        self.ur5.setup_ur5_arm()  # Remember to remove previous body! Line 215
+        self.ur5.setup_ur5_arm()
         # self.ur5.reset_ur5_arm()
         # Sample new point
         # Jitter the camera pose
@@ -1434,7 +1435,7 @@ class PruningEnvRRT(PruningEnv):
         return observations, new_observations, rewards, dones, actions, obs, count_in_frame
 
     def append_transition_using_cartesian_planner(self, last_obs, tree_info_dict, observations, new_observations,
-                                                  rewards, dones, actions, count_in_frame):
+                                                  rewards, dones, actions, count_in_frame, max_ee_vel=0.7):
         obs = last_obs
         pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
         ee_vel_global = np.zeros(6)
@@ -1444,8 +1445,8 @@ class PruningEnvRRT(PruningEnv):
 
         ee_vel_local = self.convert_global_action_to_local(scaled_vel_global)
         scale = 1  # np.max(np.abs(ee_vel_local))
-        if (ee_vel_local > 1).any() or (ee_vel_local < -1).any():
-            scale = np.max(np.abs(ee_vel_local))
+        if (ee_vel_local > max_ee_vel).any() or (ee_vel_local < -max_ee_vel).any():
+            scale = np.max(np.abs(ee_vel_local))/max_ee_vel
             ee_vel_local = ee_vel_local / (scale + 1e-4)
 
         # We run the simulation for self.pyb.step_time seconds
@@ -1470,10 +1471,9 @@ class PruningEnvRRT(PruningEnv):
                 rewards.append(reward)
                 if (self.observation['point_mask'] > 0).any():
                     count_in_frame += 1
-                # if last step, done is true
 
-                if terminated or info['collision_unacceptable_reward'] < 0 or info[
-                    'collision_acceptable_reward'] < 0:
+                #Run cartesian planner until we reach the goal or we hit something
+                if terminated:
                     dones.append(True)
                     break
                 if j == int(2 * int(scale) / self.action_scale) - 1:
@@ -1526,6 +1526,8 @@ class PruningEnvRRT(PruningEnv):
             observations, new_observations, rewards, dones, actions, last_obs, count_in_frame = \
                 self.get_transitions_from_ee_vel(ee_vel)
 
+            termination_planner = dones[-1]
+
             # Once we are done with the planner trajectory, we run a cartesian planner to get to the cut poitn
             observations, new_observations, rewards, dones, actions, count_in_frame = \
                 self.append_transition_using_cartesian_planner(last_obs, tree_info_dict, observations,\
@@ -1541,6 +1543,7 @@ class PruningEnvRRT(PruningEnv):
             rewards = rewards[:self.maxSteps]
             dones = dones[:self.maxSteps]
             actions = actions[:self.maxSteps]
+            #Set last step as end of episode
             dones[-1] = True
 
 
@@ -1625,7 +1628,7 @@ class PruningEnvRRT(PruningEnv):
         pos2, or2 = self.ur5.get_current_pose(self.ur5.end_effector_index)
         return np.linalg.norm(np.array(pos1) - np.array(pos2))
 
-    def convert_ja_to_ee_vel(self, path, control_freq=2):
+    def convert_ja_to_ee_vel(self, path, control_freq=2, max_ee_vel=0.7):
         ee_vel = []
         for i in range(len(path) - 1):
             joint_velocities = (np.array(path[i + 1]) - np.array(path[i])) * control_freq
@@ -1635,8 +1638,8 @@ class PruningEnvRRT(PruningEnv):
             global_ee_vel = np.matmul(jacobian, joint_velocities)
             local_ee_vel = self.convert_global_action_to_local(global_ee_vel)
             # if any term in local_ee_vel > 1 or < -1, break the step into smaller steps
-            if np.any(local_ee_vel > 1 * self.action_scale) or np.any(local_ee_vel < -1 * self.action_scale):
-                num_steps = int(np.ceil(np.max(np.abs(local_ee_vel / (1 * self.action_scale)))))
+            if np.any(local_ee_vel > max_ee_vel * self.action_scale) or np.any(local_ee_vel < -max_ee_vel * self.action_scale):
+                num_steps = int(np.ceil(np.max(np.abs(local_ee_vel / (max_ee_vel * self.action_scale)))))
                 for j in range(num_steps):
                     ee_vel.append(local_ee_vel / num_steps)
             else:
