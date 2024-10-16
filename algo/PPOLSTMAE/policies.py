@@ -312,8 +312,7 @@ class ActorCriticPolicySquashed(BasePolicy):
             latent_dim=latent_dim_pi, log_std_init=self.log_std_init
         )
 
-        # multiply action net weight by 10
-        # self.action_net.weight.data *= 10
+
         # if isinstance(self.action_dist, DiagGaussianDistribution):
         #     self.action_net, self.log_std = self.action_dist.proba_distribution_net(
         #         latent_dim=latent_dim_pi, log_std_init=self.log_std_init
@@ -821,14 +820,16 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
 
         image_features = self.features_extractor(depth_proxy)
-        features_actor = th.cat([obs[i] for i in obs.keys() if 'critic' not in i and 'rgb' not in i
+        #Sort keys in alphabetical order to maintain consistency and remove dependency on insertion order
+        obs_keys = sorted(obs.keys())
+        features_actor = th.cat([obs[i] for i in obs_keys if 'critic' not in i and 'rgb' not in i
                                  and 'prev_rgb' not in i and 'point_mask' not in i and 'optical_flow' not in i], dim=1).to(th.float32)
         features_actor = th.cat([features_actor, image_features[0]], dim=1).to(th.float32)
 
         features = features_actor
 
         if self.share_features_extractor is False:
-            features_critic = th.cat([obs[i] for i in obs.keys() if 'rgb' not in i
+            features_critic = th.cat([obs[i] for i in obs_keys if 'rgb' not in i
                                       and 'prev_rgb' not in i and 'point_mask' not in i and 'optical_flow' not in i],
                                      dim=1).to(th.float32)
             features_critic = th.cat([features_critic, image_features[0]], dim=1).to(th.float32)

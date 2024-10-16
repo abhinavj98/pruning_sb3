@@ -54,9 +54,11 @@ def test_policy_instance(dummy_obs_space, dummy_action_space):
     assert RecurrentActorCriticPolicy(dummy_obs_space, dummy_action_space, lambda x: 0.01, lr_schedule_ae=None,
                                       lr_schedule_logstd=lambda x: 0.1)
 
+#test forwar
+
 
 def test_extract_features(dummy_obs_space, dummy_action_space):
-    fa_kwargs = {'features_dim': 18 + 72, 'in_channels': 3}
+    fa_kwargs = {'features_dim': 128 + 33, 'in_channels': 3}
     policy = RecurrentActorCriticPolicy(dummy_obs_space, dummy_action_space, \
                                         lambda x: 0.01, lr_schedule_ae=None, lr_schedule_logstd=lambda x: 0.1,
                                         features_extractor_class=AutoEncoder, features_extractor_kwargs=fa_kwargs).to(
@@ -64,21 +66,26 @@ def test_extract_features(dummy_obs_space, dummy_action_space):
     obs = {'desired_goal': np.array([1, 2, 3]).reshape(1, -1),
            'achieved_goal': np.array([1, 2, 3]).reshape(1, -1),
            'achieved_or': np.array([1, 2, 3, 4, 5, 6]).reshape(1, -1),
-           'joint_angles': np.array([1, 2, 3, 4, 5, 6]).reshape(1, -1),
+           'joint_angles': np.array([1, 2, 3, 4, 5, 6, 7, 8 ,9 ,10, 11 ,12]).reshape(1, -1),
            'rgb': np.random.rand(1, 3, 224, 224),
            'prev_rgb': np.random.rand(1, 3, 224, 224),
-           'point_mask': np.random.rand(1, 1, 224, 224), }
+           'point_mask': np.random.rand(1, 1, 224, 224),
+           'critic_perpendicular_cosine_sim': np.array([1, 2]).reshape(1, -1),
+           'critic_pointing_cosine_sim': np.array([1, 2]).reshape(1, -1),
+           'prev_action_achieved': np.array([1, 2, 3, 4, 5, 6]).reshape(1, -1),
+           'relative_distance': np.array([1, 2, 3]).reshape(1, -1),}
+
     for item, value in obs.items():
         obs[item] = th.tensor(value, dtype=th.float32).to('cuda')
     features, depth_proxy, _ = policy.extract_features(obs)
     # Make a torch tensor concatenating all the values in obs
-    normalized_depth_proxy = policy._normalize_using_running_mean_std(depth_proxy, (policy.running_mean_var_oflow_x,
-                                                                                    policy.running_mean_var_oflow_y))
-    image_features = policy.features_extractor(normalized_depth_proxy)
-    output = th.cat(
-        [obs['desired_goal'], obs['achieved_goal'], obs['achieved_or'], obs['joint_angles'], image_features[0]], dim=1)
+    image_features = policy.features_extractor(depth_proxy)
+    assert image_features[0].shape == (1, 128)
 
-    assert features.shape == (1, 18 + 72)  # Autoencoder output is 72
+    output = th.cat(
+        [obs['achieved_goal'], obs['achieved_or'], obs['desired_goal'], obs['joint_angles'], obs['prev_action_achieved'],
+            obs['relative_distance'], image_features[0]], dim=1)
+    assert features.shape == (1, 128 + 33)  # Autoencoder output is 128
     assert th.isclose(output, features, atol=1e-3).all()
 
 
@@ -110,9 +117,7 @@ def test_assymetric_extract_features(dummy_obs_space, dummy_action_space):
     # Make a torch tensor concatenating all the values in obs
     features, depth_proxy, _ = policy.extract_features(obs)
     # Make a torch tensor concatenating all the values in obs
-    normalized_depth_proxy = policy._normalize_using_running_mean_std(depth_proxy, (policy.running_mean_var_oflow_x,
-                                                                                    policy.running_mean_var_oflow_y))
-    image_features = policy.features_extractor(normalized_depth_proxy)
+    image_features = policy.features_extractor(depth_proxy)
     output_actor = th.cat(
         [obs['desired_goal'], obs['achieved_goal'], obs['achieved_or'], obs['joint_angles'], image_features[0]], dim=1)
 
@@ -128,7 +133,7 @@ def test_assymetric_extract_features(dummy_obs_space, dummy_action_space):
     assert (actor_features == output_actor).all()
     assert (critic_features == output_critic).all()
 
-
+# def test
 @pytest.mark.skip
 def test_init_weights():
     assert False
