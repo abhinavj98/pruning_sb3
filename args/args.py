@@ -301,6 +301,10 @@ args = {
             'type': int,
             'default': 0,
         },
+        'bc_coeff': {
+            'type': int,
+            'default': 0.01,
+        },
         'verbose': {
             'type': int,
             'default': 1,
@@ -311,7 +315,11 @@ args = {
             'default': False,
             'help': 'whether to use offline data'
         },
-
+        'use_cached_optical_flow': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to use cached optical flow'
+        },
         'use_online_data': {
             'action': "store_true",
             'default': False,

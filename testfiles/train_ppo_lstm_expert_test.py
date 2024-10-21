@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     print(parsed_args_dict)
     or_bins = make_or_bins(args_train, "train")
-    expert_trajectory_path = "trajectories_test"
+    expert_trajectory_path = "expert_trajectories_test"
     # expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
     # # shuffle the expert trajectories
     # # random.shuffle(expert_trajectories)
@@ -61,8 +61,11 @@ if __name__ == "__main__":
     env = make_vec_env(PruningEnv, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
+
+    files = glob.glob(expert_trajectory_path + "/*.hdf5")
+    print("INFO: Number of expert trajectories: ", len(files))
     #Replace \\ with / in the tree_info
-    with h5py.File(expert_trajectory_path, 'r') as f:
+    with h5py.File(files[0], 'r') as f:
         trajectory_names = list(f.keys())
         expert_traj = f[trajectory_names[0]]
         expert_data = {}
@@ -99,6 +102,9 @@ if __name__ == "__main__":
                                          args_policy['use_ppo_offline'],
                                          args_policy['use_online_bc'],
                                          args_policy['use_awac'],
+                                         policy_kwargs['algo_size'],
+                                         args_policy['bc_coeff'],
+                                         args_policy['use_cached_optical_flow'],
                                          policy, env, policy_kwargs=policy_kwargs,
                                          learning_rate=linear_schedule(args_policy['learning_rate']),
                                          learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),

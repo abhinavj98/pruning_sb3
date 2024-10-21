@@ -28,9 +28,6 @@ if __name__ == "__main__":
     or_bins = make_or_bins(args_train, args_baseline["tree_set"])
 
     env = make_vec_env(PruningEnvRRT, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
-    #read a csv file with the dataset
-    # result_df = pd.read_csv(args_baseline['results_save_path']+'.csv')
-
 
     dataset = None
     planner = args_baseline['planner']
