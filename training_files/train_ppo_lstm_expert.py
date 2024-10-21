@@ -75,7 +75,7 @@ if __name__ == "__main__":
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
     if args_policy['use_online_bc'] or args_policy['use_ppo_offline']:
-        learning_rate_logstd = linear_schedule(args_policy['learning_rate'])
+        learning_rate_logstd = linear_schedule(args_policy['learning_rate']*20)
     else:
         learning_rate_logstd = None
 

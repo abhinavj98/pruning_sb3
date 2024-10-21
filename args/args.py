@@ -263,7 +263,7 @@ args = {
         # Training parameters
         'total_timesteps': {
             'type': int,
-            'default': 5_000_000,
+            'default': 2_500_000,
             'help': 'total number of timesteps to train for'
         },
         # For logging purposes keep as multiple of episode length
@@ -274,7 +274,7 @@ args = {
         },
         'epochs': {
             'type': int,
-            'default': 5,
+            'default': 10,
             'help': 'number of epochs to train for'
         },
         'batch_size': {
