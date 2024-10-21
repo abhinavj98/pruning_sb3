@@ -51,8 +51,8 @@ class PruningEnv(gym.Env):
                  distance_threshold: float = 0.05, angle_threshold_perp: float = 0.6,
                  angle_threshold_point: float = 0.6,
                  tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
-                 algo_width: int = 224, algo_height: int = 224,
-                 evaluate: bool = False, num_points: Optional[int] = None, action_dim: int = 12,
+                 algo_width: int = 424, algo_height: int = 240,
+                 evaluate: bool = False, num_points: Optional[int] = None, action_dim: int = 6,
                  name: str = "PruningEnv", action_scale: int = 1, movement_reward_scale: int = 1,
                  distance_reward_scale: int = 1, condition_reward_scale: int = 1, terminate_reward_scale: int = 1,
                  collision_reward_scale: int = 1, slack_reward_scale: int = 1,
@@ -1553,7 +1553,8 @@ class PruningEnvRRT(PruningEnv):
             refined_path = self.shortcut_and_refine_path(waypoints, extend_fn, collision_fn, distance_fn,
                                                          sample_position,
                                                          controllable_joints, task_threshold=0.05)
-
+            if len(refined_path) > 100:
+                continue
             #Convert joint angle steps to end-effector velocity
             ee_vel = self.convert_ja_to_ee_vel(refined_path, control_freq=int(1. / self.control_time), max_ee_vel=0.7)
 
@@ -1574,19 +1575,21 @@ class PruningEnvRRT(PruningEnv):
 
             print("Length of velocity actions", len(actions))
             info = {}
-            success = dones[-1]
+
             #Truncate length of observations, new_observations, rewards, dones, actions to max_steps
             observations = observations[:self.maxSteps]
             new_observations = new_observations[:self.maxSteps]
             rewards = rewards[:self.maxSteps]
             dones = dones[:self.maxSteps]
             actions = actions[:self.maxSteps]
+            success = dones[-1]
             #Set last step as end of episode
             dones[-1] = True
 
 
-
-            self.save_experiences_to_hdf5(observations, actions, rewards, dones, new_observations, info, success,  tree_info_dict, robot_pos, robot_or,
+            #Save only if successful
+            if success:
+                self.save_experiences_to_hdf5(observations, actions, rewards, dones, new_observations, info, success,  tree_info_dict, robot_pos, robot_or,
                                   save_path+".hdf5")
 
     def save_experiences_to_hdf5(self, observations, actions, rewards, dones, next_observations, info, success, tree_info, robot_pos, robot_or, save_path):
