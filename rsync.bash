@@ -16,7 +16,7 @@ false
 while [ $? -ne 0 -a $i -lt $MAX_RETRIES ]
 do
  i=$(($i+1))
- rsync -a --progress ./expert_trajectories jainab@submit-a.hpc.engr.oregonstate.edu:~/hpc-share/codes/pruning_sb3/ 
+ rsync -a --progress ./expert_trajectories_new jainab@submit-a.hpc.engr.oregonstate.edu:~/hpc-share/codes/pruning_sb3/
 done
 
 if [ $i -eq $MAX_RETRIES ]
