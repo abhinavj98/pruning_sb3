@@ -400,7 +400,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         # train for n_epochs epochs
         for epoch in range(self.n_epochs):
             approx_kl_divs = []
-            ae_losses = []
+
 
             # Do a complete pass on the rollout buffer
             for rollout_data in self.rollout_buffer.get(self.batch_size):
@@ -416,7 +416,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 if self.use_sde:
                     self.policy.reset_noise(self.batch_size)
 
-                values, log_prob, entropy, depth_proxy, depth_proxy_recon = self.policy.evaluate_actions(
+                values, log_prob, entropy = self.policy.evaluate_actions(
                     rollout_data.observations,
                     actions,
                     rollout_data.lstm_states,
@@ -454,8 +454,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
                 # Value loss using the TD(gae_lambda) target
                 # Mask padded sequences
-                ae_l2_loss = self.mse_loss(depth_proxy, depth_proxy_recon)
-                ae_losses.append(ae_l2_loss.item() * self.ae_coeff)
+
                 value_loss = th.mean(((rollout_data.returns - values_pred) ** 2)[mask])
 
                 value_losses.append(value_loss.item())
@@ -469,7 +468,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
                 entropy_losses.append(entropy_loss.item())
 
-                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + ae_l2_loss * self.ae_coeff
+                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
 
                 # Calculate approximate form of reverse KL Divergence for early stopping
                 # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -507,29 +506,29 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
         # Logs
-        of_image_x = self.normalize_image(depth_proxy_recon[0, 0, :, :]).unsqueeze(0)
-        of_image_y = self.normalize_image(depth_proxy_recon[0, 1, :, :]).unsqueeze(0)
-        of_mask = depth_proxy_recon[0, 2, :, :].unsqueeze(0)
+        # of_image_x = self.normalize_image(depth_proxy_recon[0, 0, :, :]).unsqueeze(0)
+        # of_image_y = self.normalize_image(depth_proxy_recon[0, 1, :, :]).unsqueeze(0)
+        # of_mask = depth_proxy_recon[0, 2, :, :].unsqueeze(0)
+        #
+        # # resize plot_img to be the same size as of_image
+        # depth_proxy_resized = F.interpolate(depth_proxy, size=(of_image_x.shape[1], of_image_x.shape[2]),
+        #                                     mode='bilinear')
+        # plot_img_x = self.normalize_image(depth_proxy[0, 0, :, :]).unsqueeze(0)
+        # plot_img_y = self.normalize_image(depth_proxy[0, 1, :, :]).unsqueeze(0)
+        # plot_mask = depth_proxy[0, 2, :, :].unsqueeze(0)
+        # of_image_x_grid = torchvision.utils.make_grid(
+        #     [of_image_x, plot_img_x])
+        # of_image_y_grid = torchvision.utils.make_grid(
+        #     [of_image_y, plot_img_y])
+        # of_mask_grid = torchvision.utils.make_grid(
+        #     [of_mask, plot_mask])
 
-        # resize plot_img to be the same size as of_image
-        depth_proxy_resized = F.interpolate(depth_proxy, size=(of_image_x.shape[1], of_image_x.shape[2]),
-                                            mode='bilinear')
-        plot_img_x = self.normalize_image(depth_proxy[0, 0, :, :]).unsqueeze(0)
-        plot_img_y = self.normalize_image(depth_proxy[0, 1, :, :]).unsqueeze(0)
-        plot_mask = depth_proxy[0, 2, :, :].unsqueeze(0)
-        of_image_x_grid = torchvision.utils.make_grid(
-            [of_image_x, plot_img_x])
-        of_image_y_grid = torchvision.utils.make_grid(
-            [of_image_y, plot_img_y])
-        of_mask_grid = torchvision.utils.make_grid(
-            [of_mask, plot_mask])
+        # self.logger.record("autoencoder/of_mask", Image(of_mask_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
+        # self.logger.record("autoencoder/depth_proxy_x", Image(of_image_x_grid, "CHW"),
+        #                    exclude=("stdout", "log", "json", "csv"))
+        # self.logger.record("autoencoder/depth_proxy_y", Image(of_image_y_grid, "CHW"),
+        #                    exclude=("stdout", "log", "json", "csv"))
 
-        self.logger.record("autoencoder/of_mask", Image(of_mask_grid, "CHW"), exclude=("stdout", "log", "json", "csv"))
-        self.logger.record("autoencoder/depth_proxy_x", Image(of_image_x_grid, "CHW"),
-                           exclude=("stdout", "log", "json", "csv"))
-        self.logger.record("autoencoder/depth_proxy_y", Image(of_image_y_grid, "CHW"),
-                           exclude=("stdout", "log", "json", "csv"))
-        self.logger.record("train/ae_loss", np.mean(ae_losses))
         self.logger.record("train/entropy_loss", np.mean(entropy_losses))
         self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
         self.logger.record("train/value_loss", np.mean(value_losses))
@@ -881,7 +880,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             # Compute value for the last timestep
             episode_starts = th.tensor(dones, dtype=th.float32, device=self.device)
             values = self.policy.predict_values(obs_as_tensor(next_obs, self.device), lstm_states.vf,
-                                                episode_starts, is_expert=True) # pylint: disable=unexpected-keyword-arg
+                                                episode_starts, use_cached_optical_flow=self.use_cached_optical_flow) # pylint: disable=unexpected-keyword-arg
         expert_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
 
         if self.verbose > 0:
@@ -906,7 +905,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         if self.use_sde:
             self.policy.reset_noise(self.batch_size)
 
-        values, log_prob, entropy, depth_proxy, depth_proxy_recon = self.policy.evaluate_actions(
+        values, log_prob, entropy = self.policy.evaluate_actions(
             batch.observations,
             actions,
             batch.lstm_states,
@@ -942,7 +941,6 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # Value loss using the TD(gae_lambda) target
         # Mask padded sequences
-        ae_l2_loss = self.mse_loss(depth_proxy, depth_proxy_recon) * self.ae_coeff
         value_loss = th.mean(((batch.returns - values_pred) ** 2)[mask]) * self.vf_coef
 
         # Entropy loss favor exploration
@@ -952,7 +950,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         else:
             entropy_loss = -th.mean(entropy[mask]) * self.ent_coef
 
-        online_loss = policy_loss + entropy_loss + value_loss + ae_l2_loss
+        online_loss = policy_loss + entropy_loss + value_loss
 
         # Calculate approximate form of reverse KL Divergence for early stopping
         # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -962,10 +960,10 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             log_ratio = log_prob - batch.old_log_prob
             approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask]).cpu().numpy()
         online_loss_dict = {"policy_loss": policy_loss.item(), "entropy_loss": entropy_loss.item(),
-                            "value_loss": value_loss.item(), "ae_loss": ae_l2_loss.item(),
+                            "value_loss": value_loss.item(),
                             "clip_fraction": clip_fraction, "approx_kl_div": approx_kl_div, }
 
-        return online_loss, online_loss_dict, depth_proxy, depth_proxy_recon
+        return online_loss, online_loss_dict
 
     def train_online_bc(self, batch_online, batch_offline, clip_range, clip_range_vf):
         # Train on online data using PPO and offline data using BC
@@ -986,7 +984,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         if self.use_sde:
             self.policy.reset_noise(self.batch_size)
 
-        values, log_prob, entropy, depth_proxy, depth_proxy_recon = self.policy.evaluate_actions(
+        values, log_prob, entropy = self.policy.evaluate_actions(
             batch_online.observations,
             actions_online,
             batch_online.lstm_states,
@@ -1022,7 +1020,6 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # Value loss using the TD(gae_lambda) target
         # Mask padded sequences
-        ae_l2_loss = self.mse_loss(depth_proxy, depth_proxy_recon) * self.ae_coeff
         value_loss = th.mean(((batch_online.returns - values_pred) ** 2)[mask_online]) * self.vf_coef
 
         # Entropy loss favor exploration
@@ -1032,7 +1029,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         else:
             entropy_loss = -th.mean(entropy[mask_online]) * self.ent_coef
 
-        online_loss = policy_loss + entropy_loss + value_loss + ae_l2_loss
+        online_loss = policy_loss + entropy_loss + value_loss
 
         # behavior cloning loss  for offline data
         # Run policy on offline data
@@ -1056,12 +1053,12 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask_online]).cpu().numpy()
 
         online_loss_dict = {"policy_loss": policy_loss.item(), "entropy_loss": entropy_loss.item(),
-                            "value_loss": value_loss.item(), "ae_loss": ae_l2_loss.item(),
+                            "value_loss": value_loss.item(),
                             "clip_fraction": clip_fraction, "approx_kl_div": approx_kl_div,
                             "online_loss": online_loss.item()}
         offline_loss_dict = {"bc_loss": bc_loss.item(), "offline_loss": offline_loss.item()}
 
-        return online_loss, online_loss_dict, offline_loss, offline_loss_dict, depth_proxy, depth_proxy_recon
+        return online_loss, online_loss_dict, offline_loss, offline_loss_dict
 
     def train_ppo_offline(self, batch_online, batch_offline, clip_range, clip_range_vf):
 
@@ -1083,7 +1080,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             self.policy.reset_noise(self.batch_size)
 
         # Evaluate online actions
-        values_online, log_prob_online, entropy_online, depth_proxy_online, depth_proxy_recon_online = self.policy.evaluate_actions(
+        values_online, log_prob_online, entropy_online = self.policy.evaluate_actions(
             batch_online.observations,
             actions_online,
             batch_online.lstm_states,
@@ -1091,38 +1088,40 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         )
 
         # Evaluate offline actions
-        values_offline, log_prob_offline, entropy_offline, depth_proxy_offline, depth_proxy_recon_offline = self.policy.evaluate_actions(
+        values_offline, log_prob_offline, entropy_offline, = self.policy.evaluate_actions(
             batch_offline.observations,
             actions_offline,
             batch_offline.lstm_states,
             batch_offline.episode_starts,
+            use_cached_optical_flow=self.use_cached_optical_flow
         )
 
-        min_log_prob = -10  # TODO: Is this necessary?
-        log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
-
+        min_log_prob = -3  # TODO: Is this necessary?
+        # log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
+        log_prob_expert = 6 # ideally think of expert as a gaussian policy and this number is the density at expert action.
+        # Set this number according to the variance of that distribution
+        ratio_old_expert_offline = th.exp(
+            batch_offline.old_log_prob - log_prob_expert)
+        # ratio_old_expert_offline = th.clamp(ratio_old_expert_offline, 0.2, 2)
         values_online = values_online.flatten()
         values_offline = values_offline.flatten()
         # Normalize advantage
         advantages_online = batch_online.advantages
-        advantages_offline = batch_offline.advantages
+        advantages_offline = batch_offline.advantages * ratio_old_expert_offline
         # Concatenate advantages
         advantages = th.cat((advantages_online, advantages_offline), 0)
-        if self.normalize_advantage:
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        # if self.normalize_advantage:
+        #     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
         advantages_online = advantages[:len(advantages_online)]
         advantages_offline = advantages[len(advantages_online):]
 
-        log_prob_expert = 0.  # Just a number, ideally think of expert as a gaussian distribution with mean at action.
-        # Set this number according to the variance of that distribution
 
         # ratio between old and new policy, should be one at the first iteration
         ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
-        ratio_current_old_offline = th.exp(log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100))
+        ratio_current_old_offline = th.exp(log_prob_offline - batch_offline.old_log_prob)
         ratio_current_expert_offline = th.exp(
             log_prob_offline - log_prob_expert)
-        ratio_old_expert_offline = th.exp(
-            batch_offline.old_log_prob - log_prob_expert)
+
 
         # clipped surrogate loss for online
         policy_loss_1_online = advantages_online * ratio_current_old_online
@@ -1130,9 +1129,15 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         policy_loss_online = -th.mean(th.min(policy_loss_1_online, policy_loss_2_online)[mask_online])
 
         # clipped surrogate loss for offline
-        policy_loss_1_offline = advantages_offline * ratio_current_expert_offline
+        policy_loss_1_offline = advantages_offline * ratio_current_old_offline #Old/expert ratio is already multiplied
+        #old/expert*current/old = current/expert (Expert sampled the data)
         policy_loss_2_offline = advantages_offline * th.clamp(ratio_current_old_offline, 1 - clip_range,
-                                                              1 + clip_range) * ratio_old_expert_offline
+                                                              1 + clip_range)
+        #If advantage is -ve and log_prob_offline is below min_log_prob, set loss to 0
+        mask_low_prob = (advantages_offline < 0) & (log_prob_offline < min_log_prob)
+        policy_loss_2_offline[mask_low_prob] = 0
+        policy_loss_1_offline[mask_low_prob] = 0
+        # old/expert*current/old
         policy_loss_offline = -th.mean(th.min(policy_loss_1_offline, policy_loss_2_offline)[mask_offline])
 
         if self.clip_range_vf is None:
@@ -1155,10 +1160,6 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             (((batch_offline.returns - values_pred_offline) ** 2) * ratio_old_expert_offline)[
                 mask_offline]) * self.vf_coef
 
-        # Autoencoder loss
-        ae_l2_loss_online = self.mse_loss(depth_proxy_online, depth_proxy_recon_online) * self.ae_coeff
-        ae_l2_loss_offline = self.mse_loss(depth_proxy_offline, depth_proxy_recon_offline) * self.ae_coeff
-
         # Entropy loss favor exploration
         if entropy_online is None:
             # Approximate entropy when no analytical form
@@ -1172,15 +1173,15 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         else:
             entropy_loss_offline = -th.mean(entropy_offline[mask_offline]) * self.ent_coef
 
-        online_loss = policy_loss_online + entropy_loss_online + value_loss_online + ae_l2_loss_online
-        offline_loss = policy_loss_offline + entropy_loss_offline + value_loss_offline + ae_l2_loss_offline  # TODO: Regularization here for offline actions with -ve advantage
+        online_loss = policy_loss_online + entropy_loss_online + value_loss_online
+        offline_loss = policy_loss_offline + value_loss_offline  # TODO: Regularization here for offline actions with -ve advantage
 
         with th.no_grad():
             # Approx KL Divergence -- Try to keep them vv low (For online+BC this value below 0.02 works)
             log_ratio_online = log_prob_online - batch_online.old_log_prob
             approx_kl_div_online = th.mean(
                 ((th.exp(log_ratio_online) - 1) - log_ratio_online)[mask_online]).cpu().numpy()
-            log_ratio_offline = log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100)
+            log_ratio_offline = log_prob_offline - batch_offline.old_log_prob
             approx_kl_div_offline = th.mean(
                 ((th.exp(log_ratio_offline) - 1) - log_ratio_offline)[mask_offline]).cpu().numpy()
 
@@ -1202,13 +1203,13 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                              "ratio_old_expert": ratio_old_expert_offline_mean,
                              "policy_loss": policy_loss_offline.item(),
                              "entropy_loss": entropy_loss_offline.item(), "value_loss": value_loss_offline.item(),
-                             "ae_loss": ae_l2_loss_offline.item(), "approx_kl_div": approx_kl_div_offline,
+                            "approx_kl_div": approx_kl_div_offline,
                              "clip_fraction": clip_fraction_offline,
                              "advantages": advantages_offline_mean, "log_prob_offline": log_prob_offline_mean}
         online_loss_dict = {"ratio_current_old": ratio_current_old_online_mean,
                             "policy_loss": policy_loss_online.item(),
                             "entropy_loss": entropy_loss_online.item(), "value_loss": value_loss_online.item(),
-                            "ae_loss": ae_l2_loss_online.item(), "approx_kl_div": approx_kl_div_online,
+                             "approx_kl_div": approx_kl_div_online,
                             "clip_fraction": clip_fraction_online, "advantages": advantages_online_mean,
                             "log_prob_online": log_prob_online_mean}
         return online_loss, online_loss_dict, offline_loss, offline_loss_dict
@@ -1317,7 +1318,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             actions,
             batch.lstm_states,
             batch.episode_starts,
-            is_expert=True
+            use_cached_optical_flow=self.use_cached_optical_flow
         )
 
         values = values.flatten()
@@ -1355,7 +1356,6 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # Value loss using the TD(gae_lambda) target
         # Mask padded sequences
-        ae_l2_loss = self.mse_loss(depth_proxy, depth_proxy_recon) * self.ae_coeff
         value_loss = th.mean(((batch.returns * ratio_old_expert - values_pred) ** 2)[mask]) * self.vf_coef
 
         # Entropy loss favor exploration
@@ -1365,7 +1365,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         else:
             entropy_loss = -th.mean(entropy[mask]) * self.ent_coef
 
-        offline_loss = policy_loss + entropy_loss + value_loss + ae_l2_loss
+        offline_loss = policy_loss + entropy_loss + value_loss
         # Calculate approximate form of reverse KL Divergence for early stopping
         # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
         # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
@@ -1375,7 +1375,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             log_ratio = log_prob - batch.old_log_prob
             approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask]).cpu().numpy()
 
-        offline_loss_dict = {"policy_loss": pg_loss, "ae_loss": ae_l2_loss.item(), "entropy_loss": entropy_loss.item(),
+        offline_loss_dict = {"policy_loss": pg_loss,  "entropy_loss": entropy_loss.item(),
                              "approx_kl_div": approx_kl_div}
 
         return offline_loss, offline_loss_dict, depth_proxy, depth_proxy_recon
@@ -1452,8 +1452,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
                 elif self.use_online_bc:
                     # Uses PPO on online data and BC on offline data
-                    (loss_online, online_loss_dict, loss_offline, offline_loss_dict, depth_proxy,
-                     depth_proxy_recon) = self.train_online_bc(
+                    (loss_online, online_loss_dict, loss_offline, offline_loss_dict) = self.train_online_bc(
                         online_data, offline_data, clip_range, clip_range_vf)
                     loss_offline.backward()
                     # For BC loss remove variance from the optimization

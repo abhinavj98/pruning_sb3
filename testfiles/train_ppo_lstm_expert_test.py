@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAEWithExpert
-from pruning_sb3.pruning_gym.models import AutoEncoder
+from pruning_sb3.pruning_gym.models import Encoder
 
 from pruning_sb3.pruning_gym.callbacks.callbacks import EveryNRollouts, PruningLogCallback
 from pruning_sb3.pruning_gym.callbacks.train_callbacks import PruningTrainSetGoalCallback, \
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     logging_callback = PruningLogCallback(expert=True, verbose=args_callback['verbose'])
     callback_list = [checkpoint_callback, logging_callback]
 
-    policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
+    policy_kwargs = get_policy_kwargs(args_policy, args_env, Encoder)
     policy = RecurrentActorCriticPolicy
     # expert_trajectory_path = "expert_trajectories"
     learning_rate_logstd = None

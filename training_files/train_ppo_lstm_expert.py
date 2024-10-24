@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAEWithExpert
-from pruning_sb3.pruning_gym.models import AutoEncoder
+from pruning_sb3.pruning_gym.models import Encoder
 
 from pruning_sb3.pruning_gym.callbacks.callbacks import EveryNRollouts, PruningLogCallback
 from pruning_sb3.pruning_gym.callbacks.train_callbacks import PruningTrainSetGoalCallback, \
@@ -70,9 +70,9 @@ if __name__ == "__main__":
 
     record_env_callback = EveryNRollouts(100, PruningTrainRecordEnvCallback(verbose=args_callback['verbose']))
     logging_callback = PruningLogCallback(expert=True, verbose=args_callback['verbose'])
-    callback_list = [record_env_callback, set_goal_callback, checkpoint_callback, logging_callback]
+    callback_list = [set_goal_callback, checkpoint_callback, logging_callback]
 
-    policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
+    policy_kwargs = get_policy_kwargs(args_policy, args_env, Encoder)
     policy = RecurrentActorCriticPolicy
     if args_policy['use_online_bc'] or args_policy['use_ppo_offline']:
         learning_rate_logstd = linear_schedule(args_policy['learning_rate']*20)

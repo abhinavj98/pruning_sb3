@@ -740,7 +740,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         :return: action, value and log probability of the action
         """
         # Preprocess the observation if needed
-        features, _, _ = self.extract_features(obs)
+        features = self.extract_features(obs)
 
         if self.share_features_extractor:
             pi_features = vf_features = features  # alis
@@ -770,7 +770,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         return actions, values, log_prob, RNNStates(lstm_states_pi, lstm_states_vf)
 
     def forward_expert(self, obs, lstm_states, episode_starts, action):
-        features, _, _ = self.extract_features(obs, is_expert=True)
+        features = self.extract_features(obs, use_cached_optical_flow=True)
 
         if self.share_features_extractor:
             pi_features = vf_features = features  # alis
@@ -806,7 +806,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
 
         return depth_proxy
 
-    def extract_features(self, obs: th.Tensor, is_expert:bool = False):  # -> tuple[th.Tensor, th.Tensor]:
+    def extract_features(self, obs: th.Tensor, use_cached_optical_flow:bool = False):  # -> tuple[th.Tensor, th.Tensor]:
         """
         Preprocess the observation if needed and extract features.
 
@@ -814,7 +814,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         :return:
         """
         assert self.features_extractor is not None, "No features extractor was set"
-        if is_expert: #Using cached optical flow
+        if use_cached_optical_flow: #Using cached optical flow
             depth_proxy = th.cat((obs['optical_flow'], obs['point_mask']), dim=1).to(self.device)
         else:
             depth_proxy = self.get_depth_proxy(obs['rgb'], obs['prev_rgb'], obs['point_mask'])
@@ -824,7 +824,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         obs_keys = sorted(obs.keys())
         features_actor = th.cat([obs[i] for i in obs_keys if 'critic' not in i and 'rgb' not in i
                                  and 'prev_rgb' not in i and 'point_mask' not in i and 'optical_flow' not in i], dim=1).to(th.float32)
-        features_actor = th.cat([features_actor, image_features[0]], dim=1).to(th.float32)
+        features_actor = th.cat([features_actor, image_features], dim=1).to(th.float32)
 
         features = features_actor
 
@@ -832,10 +832,10 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
             features_critic = th.cat([obs[i] for i in obs_keys if 'rgb' not in i
                                       and 'prev_rgb' not in i and 'point_mask' not in i and 'optical_flow' not in i],
                                      dim=1).to(th.float32)
-            features_critic = th.cat([features_critic, image_features[0]], dim=1).to(th.float32)
+            features_critic = th.cat([features_critic, image_features], dim=1).to(th.float32)
             features = (features_actor, features_critic)
 
-        return features, depth_proxy, image_features[1]
+        return features#, depth_proxy, image_features[1]
 
 
     def get_distribution(
@@ -854,7 +854,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         :return: the action distribution and new hidden states.
         """
 
-        features, _, _ = self.extract_features(obs)
+        features = self.extract_features(obs)
         if self.features_dim_critic_add is not None:
             actor_features = features[0]
         else:
@@ -866,7 +866,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
     def predict_values(self,
                        obs: th.Tensor,
                        lstm_states: Tuple[th.Tensor, th.Tensor],
-                       episode_starts: th.Tensor, is_expert: bool = False) -> th.Tensor:
+                       episode_starts: th.Tensor, use_cached_optical_flow: bool = False) -> th.Tensor:
         """
         Get the estimated values according to the current policy given the observations.
 
@@ -877,7 +877,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         :return: the estimated values.
         """
         # Call the method from the parent of the parent class
-        features, _, _ = self.extract_features(obs, is_expert)  # , self.vf_features_extractor)
+        features = self.extract_features(obs, use_cached_optical_flow)  # , self.vf_features_extractor)
 
         if self.lstm_critic is not None:
             if self.features_dim_critic_add is not None:
@@ -897,7 +897,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         return self.value_net(latent_vf)
 
     def evaluate_actions(
-            self, obs: th.Tensor, actions: th.Tensor, lstm_states: RNNStates, episode_starts: th.Tensor, is_expert: bool = False
+            self, obs: th.Tensor, actions: th.Tensor, lstm_states: RNNStates, episode_starts: th.Tensor, use_cached_optical_flow: bool = False
     ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
         """
         Evaluate actions according to the current policy,
@@ -914,7 +914,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         # Calculate running mean and var for observation normalization
 
         # Preprocess the observation if needed
-        features, depth_proxy, depth_proxy_recon = self.extract_features(obs, is_expert)
+        features = self.extract_features(obs, use_cached_optical_flow)
         #Check if any nan values
         # for i, feat in enumerate(features):
         #     assert not th.isnan(feat).any(), "Nan values in features "+str(i) + " " + str(feat)
@@ -938,7 +938,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         log_prob = distribution.log_prob(actions)
 
         values = self.value_net(latent_vf)
-        return values, log_prob, distribution.entropy(), depth_proxy, depth_proxy_recon
+        return values, log_prob, distribution.entropy()
 
     def _build_mlp_extractor(self) -> None:
         """
