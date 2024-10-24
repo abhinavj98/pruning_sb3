@@ -164,6 +164,62 @@ class AutoEncoder(BaseFeaturesExtractor):
         return encoding, recon
 
 
+
+
+class Encoder(BaseFeaturesExtractor):
+    def __init__(self, observation_space: gym.spaces.Box, features_dim=128, in_channels=1, size=(240, 424)):
+        super(Encoder, self).__init__(observation_space, features_dim)
+        self.in_channels = in_channels
+        self.size = size
+        self.encoder = nn.Sequential(
+            nn.Conv2d(in_channels, 16, 3, padding='same'),  # b, 16, 240, 424
+            nn.ReLU(),
+            # nn.LayerNorm([16, 240, 424]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(16, 32, 3, padding=1, stride=2),  # b, 32, 120, 212
+            nn.ReLU(),
+            # nn.LayerNorm([32, 120, 212]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(32, 64, 3, padding=1, stride=2),  # b, 64, 60, 106
+            nn.ReLU(),
+            # nn.LayerNorm([64, 60, 106]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(64, 128, 3, padding=1, stride=2),  # b, 128, 30, 53
+            nn.ReLU(),
+            # nn.LayerNorm([128, 30, 53]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(128, 128, 3, padding=1, stride=2),  # b, 128, 15, 27
+            nn.ReLU(),
+            # nn.LayerNorm([128, 15, 27]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(128, 64, 3, padding=1, stride=2),  # b, 64, 8, 14
+            nn.ReLU(),
+            # nn.LayerNorm([64, 8, 14]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(64, 32, 3, padding=1),  # b, 32, 8, 14
+            nn.ReLU(),
+            # nn.LayerNorm([32, 8, 14]),  # Apply LayerNorm after ReLU
+
+            nn.Conv2d(32, 8, 3, padding=1),  # b, 8, 8, 14
+            nn.ReLU(),
+            # nn.LayerNorm([8, 8, 14]),  # Apply LayerNorm after ReLU
+        )
+        self.fc_in = nn.Sequential(
+            nn.Linear(8*8*14, 128),)
+
+    def _preprocess(self, img):
+        img = TVF.resize(img, size=self.size, antialias=False)
+        return img
+
+    def forward(self, image) -> th.Tensor:
+        # print(observation)
+        image_resized = self._preprocess(image)
+        encoder_conv = self.encoder(image_resized)
+        encoding = self.fc_in(encoder_conv.view(-1, 8*8*14))
+
+        return encoding
+
+
 class AutoEncoderSmall(BaseFeaturesExtractor):
     def __init__(self, observation_space: gym.spaces.Box, features_dim=128 * 7 * 7, size=(224, 224)):
         # Need features dim for superclass
