@@ -1098,7 +1098,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         min_log_prob = -3  # TODO: Is this necessary?
         # log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
-        log_prob_expert = 6 # ideally think of expert as a gaussian policy and this number is the density at expert action.
+        log_prob_expert = 10 # ideally think of expert as a gaussian policy and this number is the density at expert action.
         # Set this number according to the variance of that distribution
         ratio_old_expert_offline = th.exp(
             batch_offline.old_log_prob - log_prob_expert)
@@ -1194,6 +1194,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         ratio_current_old_online_mean = th.mean(ratio_current_old_online).item()
         ratio_current_old_offline_mean = th.mean(ratio_current_old_offline).item()
         ratio_old_expert_offline_mean = th.mean(ratio_old_expert_offline).item()
+        max_log_prob_offline = th.max(log_prob_offline).item()
+        min_log_prob_offline = th.min(log_prob_offline).item()
         log_prob_offline_mean = th.mean(log_prob_offline).item()
         log_prob_online_mean = th.mean(log_prob_online).item()
         advantages_online_mean = th.mean(advantages_online).item()
@@ -1205,7 +1207,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                              "entropy_loss": entropy_loss_offline.item(), "value_loss": value_loss_offline.item(),
                             "approx_kl_div": approx_kl_div_offline,
                              "clip_fraction": clip_fraction_offline,
-                             "advantages": advantages_offline_mean, "log_prob_offline": log_prob_offline_mean}
+                             "advantages": advantages_offline_mean, "log_prob_offline": log_prob_offline_mean, "max_log_prob_offline": max_log_prob_offline,
+                             "min_log_prob_offline": min_log_prob_offline}
         online_loss_dict = {"ratio_current_old": ratio_current_old_online_mean,
                             "policy_loss": policy_loss_online.item(),
                             "entropy_loss": entropy_loss_online.item(), "value_loss": value_loss_online.item(),

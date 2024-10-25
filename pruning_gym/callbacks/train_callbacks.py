@@ -50,8 +50,8 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
 
     def _sample_tree_and_point(self, idx):
         # Sample orientation from key in or_bins
-        if self.verbose > 0:
-            print("INFO: Sampling tree and point")
+        if self.verbose > 1:
+            print("DEBUG: Sampling tree and point")
         point_sampled = False
         while not point_sampled:
             rand_vector = self.rand_direction_vector()
