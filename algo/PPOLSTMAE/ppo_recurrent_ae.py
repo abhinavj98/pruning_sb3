@@ -1096,8 +1096,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             use_cached_optical_flow=self.use_cached_optical_flow
         )
 
-        min_log_prob = -3  # TODO: Is this necessary?
-        # log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
+        min_log_prob = -10  # TODO: Is this necessary?
+        log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
         log_prob_expert = 10 # ideally think of expert as a gaussian policy and this number is the density at expert action.
         # Set this number according to the variance of that distribution
         ratio_old_expert_offline = th.exp(
@@ -1118,7 +1118,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # ratio between old and new policy, should be one at the first iteration
         ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
-        ratio_current_old_offline = th.exp(log_prob_offline - batch_offline.old_log_prob)
+        ratio_current_old_offline = th.exp(log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100))
         ratio_current_expert_offline = th.exp(
             log_prob_offline - log_prob_expert)
 
@@ -1181,7 +1181,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             log_ratio_online = log_prob_online - batch_online.old_log_prob
             approx_kl_div_online = th.mean(
                 ((th.exp(log_ratio_online) - 1) - log_ratio_online)[mask_online]).cpu().numpy()
-            log_ratio_offline = log_prob_offline - batch_offline.old_log_prob
+            log_ratio_offline = log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100)
             approx_kl_div_offline = th.mean(
                 ((th.exp(log_ratio_offline) - 1) - log_ratio_offline)[mask_offline]).cpu().numpy()
 
@@ -1189,6 +1189,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         clip_fraction_online = th.mean((th.abs(ratio_current_old_online - 1) > clip_range).float()[mask_online]).item()
         clip_fraction_offline = th.mean(
             (th.abs(ratio_current_old_offline - 1) > clip_range).float()[mask_offline]).item()
+        clamp_fraction_offline = th.mean((
+            log_prob_offline <= min_log_prob).float()).item()
 
         # This is all just a logging
         ratio_current_old_online_mean = th.mean(ratio_current_old_online).item()
@@ -1207,6 +1209,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                              "entropy_loss": entropy_loss_offline.item(), "value_loss": value_loss_offline.item(),
                             "approx_kl_div": approx_kl_div_offline,
                              "clip_fraction": clip_fraction_offline,
+                                "clamp_fraction": clamp_fraction_offline,
                              "advantages": advantages_offline_mean, "log_prob_offline": log_prob_offline_mean, "max_log_prob_offline": max_log_prob_offline,
                              "min_log_prob_offline": min_log_prob_offline}
         online_loss_dict = {"ratio_current_old": ratio_current_old_online_mean,
