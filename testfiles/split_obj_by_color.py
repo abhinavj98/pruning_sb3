@@ -66,13 +66,15 @@ def split_obj_by_color(input_file):
     return mesh_data
 
 
-def save_as_obj(vertices, indices, output_folder, output_file, label):
+def save_as_obj(vertices, indices, output_folder, output_file, label, color):
     print(output_folder, output_file, label)
     save_file = os.path.join(output_folder, output_file+'_'+label + '.obj')
     print(f"Saving to {save_file}")
+    #Add vertex colors too
     with open(save_file, 'w') as f:
         for vertex in vertices:
-            f.write(f"v {vertex[0]} {vertex[1]} {vertex[2]}\n")
+            f.write(f"v {vertex[0]} {vertex[1]} {vertex[2]} {color[0]} {color[1]} {color[2]}\n")
+
         for face in indices:
             f.write(f"f {' '.join(str(i + 1) for i in face)}\n")
 
@@ -80,7 +82,10 @@ import glob
 import os
 
 input_folder = 'C://Users//abhin//PycharmProjects//sb3bleeding//pruning_sb3//meshes_and_urdf//meshes//trees//envy//train_labelled'
-output_folder = 'C://Users//abhin//PycharmProjects//sb3bleeding//pruning_sb3//meshes_and_urdf//meshes//trees//envy//train_labelled_split'
+output_folder = 'C://Users//abhin//PycharmProjects//sb3bleeding//pruning_sb3//meshes_and_urdf//meshes//trees//envy//train_labelled_split_colored'
+#If output folder does not exist, create it
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
 print(glob.glob(os.path.join(input_folder, '*.obj')))
 # output_folder = '/Users/abhinav/Desktop/gradstuff/research/pruning_sb3/meshes_and_urdf/meshes/trees/envy/train_labelled'
 for input_file in glob.glob(os.path.join(input_folder, '*.obj')):
@@ -88,4 +93,4 @@ for input_file in glob.glob(os.path.join(input_folder, '*.obj')):
     output_file = os.path.basename(input_file).split('.')[0]
     mesh_data = split_obj_by_color(input_file)
     for color, (vertices, indices) in mesh_data.items():
-        save_as_obj(vertices, indices, output_folder, output_file, label[color])
+        save_as_obj(vertices, indices, output_folder, output_file, label[color], color)

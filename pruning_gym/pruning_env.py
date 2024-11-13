@@ -114,6 +114,7 @@ class PruningEnv(gym.Env):
         self.tree_obj_path = tree_obj_path
         self.tree_labelled_path = tree_labelled_path
         self.tree_id = None
+        self.bg_tree_id = None
         # Gym variables
         self.name = name
         self.action_dim = action_dim
@@ -320,6 +321,7 @@ class PruningEnv(gym.Env):
         # Due to reset simulation, everything is deleted
         self.ur5.ur5_robot = None
         self.tree_id = None
+        self.bg_tree_id = None
         self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None,
                                      'SUPPORT': None, }
 
@@ -414,8 +416,13 @@ class PruningEnv(gym.Env):
         self.collision_object_ids['SUPPORT'] = supports
         self.tree_id = pyb.con.loadURDF(self.tree_urdf, self.tree_pos, self.tree_orientation,
                                         globalScaling=self.tree_scale)
-        for i in self.label.values():
 
+        #Load background tree
+        #Background tree is behind the tree by 1 m and random position
+        bg_tree_pos = [self.tree_pos[0] + random.uniform(-0.2, 0.2), self.tree_pos[1] + random.uniform(-1, -1.5), self.tree_pos[2]+random.uniform(-0.2, 0.2)]
+        self.bg_tree_id = pyb.con.loadURDF(self.tree_urdf, bg_tree_pos, self.tree_orientation,
+                                        globalScaling=self.tree_scale)
+        for i in self.label.values():
             label_urdf_path = os.path.join(os.path.dirname(self.tree_urdf) + '_labelled_split',
                                            os.path.basename(self.tree_urdf).split(".")[0] + '_' + f"{i}.urdf")
             if self.verbose > 1:
@@ -430,9 +437,11 @@ class PruningEnv(gym.Env):
     def inactivate_tree(self, pyb):
         if self.tree_id:
             pyb.con.removeBody(self.tree_id)
+            pyb.con.removeBody(self.bg_tree_id)
             for i in self.collision_object_ids.values():
                 pyb.con.removeBody(i)
             self.tree_id = None
+            self.bg_tree_id = None
             self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None,
                                          'SUPPORT': None, }
 

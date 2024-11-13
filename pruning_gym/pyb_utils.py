@@ -72,7 +72,7 @@ class pyb_utils:
         self.wall_texture = self.con.loadTexture(wall_texture_path)
 
         self.floor_id = self.create_wall_with_texture([0.01, 5, 5], [0, 0, 0], [0, np.pi / 2, 0], self.wall_texture)
-        self.wall_id = self.create_wall_with_texture([0.01, 5, 5], [0, -2, 5], [np.pi / 2, 0, np.pi / 2],
+        self.wall_id = self.create_wall_with_texture([0.01, 5, 5], [0, -4, 5], [np.pi / 2, 0, np.pi / 2],
                                                      self.wall_texture)
         self.side_wall_1_id = self.create_wall_with_texture([0.01, 5, 5], [-5, 0, 5], [0, 0, 0], self.wall_texture)
         self.side_wall_2_id = self.create_wall_with_texture([0.01, 5, 5], [5, 0, 5], [0, 0, 0], self.wall_texture)
@@ -115,10 +115,20 @@ class pyb_utils:
         if type == 'robot':
             if view_matrix is None:
                 raise ValueError('view_matrix cannot be None for robot view')
+
+            light_direction = np.random.uniform(-1, 1, size=3)
+            light_direction /= np.linalg.norm(light_direction)  # Normalize to make it a unit vector
+
+            # Randomize light color (in RGB)
+            light_color = np.random.uniform(0, 1, size=3)
+
+            # Randomize light distance (affects intensity)
+            light_distance = np.random.uniform(1.0, 5.0)
             return self.con.getCameraImage(width=self.cam_width, height=self.cam_height, viewMatrix=view_matrix,
                                            projectionMatrix=self.proj_mat,
-                                           renderer=self.con.ER_BULLET_HARDWARE_OPENGL,
-                                           flags=self.con.ER_NO_SEGMENTATION_MASK, lightDirection=[1, 1, 1])
+                                           renderer=self.con.ER_TINY_RENDERER,
+                                           flags=self.con.ER_NO_SEGMENTATION_MASK, lightDirection=light_direction,
+                                           lightColor=light_color, lightDistance=light_distance)
         elif type == 'viz':
             return self.con.getCameraImage(width=self.cam_width, height=self.cam_height,
                                            viewMatrix=self.viz_view_matrix,
