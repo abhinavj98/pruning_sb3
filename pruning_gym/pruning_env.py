@@ -132,6 +132,10 @@ class PruningEnv(gym.Env):
         self.cam_pan = 0
         self.cam_tilt = 0
         self.cam_xyz_offset = np.zeros(3)
+        #Lighting randomization
+        self.light_direction = np.array([0, 0, 1])
+        self.light_color = np.array([1, 1, 1])
+        self.light_distance = 1
         self.verbose = verbose
         self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None,
                                      'SUPPORT': None, }
@@ -350,7 +354,16 @@ class PruningEnv(gym.Env):
         self.ur5.setup_ur5_arm()
         # self.ur5.reset_ur5_arm()
         # Sample new point
-        # Jitter the camera pose
+        # Jitter the camera pose and lighting conditions
+
+        light_direction = np.random.uniform(-1, 1, size=3)
+        self.light_direction = light_direction/np.linalg.norm(light_direction)  # Normalize to make it a unit vector
+
+        # Randomize light color (in RGB)
+        self.light_color = np.random.uniform(0, 1, size=3)
+
+        # Randomize light distance (affects intensity)
+        self.light_distance = np.random.uniform(1.0, 5.0)
         self.set_camera_pose()
 
         for i in range(2):
@@ -612,106 +625,139 @@ class PruningEnv(gym.Env):
         point_mask = np.expand_dims(point_mask_resize, axis=0).astype(np.float32)
         return point_mask
 
-    def set_extended_observation(self) -> dict:
-        """
-        The observations are the current position, the goal position, the current orientation, the current depth
-        image, the current joint angles and the current joint velocities
-        """
-        # TODO: define all these dict as named tuples/dict
+    def update_prev_observation_info(self):
+        """Saves the previous observation information and initializes any missing fields."""
         self.prev_observation_info = copy.deepcopy(self.observation_info)
-        if 'achieved_pos' not in self.prev_observation_info.keys():
-            self.prev_observation_info['achieved_pos'] = self.ur5.init_pos_ee[0]
-            self.prev_observation_info['achieved_or_quat'] = self.ur5.init_pos_ee[1]
-            self.prev_observation_info['achieved_eebase_pos'] = self.ur5.init_pos_eebase[0]
-            self.prev_observation_info['achieved_eebase_or_quat'] = self.ur5.init_pos_eebase[1]
 
+        # Initialize with initial UR5 pose values if missing
+        if 'achieved_pos' not in self.prev_observation_info:
+            self.prev_observation_info.update({
+                'achieved_pos': self.ur5.init_pos_ee[0],
+                'achieved_or_quat': self.ur5.init_pos_ee[1],
+                'achieved_eebase_pos': self.ur5.init_pos_eebase[0],
+                'achieved_eebase_or_quat': self.ur5.init_pos_eebase[1]
+            })
+
+    def update_observation_info(self):
+        """Collects current sensor data, calculates metrics, and updates observation info."""
+        # Collecting current position, orientation, and velocity
         tool_pos, tool_orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
         tool_base_pos, tool_base_orient = self.ur5.get_current_pose(self.ur5.success_link_index)
-
         achieved_vel, achieved_ang_vel = self.ur5.get_current_vel(self.ur5.end_effector_index)
 
-        achieved_pos = np.array(tool_pos).astype(np.float32)
-        achieved_or_quat = np.array(tool_orient).astype(np.float32)
+        # Standardize data types for consistency
+        achieved_pos = np.array(tool_pos, dtype=np.float32)
+        achieved_or_quat = np.array(tool_orient, dtype=np.float32)
+        achieved_tool_base_pos = np.array(tool_base_pos, dtype=np.float32)
+        achieved_tool_base_orient = np.array(tool_base_orient, dtype=np.float32)
+        desired_pos = np.array(self.tree_goal_pos, dtype=np.float32)
+        joint_angles = np.array(self.ur5.get_joint_angles(), dtype=np.float32)
 
-        achieved_tool_base_pos = np.array(tool_base_pos).astype(np.float32)
-        achieved_tool_base_orient = np.array(tool_base_orient).astype(np.float32)
+        # Capture RGB data and handle previous RGB for optical flow
+        rgb, _ = self.pyb.get_rgbd_at_cur_pose(
+            'robot',
+            self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt, xyz_offset=self.cam_xyz_offset),
+            light_direction=self.light_direction,
+            light_color=self.light_color,
+            light_distance=self.light_distance
+        )
+        prev_rgb = self.observation.get('rgb', np.zeros((self.pyb.cam_height, self.pyb.cam_width, 3)))
 
-        desired_pos = np.array(self.tree_goal_pos).astype(np.float32)
+        # Calculate cosine similarity metrics for rewards
+        pointing_cosine_sim = self.reward.compute_pointing_cos_sim(
+            achieved_pos, desired_pos, achieved_or_quat, self.tree_goal_or
+        )
+        perpendicular_cosine_sim = self.reward.compute_perpendicular_cos_sim(
+            achieved_or_quat, self.tree_goal_or
+        )
 
-        joint_angles = np.array(self.ur5.get_joint_angles()).astype(np.float32)
-
-        init_pos_ee = np.array(self.ur5.init_pos_ee[0]).astype(np.float32)
-        init_or_ee = np.array(self.ur5.init_pos_ee[1]).astype(np.float32)
-
-        rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot',
-                                               self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt,
-                                                                                  xyz_offset=self.cam_xyz_offset))
-        if 'rgb' not in self.observation:
-            prev_rgb = np.zeros((self.pyb.cam_height, self.pyb.cam_width, 3))
-        else:
-            prev_rgb = self.observation['rgb']
-
+        # Calculate the deprojected point mask and encode joint angles
         point_mask = self.compute_deprojected_point_mask()
-
         encoded_joint_angles = np.hstack((np.sin(joint_angles), np.cos(joint_angles)))
 
-        pointing_cosine_sim = self.reward.compute_pointing_cos_sim(achieved_pos, desired_pos, achieved_or_quat,
-                                                                   self.tree_goal_or)
-        perpendicular_cosine_sim = self.reward.compute_perpendicular_cos_sim(achieved_or_quat, self.tree_goal_or)
+        # Update observation info with calculated values
+        self.observation_info.update({
+            'desired_pos': desired_pos,
+            'achieved_pos': achieved_pos,
+            'achieved_or_quat': achieved_or_quat,
+            'achieved_eebase_pos': achieved_tool_base_pos,
+            'achieved_eebase_or_quat': achieved_tool_base_orient,
+            'rgb': rgb,
+            'prev_rgb': prev_rgb,
+            'point_mask': point_mask,
+            'joint_angles': encoded_joint_angles,
+            'achieved_vel': achieved_vel,
+            'achieved_ang_vel': achieved_ang_vel,
+            'pointing_cosine_sim': abs(pointing_cosine_sim),
+            'perpendicular_cosine_sim': abs(perpendicular_cosine_sim),
+            'target_distance': np.linalg.norm(achieved_pos - desired_pos)
+        })
 
-        # Just infos to be used in the reward function/other methods
-        self.observation_info['desired_pos'] = desired_pos
-        self.observation_info['achieved_pos'] = achieved_pos
-        self.observation_info['achieved_or_quat'] = achieved_or_quat
-        # self.observation_info['rgb'] = rgb
-        self.observation_info['pointing_cosine_sim'] = abs(pointing_cosine_sim)
-        self.observation_info['perpendicular_cosine_sim'] = abs(perpendicular_cosine_sim)
-        self.observation_info['target_distance'] = np.linalg.norm(achieved_pos - desired_pos)
-        self.observation_info['achieved_eebase_pos'] = achieved_tool_base_pos
-        self.observation_info['achieved_eebase_or_quat'] = achieved_tool_base_orient
+    def update_observation(self):
+        """Constructs the main observation dictionary using `observation_info` data."""
+        # Initial pose of the end-effector
+        init_pos_ee = np.array(self.ur5.init_pos_ee[0], dtype=np.float32)
+        init_or_ee = np.array(self.ur5.init_pos_ee[1], dtype=np.float32)
 
-        # Actual observation - All wrt base
-        ############TODO: Check if this is correct
+        # Transform positions and orientations relative to the robot base
         t_bw, r_bw = self.pyb.con.invertTransform(self.ur5.init_pos_base[0], self.ur5.init_pos_base[1])
-        achieved_pos_b, achieved_or_quat_b = self.pyb.con.multiplyTransforms(t_bw, r_bw, achieved_pos, achieved_or_quat)
-        init_pos_ee_b, init_or_ee_b = self.pyb.con.multiplyTransforms(t_bw, r_bw, init_pos_ee, init_or_ee)
-        desired_pos_b, desired_or_b = self.pyb.con.multiplyTransforms(t_bw, r_bw, desired_pos, [0, 0, 0, 1])
+        achieved_pos_b, achieved_or_quat_b = self.pyb.con.multiplyTransforms(
+            t_bw, r_bw, self.observation_info['achieved_pos'], self.observation_info['achieved_or_quat']
+        )
+        init_pos_ee_b, init_or_ee_b = self.pyb.con.multiplyTransforms(
+            t_bw, r_bw, init_pos_ee, init_or_ee
+        )
+        desired_pos_b, _ = self.pyb.con.multiplyTransforms(
+            t_bw, r_bw, self.observation_info['desired_pos'], [0, 0, 0, 1]
+        )
+
+        # Convert achieved orientation to a 6D representation for continuity
         achieved_or_mat_b = np.array(self.pyb.con.getMatrixFromQuaternion(achieved_or_quat_b)).reshape(3, 3)
         achieved_or_b_6d = achieved_or_mat_b[:, :2].reshape(6, ).astype(np.float32)
-        self.observation['achieved_goal'] = np.array(achieved_pos_b) - np.array(init_pos_ee_b)
-        self.observation['desired_goal'] = np.array(desired_pos_b) - np.array(init_pos_ee_b)
-        self.observation['relative_distance'] = np.array(achieved_pos_b) - np.array(desired_pos_b)
-        # Convert orientation into 6D form for continuity
-        self.observation['achieved_or'] = achieved_or_b_6d
-        # Image stuff
-        #################################################
-        self.observation['rgb'] = rgb
-        self.observation['prev_rgb'] = prev_rgb
-        self.observation['point_mask'] = point_mask
-        # Convert joint angles to sin and cos
-        self.observation['joint_angles'] = encoded_joint_angles
-        # self.observation[
-        #     'joint_velocities'] = self.ur5.action  # Check the name of this variable and figure where it is set
-        # Action actually achieved
 
-        self.observation['prev_action_achieved'] = np.hstack((achieved_vel, achieved_ang_vel))
+        # Update the observation dictionary
+        self.observation.update({
+            'achieved_goal': (np.array(achieved_pos_b) - np.array(init_pos_ee_b)).astype(np.float32),
+            'desired_goal': (np.array(desired_pos_b) - np.array(init_pos_ee_b)).astype(np.float32),
+            'relative_distance': (np.array(achieved_pos_b) - np.array(desired_pos_b)).astype(np.float32),
+            'achieved_or': np.array(achieved_or_b_6d).astype(np.float32),
+            'rgb': np.array(self.observation_info['rgb']).astype(np.float32),
+            'prev_rgb': np.array(self.observation_info['prev_rgb']).astype(np.float32),
+            'point_mask': np.array(self.observation_info['point_mask']).astype(np.float32),
+            'joint_angles': np.array(self.observation_info['joint_angles']).astype(np.float32),
+            'prev_action_achieved': np.hstack(
+                (self.observation_info['achieved_vel'], self.observation_info['achieved_ang_vel'])
+            ).astype(np.float32),
+            'critic_pointing_cosine_sim': np.array(self.observation_info['pointing_cosine_sim']).astype(
+                np.float32).reshape(1, ),
+            'critic_perpendicular_cosine_sim': np.array(self.observation_info['perpendicular_cosine_sim']).astype(
+                np.float32).reshape(1, )
+        })
 
-        # Privileged critic
-        # Add cosine sim perp and point
-        self.observation['critic_pointing_cosine_sim'] = np.array(pointing_cosine_sim).astype(np.float32).reshape(1, )
-        self.observation['critic_perpendicular_cosine_sim'] = np.array(perpendicular_cosine_sim).astype(
-            np.float32).reshape(1, )
+    def add_recording_info(self):
+        """Adds additional visual recording information if in 'record' mode."""
+        sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1])
+        rgb, _ = self.pyb.get_rgbd_at_cur_pose(
+            'robot',
+            self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt, xyz_offset=self.cam_xyz_offset),
+            light_direction=self.light_direction,
+            light_color=self.light_color,
+            light_distance=self.light_distance
+        )
+        self.observation_info['rgb'] = rgb
+        self.pyb.con.removeBody(sphere)
+
+    def set_extended_observation(self) -> dict:
+        """
+        Collects and sets an extended observation, including the current position, goal position, orientation,
+        depth image, joint angles, joint velocities, and other required information.
+        """
+        self.update_prev_observation_info()
+        self.update_observation_info()
+        self.update_observation()
 
         if "record" in self.name:
-            # add sphere
-            sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1], )
-            rgb, _ = self.pyb.get_rgbd_at_cur_pose('robot',
-                                                   self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan,
-                                                                                      tilt=self.cam_tilt,
-                                                                                      xyz_offset=self.cam_xyz_offset))
-            # remove sphere
-            self.observation_info['rgb'] = rgb
-            self.pyb.con.removeBody(sphere)
+            self.add_recording_info()
 
         return self.observation
 
