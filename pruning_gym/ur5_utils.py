@@ -273,7 +273,7 @@ class UR5:
         """
         collision_info = {"collisions_acceptable": False, "collisions_unacceptable": False}
 
-        collision_acceptable_list = ['SPUR', 'WATER_BRANCH']
+        collision_acceptable_list = ['SPUR']
         collision_unacceptable_list = ['TRUNK', 'BRANCH', 'SUPPORT']
         for type in collision_acceptable_list:
             collisions_acceptable = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=collision_objects[type])

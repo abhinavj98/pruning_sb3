@@ -141,8 +141,9 @@ class PruningEnv(gym.Env):
         self.cutpoint_noise = np.array([0, 0, 0])
 
         self.verbose = verbose
-        self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None,
-                                     'SUPPORT': None, }
+        #Get collision keys from label and value as None
+        self.collision_object_ids = {i: None for i in label.values()}
+        self.collision_object_ids.update({'SUPPORT': None})
 
         # Reward variables
         self.reward = Reward(movement_reward_scale, distance_reward_scale, pointing_orientation_reward_scale,
@@ -224,14 +225,14 @@ class PruningEnv(gym.Env):
         self.tree_orientation = None
         self.tree_scale = None
 
-        pos = None
-        scale = None
-        if "envy" in self.tree_urdf_path:
-            pos = np.array([0., -0.9, 0])
-            scale = 1
-        elif "ufo" in self.tree_urdf_path:
-            pos = np.array([-0.5, -0.8, -0.3])
-            scale = 1
+        pos = np.array([0., 0., 0])
+        scale = 1
+        # if "envy" in self.tree_urdf_path:
+        #     pos = np.array([0., -0.9, 0])
+        #     scale = 1
+        # elif "ufo" in self.tree_urdf_path:
+        #     pos = np.array([-0.5, -0.8, -0.3])
+        #     scale = 1
 
         assert scale is not None
         assert pos is not None
@@ -330,8 +331,8 @@ class PruningEnv(gym.Env):
         self.ur5.ur5_robot = None
         self.tree_id = None
         self.bg_tree_id = None
-        self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None,
-                                     'SUPPORT': None, }
+        self.collision_object_ids = {i: None for i in label.values()}
+        self.collision_object_ids.update({'SUPPORT': None})
 
         # #enable file caching
         self.pyb.con.setPhysicsEngineParameter(enableFileCaching=1)
@@ -356,16 +357,11 @@ class PruningEnv(gym.Env):
         # Create new ur5 arm body
         self.pyb.create_background()
         self.ur5.setup_ur5_arm()
-        # self.ur5.reset_ur5_arm()
-        # Sample new point
         # Jitter the camera pose and lighting conditions
-
         light_direction = np.random.uniform(-1, 1, size=3)
         self.light_direction = light_direction/np.linalg.norm(light_direction)  # Normalize to make it a unit vector
-
         # Randomize light color (in RGB)
         self.light_color = np.random.uniform(0, 1, size=3)
-
         # Randomize light distance (affects intensity)
         self.light_distance = np.random.uniform(1.0, 5.0)
         self.set_camera_pose()
@@ -429,7 +425,7 @@ class PruningEnv(gym.Env):
             print("DEBUG: Activating tree")
             print('DEBUG: Loading tree from ', self.tree_urdf)
 
-        supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [self.tree_pos[0], self.tree_pos[1] - 0.05, 0.0],
+        supports = pyb.con.loadURDF(SUPPORT_AND_POST_PATH, [self.tree_pos[0 ], self.tree_pos[1], self.tree_pos[2]],
                                     list(pyb.con.getQuaternionFromEuler([np.pi / 2, 0, np.pi / 2])),
                                     globalScaling=1)
 
@@ -462,8 +458,8 @@ class PruningEnv(gym.Env):
                 pyb.con.removeBody(i)
             self.tree_id = None
             self.bg_tree_id = None
-            self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None,
-                                         'SUPPORT': None, }
+            self.collision_object_ids = {i: None for i in label.values()}
+            self.collision_object_ids.update({'SUPPORT': None})
 
     def force_time_limit(self):
         """Force time limit"""
@@ -745,7 +741,6 @@ class PruningEnv(gym.Env):
 
     def add_recording_info(self):
         """Adds additional visual recording information if in 'record' mode."""
-        sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1])
         sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"]+self.cutpoint_noise, rgba=[1, 0, 0, 1])
         rgb, _ = self.pyb.get_rgbd_at_cur_pose(
             'robot',
@@ -857,8 +852,7 @@ class PruningEnv(gym.Env):
         terminated = False
         # TODO: Success only if the collision is in the branch plane
         is_success_collision_spur = self.ur5.check_success_collision(self.collision_object_ids['SPUR'])
-        is_success_collision_water_branch = self.ur5.check_success_collision(self.collision_object_ids['WATER_BRANCH'])
-        is_success_collision = is_success_collision_spur or is_success_collision_water_branch
+        is_success_collision = is_success_collision_spur
         dist_from_target = np.linalg.norm(achieved_pos - desired_pos)
         if is_success_collision and dist_from_target < self.distance_threshold:
             if (orientation_perp_value > self.angle_threshold_perp_cosine) and (

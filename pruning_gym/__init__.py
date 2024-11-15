@@ -8,8 +8,7 @@ SUPPORT_AND_POST_PATH = os.path.join(MESHES_AND_URDF_PATH, 'urdf', 'supports_and
 
 
 label = {
-    (0.117647, 0.235294, 0.039216): "SPUR",
-    (0.313725, 0.313725, 0.313725): "TRUNK",
-    (0.254902, 0.176471, 0.058824): "BRANCH",
-    (0.235294, 0.000000, 0.000000): "WATER_BRANCH",
+    (1.0, 0.0, 0.0): "TRUNK",
+    (0.0, 1.0, 0.0): "SPUR",
+    (1.0, 0.588235, 0.0): "BRANCH",
 }

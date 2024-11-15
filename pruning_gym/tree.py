@@ -80,10 +80,10 @@ class Tree:
 
         # Variables to store the vertices and statistics of the tree
         self.vertex_and_projection = []
-        self.projection_mean = np.array(0.)
-        self.projection_std = np.array(0.)
-        self.projection_sum_x = np.array(0.)
-        self.projection_sum_x2 = np.array(0.)
+        # self.projection_mean = np.array(0.)
+        # self.projection_std = np.array(0.)
+        # self.projection_sum_x = np.array(0.)
+        # self.projection_sum_x2 = np.array(0.)
         self.reachable_points = []
 
         # Label textured tree
@@ -106,11 +106,7 @@ class Tree:
             self.load_points_from_pickle(pkl_path)
         else:
             # Get all points on the tree
-            self.get_all_points(tree_obj)
-            self.filter_outliers()
-            self.filter_trunk_points()
-            # self.filter_points_below_base()
-
+            self.get_all_cutpoints(tree_obj)
             # dump reachable points to file using pickle
             with open(pkl_path, 'wb') as f:
                 pickle.dump((self.pos, self.orientation, self.vertex_and_projection), f)
@@ -223,7 +219,7 @@ class Tree:
         vertex_w_transform = pyb.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation)
         return np.array(vertex_w_transform[0]), vertex[3]
 
-    def get_all_points(self, tree_obj):
+    def get_all_cutpoints(self, tree_obj):
         for num, face in enumerate(tree_obj.mesh_list[0].faces):
             # Order the sides of the face by length
             ab = (
@@ -273,24 +269,26 @@ class Tree:
                 label = labels[0]
             else:
                 label = "JOINT"
-            if label != "SPUR" and label != "WATER_BRANCH":
+            if label != "SPUR":
                 continue
             self.vertex_and_projection.append((tree_point, perpendicular_projection,
                                                normal_vec, label))
-            # This projection mean is used to filter corner/flushed faces which do not correspond to a branch
-            self.projection_sum_x += np.linalg.norm(perpendicular_projection)
-            self.projection_sum_x2 += np.linalg.norm(perpendicular_projection) ** 2
-        self.projection_mean = self.projection_sum_x / len(self.vertex_and_projection)
-        self.projection_std = np.sqrt(
-            self.projection_sum_x2 / len(self.vertex_and_projection) - self.projection_mean ** 2)
 
-    def filter_outliers(self):
-        # Filter out outliers
-        print("Number of points before filtering: ", len(self.vertex_and_projection))
-        self.vertex_and_projection = list(
-            filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean + 0.5 * self.projection_std,
-                   self.vertex_and_projection))
-        print("Number of points after filtering: ", len(self.vertex_and_projection))
+            #Do not need filtering since we have each label present
+        #     # This projection mean is used to filter corner/flushed faces which do not correspond to a branch
+        #     self.projection_sum_x += np.linalg.norm(perpendicular_projection)
+        #     self.projection_sum_x2 += np.linalg.norm(perpendicular_projection) ** 2
+        # self.projection_mean = self.projection_sum_x / len(self.vertex_and_projection)
+        # self.projection_std = np.sqrt(
+        #     self.projection_sum_x2 / len(self.vertex_and_projection) - self.projection_mean ** 2)
+
+    # def filter_outliers(self):
+    #     # Filter out outliers
+    #     print("Number of points before filtering: ", len(self.vertex_and_projection))
+    #     self.vertex_and_projection = list(
+    #         filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean + 0.5 * self.projection_std,
+    #                self.vertex_and_projection))
+    #     print("Number of points after filtering: ", len(self.vertex_and_projection))
 
     def filter_points_below_base(self):
         # Filter out points below the base of the arm

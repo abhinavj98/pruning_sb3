@@ -143,6 +143,7 @@ class PruningSetGoalCallback(BaseCallback):
         if len(self.or_bins[orientation]) == 0:
             if self.verbose > 1:
                 print(f"DEBUG: No trees in orientation {orientation}")
+                assert ValueError
         tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
         current_point_pos, current_branch_or, current_branch_normal, _ = random_point
         required_point_pos = random.choice(self.reachable_euclidean_grid)

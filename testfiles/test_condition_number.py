@@ -1,6 +1,5 @@
 import os
 import sys
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import *
@@ -70,8 +69,8 @@ if __name__ == "__main__":
     infos[0]['TimeLimit.truncated'] = True
 
     set_goal_callback.update_locals(locals())
-    env.reset()
     set_goal_callback._update_tree_properties()
+    env.reset()
 
     val = np.array([0, 0, 0, 0, 0, 0])
     # Use keyboard to move the robot
@@ -111,10 +110,12 @@ if __name__ == "__main__":
             val = np.array([0, 0, 0, 0, 0, -0.5])
         elif ord('t') in action:
             # env.force_time_limit()
+
             infos = {}
             infos['TimeLimit.truncated'] = True
-            env.reset()
+            set_goal_callback.locals = {"infos": [infos]}
             set_goal_callback._update_tree_properties()
+            env.reset()
             # env.is_goal_state = True
         else:
             val = np.array([0.,0.,0, 0., 0., 0.])
