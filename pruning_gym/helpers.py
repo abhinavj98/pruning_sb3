@@ -105,7 +105,7 @@ def optical_flow_create_shared_vars(num_envs: int = 1, algo_size=(224, 224)):
 
 
 def compute_perpendicular_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
-    projection = ab - np.dot(ab, bc) / np.dot(bc, bc) * bc
+    projection = ab - np.dot(ab, bc) / (np.dot(bc, bc)+1e-8) * bc
     return projection
 
 
