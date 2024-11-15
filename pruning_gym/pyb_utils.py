@@ -110,20 +110,12 @@ class pyb_utils:
         return sphereUid
     #
 
-    def get_image_at_curr_pose(self, type, view_matrix=None) -> List:
+    def get_image_at_curr_pose(self, type, view_matrix=None, light_direction = None, light_color = None, light_distance = None) -> List:
         """Take the current pose of the end effector and set the camera to that pose"""
         if type == 'robot':
             if view_matrix is None:
                 raise ValueError('view_matrix cannot be None for robot view')
 
-            light_direction = np.random.uniform(-1, 1, size=3)
-            light_direction /= np.linalg.norm(light_direction)  # Normalize to make it a unit vector
-
-            # Randomize light color (in RGB)
-            light_color = np.random.uniform(0, 1, size=3)
-
-            # Randomize light distance (affects intensity)
-            light_distance = np.random.uniform(1.0, 5.0)
             return self.con.getCameraImage(width=self.cam_width, height=self.cam_height, viewMatrix=view_matrix,
                                            projectionMatrix=self.proj_mat,
                                            renderer=self.con.ER_TINY_RENDERER,
@@ -160,10 +152,11 @@ class pyb_utils:
         depth_linearized = near_val / (far_val - (far_val - near_val) * depth + 0.00000001)
         return depth_linearized
 
-    def get_rgbd_at_cur_pose(self, type, view_matrix) -> Tuple[NDArray, NDArray]:
+    def get_rgbd_at_cur_pose(self, type, view_matrix, light_direction, light_color, light_distance) -> Tuple[NDArray, NDArray]:
         """Get RGBD image at current pose"""
         # cur_p = self.ur5.get_current_pose(self.camera_link_index)
-        rgbd = self.get_image_at_curr_pose(type, view_matrix)
+        rgbd = self.get_image_at_curr_pose(type, view_matrix, light_direction=light_direction, light_color=light_color,
+                                           light_distance=light_distance)
         rgb, depth = self.seperate_rgbd_rgb_d(rgbd, height=self.cam_height, width=self.cam_width)
         depth = depth.astype(np.float32)
         depth = self.linearize_depth(depth, self.far_val, self.near_val) - 0.5
