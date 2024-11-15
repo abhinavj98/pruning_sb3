@@ -136,6 +136,10 @@ class PruningEnv(gym.Env):
         self.light_direction = np.array([0, 0, 1])
         self.light_color = np.array([1, 1, 1])
         self.light_distance = 1
+
+        #Cutpoint randomization
+        self.cutpoint_noise = np.array([0, 0, 0])
+
         self.verbose = verbose
         self.collision_object_ids = {'SPUR': None, 'TRUNK': None, 'BRANCH': None, 'WATER_BRANCH': None,
                                      'SUPPORT': None, }
@@ -365,6 +369,9 @@ class PruningEnv(gym.Env):
         # Randomize light distance (affects intensity)
         self.light_distance = np.random.uniform(1.0, 5.0)
         self.set_camera_pose()
+
+        #Noise to add to cutpoint. A cuboid with noisier depth (-y)
+        self.cutpoint_noise = np.array([np.random.uniform(-0.02, 0.02), np.random.uniform(-0.05, 0.05), np.random.uniform(-0.02, 0.02)])
 
         for i in range(2):
             self.pyb.con.stepSimulation()
@@ -707,8 +714,10 @@ class PruningEnv(gym.Env):
         init_pos_ee_b, init_or_ee_b = self.pyb.con.multiplyTransforms(
             t_bw, r_bw, init_pos_ee, init_or_ee
         )
+
+        noisy_desired_pos = self.observation_info['desired_pos']+self.cutpoint_noise
         desired_pos_b, _ = self.pyb.con.multiplyTransforms(
-            t_bw, r_bw, self.observation_info['desired_pos'], [0, 0, 0, 1]
+            t_bw, r_bw, noisy_desired_pos, [0, 0, 0, 1]
         )
 
         # Convert achieved orientation to a 6D representation for continuity
@@ -737,6 +746,7 @@ class PruningEnv(gym.Env):
     def add_recording_info(self):
         """Adds additional visual recording information if in 'record' mode."""
         sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"], rgba=[1, 0, 0, 1])
+        sphere = self.pyb.add_sphere(radius=0.005, pos=self.observation_info["desired_pos"]+self.cutpoint_noise, rgba=[1, 0, 0, 1])
         rgb, _ = self.pyb.get_rgbd_at_cur_pose(
             'robot',
             self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt, xyz_offset=self.cam_xyz_offset),
@@ -1070,7 +1080,9 @@ class PruningEnvRRT(PruningEnv):
         robot_img, _ = self.pyb.get_rgbd_at_cur_pose('robot',
                                                      self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan,
                                                                                         tilt=self.cam_tilt,
-                                                                                        xyz_offset=self.cam_xyz_offset))
+                                                                                        xyz_offset=self.cam_xyz_offset),
+                                                     light_direction=self.light_direction, light_color=self.light_color,
+                                                     light_distance=self.light_distance)
         robot_img = robot_img * 255
         robot_img = robot_img.astype(np.uint8)
         robot_img = cv2.resize(robot_img, (512, 512), interpolation=cv2.INTER_NEAREST)
