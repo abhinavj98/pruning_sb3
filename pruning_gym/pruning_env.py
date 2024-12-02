@@ -317,10 +317,10 @@ class PruningEnv(gym.Env):
 
     def set_camera_pose(self):
         pan_bounds = (-2, 2)
-        tilt_bounds = (-2, 2)
+        tilt_bounds = (-2, 0)
         self.cam_pan = np.radians(np.random.uniform(*pan_bounds))
-        self.cam_tilt = np.radians(2 + np.random.uniform(*tilt_bounds))
-        self.cam_xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.01, 0.0005, 0.01])
+        self.cam_tilt = np.deg2rad(6 + np.random.uniform(*tilt_bounds))
+        self.cam_xyz_offset =  np.array([0.0115, 0.015, 0.015]) + np.random.uniform(-1, 1, 3) * np.array([0.005, 0.005, 0.005]) #Realsense camera offset from base + randomization
 
     def reset(self, seed: Optional[int] = None, options=None) -> Tuple[dict, dict]:
         """Theres a chance that this is causing some memory leak. Shows up when using reset multiple times and parallelized."""
@@ -363,7 +363,7 @@ class PruningEnv(gym.Env):
         # Randomize light color (in RGB)
         self.light_color = np.random.uniform(0, 1, size=3)
         # Randomize light distance (affects intensity)
-        self.light_distance = np.random.uniform(1.0, 5.0)
+        self.light_distance = np.random.uniform(1.0, 2.0)
         self.set_camera_pose()
 
         #Noise to add to cutpoint. A cuboid with noisier depth (-y)
