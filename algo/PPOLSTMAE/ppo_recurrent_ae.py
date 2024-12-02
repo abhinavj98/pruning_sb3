@@ -578,9 +578,6 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
 
             iteration += 1
             self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
-            #Update gae_lambda
-            self.rollout_buffer.gae_lambda = max(self.gae_lambda * self._current_progress_remaining, 0.2)
-            self.expert_buffer.gae_lambda = max(self.gae_lambda * self._current_progress_remaining, 0.2)
 
             # Display training infos
             if log_interval is not None and iteration % log_interval == 0:
@@ -1622,6 +1619,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
             iteration += 1
             self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
+            # Update gae_lambda
+            self.rollout_buffer.gae_lambda = max(self.gae_lambda * self._current_progress_remaining, 0.2)
+            self.expert_buffer.gae_lambda = max(self.gae_lambda * self._current_progress_remaining, 0.2)
 
             # Display training infos
             if log_interval is not None and iteration % log_interval == 0:
