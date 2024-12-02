@@ -25,7 +25,7 @@ class UR5:
         self.pos = pos
         self.orientation = orientation
         self.randomize_pose = randomize_pose
-        self.tool0_link_index = None
+        self.pruner_base_link_index = None
         self.end_effector_index = None
         self.success_link_index = None
         self.tool_link_index = None
@@ -44,10 +44,10 @@ class UR5:
         self.init_pos_base = None
         self.init_pos_eebase = None
         self.robot_urdf_path = robot_urdf_path
-        self.camera_base_offset = np.array(
-            [0.063179, 0.077119, 0.0420027])
+        self.camera_base_offset = np.array([0.0, 0.08, 0.143])
+        #np.array(
+            # [0.063179, 0.077119, 0.0420027])
         self.verbose = verbose
-
         self.setup_ur5_arm()  # Changes pos and orientation if randomize is True
 
     def set_ur5_pose(self, pos, orientation):
@@ -59,9 +59,9 @@ class UR5:
         if self.ur5_robot is not None:
             self.con.removeBody(self.ur5_robot) #This trigger "Failed to remove body" warning
             self.ur5_robot = None
-        self.tool0_link_index = 8
-        self.end_effector_index = 13
-        self.success_link_index = 14
+        self.pruner_base_link_index = 17
+        self.end_effector_index = 19
+        self.success_link_index = 20
         self.base_index = 3
         flags = self.con.URDF_USE_SELF_COLLISION
 
@@ -141,9 +141,19 @@ class UR5:
         # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 10, 11, 0)
         # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 7, 11, 0)
         # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 6, 11, 0)
-        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 14, 0)
-        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 8, 0)
-        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 9, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 10, 11, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 12, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 12, 13, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 13, 14, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 14, 15, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 16, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 16, 17, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 12, 15, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 8, 12, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 17, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 17, 20, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 8, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 9, 0)
         #TODO: Add collision filter for tree and UR5. But not tree collision objects.
 
     def unset_collision_filter(self):
@@ -233,7 +243,7 @@ class UR5:
         return joints  # type: ignore
 
     def calculate_jacobian(self):
-        jacobian = self.con.calculateJacobian(self.ur5_robot, self.tool0_link_index, [0, 0, 0],
+        jacobian = self.con.calculateJacobian(self.ur5_robot, self.pruner_base_link_index, [0, 0, 0],
                                               self.get_joint_angles(),
                                               [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         jacobian = np.vstack(jacobian)
@@ -316,7 +326,7 @@ class UR5:
         collisions_success = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=body_b,
                                                        linkIndexA=self.success_link_index)
         for i in range(len(collisions_success)):
-            if collisions_success[i][-6] < 0.05:
+            if collisions_success[i][-6] < 0.01:
                 if self.verbose > 1:
                     print("DEBUG: Success Collision")
                 return True
@@ -376,7 +386,7 @@ class UR5:
     # TODO: Better types for getCameraImage
     def get_view_mat_at_curr_pose(self, pan, tilt, xyz_offset) -> np.ndarray:
         """Get view matrix at current pose"""
-        pose, orientation = self.get_current_pose(self.tool0_link_index)
+        pose, orientation = self.get_current_pose(self.pruner_base_link_index)
 
         camera_tf = self.create_camera_transform(pose, orientation, pan, tilt, xyz_offset)
 
@@ -387,16 +397,16 @@ class UR5:
         view_matrix = self.con.computeViewMatrix(camera_tf[:3, 3], camera_tf[:3, 3] + 0.1 * camera_vector, up_vector)
         return view_matrix
 
-    def get_camera_location(self):
-        pose, orientation = self.get_current_pose(self.tool0_link_index)
-        tilt = np.pi / 180 * 8
+    def get_camera_location(self, tilt, pan, xyz_offset):
+        pose, orientation = self.get_current_pose(self.pruner_base_link_index)
 
-        camera_tf = self.create_camera_transform(pose, orientation, 0, tilt, [0, 0, 0])
+
+        camera_tf = self.create_camera_transform(pose, orientation, pan, tilt, xyz_offset)
         return camera_tf
 
     def get_condition_number(self) -> float:
         # get jacobian
-        jacobian = self.con.calculateJacobian(self.ur5_robot, self.tool0_link_index, [0, 0, 0],
+        jacobian = self.con.calculateJacobian(self.ur5_robot, self.pruner_base_link_index, [0, 0, 0],
                                               self.get_joint_angles(),
                                               [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         jacobian = np.vstack(jacobian)
