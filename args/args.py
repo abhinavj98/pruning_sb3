@@ -298,11 +298,11 @@ args = {
             'help': 'initial value for the log standard deviation'
         },
         'ae_coeff': {
-            'type': int,
+            'type': float,
             'default': 0,
         },
         'bc_coeff': {
-            'type': int,
+            'type': float,
             'default': 0.01,
         },
         'verbose': {
