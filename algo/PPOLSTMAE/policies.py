@@ -113,7 +113,7 @@ class MlpExtractorLN(nn.Module):
         # Create networks
         # If the list of layers is empty, the network will just act as an Identity module
         self.policy_net = nn.Sequential(*policy_net).to(device)
-        self.value_net = nn.Sequential(*value_net).to(device)
+        self.value_net = EnsembleValueNetwork(2, value_net)#nn.Sequential(*value_net).to(device)
 
     def forward(self, features: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
         """
@@ -127,6 +127,19 @@ class MlpExtractorLN(nn.Module):
 
     def forward_critic(self, features: th.Tensor) -> th.Tensor:
         return self.value_net(features)
+
+class EnsembleValueNetwork(nn.Module):
+    #Initializes multiple value networks and returns the minimum value
+    def __init__(self, num_networks, value_net):
+        super(EnsembleValueNetwork, self).__init__()
+        self.num_networks = num_networks
+        self.value_nets = nn.ModuleList([nn.Sequential(*value_net) for _ in range(num_networks)])
+
+    def forward(self, x):
+        values = th.stack([value_net(x) for value_net in self.value_nets], dim=1)
+        return th.min(values, dim=1)[0]
+
+
 
 class ActorCriticPolicySquashed(BasePolicy):
     """
