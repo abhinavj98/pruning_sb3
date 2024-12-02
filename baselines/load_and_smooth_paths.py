@@ -35,8 +35,10 @@ if __name__ == "__main__":
     with h5py.File(args_baseline['load_file_path']+'.hdf5', 'r') as f:
         #go through all datasets and append the successful paths to path_success
         for key in f.keys():
+
             dataset = f[key]
             #print all attributes
+            print(dataset.attrs)
             if dataset.attrs['fail_mode'] == 1:
                 paths_success.append(key)
 
@@ -46,6 +48,7 @@ if __name__ == "__main__":
     file_path = args_baseline['load_file_path']+'.hdf5'
     args_train['save_optical_flow'] = True
     args_train['shared_var'] = optical_flow_create_shared_vars(args_global['n_envs'], (args_env['algo_height'], args_env['algo_width']))
+    print(args_train['shared_var'])
     env = make_vec_env(PruningEnvRRT, env_kwargs=args_train, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
 
     # paths_df = pd.read_csv(path_file)
@@ -55,7 +58,7 @@ if __name__ == "__main__":
     # # paths_success = paths_success[624:]
     # num_paths = len(paths_success)
     num_points_per_env = len(paths_success)//env.num_envs
-
+    print("Number of points per env", num_points_per_env)
     for i in range(env.num_envs):
         dataset = paths_success[i*num_points_per_env:(i+1)*num_points_per_env]
         env.env_method("set_dataset", dataset=dataset, dataset_file_path = file_path, indices=i)

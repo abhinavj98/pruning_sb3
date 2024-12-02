@@ -31,7 +31,7 @@ if __name__ == "__main__":
     load_timestep = args_global['load_timestep']
 
     env = PruningEnv(**args_record)
-    expert_trajectory_path = "test_trajectories.hdf5"
+    expert_trajectory_path = "expert_trajectories/rrt_connect_uniform_waypoints_vel.hdf5"
     with h5py.File(expert_trajectory_path, 'r') as file:
         traj_names = list(file.keys())
     #Loop through the all the datasets in the hdf5 file

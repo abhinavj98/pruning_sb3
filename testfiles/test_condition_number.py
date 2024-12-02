@@ -76,7 +76,7 @@ if __name__ == "__main__":
     # Use keyboard to move the robot
     while True:
 
-        tf = env.ur5.get_camera_location()
+        tf = env.ur5.get_camera_location(env.cam_pan, env.cam_tilt, env.cam_xyz_offset)
         # orientation = np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
         orientation = tf[:3, :3]
         loc = tf[:3, 3]
@@ -124,7 +124,7 @@ if __name__ == "__main__":
         # global_angular_velocity = np.dot(orientation, val[3:])
         #
         # val =  np.hstack((global_velocity, global_angular_velocity))
-
+        # print()
         observation, reward, terminated, truncated, infos = env.step(val)
         set_goal_callback.locals = {"infos": [infos]}
         # print(np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3))
@@ -133,4 +133,6 @@ if __name__ == "__main__":
         print("Current angular velocity in ee frame", np.dot(orientation.T,ang))
         env.pyb.visualize_rot_mat(orientation, loc)
         time.sleep(0.1)
-
+        # print(env.ur5.check_)
+        # print(env.ur5.get_joint_angles())
+        print(env.ur5.check_collisions(env.collision_object_ids))
