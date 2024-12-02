@@ -40,7 +40,7 @@ class PruningSetGoalCallback(BaseCallback):
 
         # Create a mask for the valid centers
         mask = (centers[..., 0] ** 2 + centers[..., 1] ** 2 + centers[..., 2] ** 2 <= radius ** 2) & (
-                centers[..., 1] < -0.7) & (centers[..., 2] > -0.05)
+                centers[..., 1] < -0.75) & (centers[..., 2] > -0.2)
 
         # Apply the mask to the centers array to get the valid centers
         valid_centers = centers[mask] + base_center
@@ -139,20 +139,23 @@ class PruningSetGoalCallback(BaseCallback):
             bin_key = (bin_key[0], -175)
         return bin_key
 
-    def maybe_sample_point(self, orientation):
+    def maybe_sample_point(self, orientation) -> tuple:
         if len(self.or_bins[orientation]) == 0:
             if self.verbose > 1:
                 print(f"DEBUG: No trees in orientation {orientation}")
                 assert ValueError
         tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
         current_point_pos, current_branch_or, current_branch_normal, _ = random_point
-        required_point_pos = random.choice(self.reachable_euclidean_grid)
+        required_point_pos = random.choice(self.reachable_euclidean_grid) #Choose a random point from the reachable grid
 
-        offset = np.random.uniform(-0.025, 0.025, 3)
+        offset = np.random.uniform(-0.025, 0.025, 3) #Half of the resolution
+
+        #How much the tree should move so that the cutpoint is at the required point
         delta_tree_pos = np.array(required_point_pos) - np.array(current_point_pos) + offset
         final_point_pos = np.array(current_point_pos) + delta_tree_pos
-        # print(orientation, final_point_pos)
+
         if (delta_tree_pos > self.delta_pos_max).any() or (delta_tree_pos < self.delta_pos_min).any():
+            # Limit large movements so that visual similarity of tree is maintained
             if self.verbose > 1:
                 print(
                     f"DEBUG: Invalid delta pos {delta_tree_pos}, required pos {required_point_pos}, current pos {current_point_pos}, offset {offset}, tree{tree_urdf}")

@@ -175,7 +175,7 @@ def make_or_bins(args, type):
                 or_bins[key].extend(i.or_bins[key])
 
         del data_env_train
-        # Shuffle the data inside the bisn
+        # Shuffle the data inside the bins
         for key in or_bins.keys():
             random.shuffle(or_bins[key])
 

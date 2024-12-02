@@ -36,8 +36,8 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
         super(PruningTrainSetGoalCallback, self).__init__(verbose)
         self.or_bins = or_bins
         self.delta_pos_max = np.array([1, -0.675, 0])
-        self.delta_pos_min = np.array([-1, -0.9525, -2])
-        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(0.95, 0.05)
+        self.delta_pos_min = np.array([-1, -1, -2])
+        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1, 0.05)
 
     def _init_callback(self) -> None:
         for i in range(self.training_env.num_envs):
@@ -57,7 +57,6 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
         orientation = self.get_bin_from_orientation(rand_vector)
         while not point_sampled:
             point_sampled, point = self.maybe_sample_point(orientation)
-
         return point
 
     def _update_tree_properties(self):
