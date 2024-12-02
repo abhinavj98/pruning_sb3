@@ -64,21 +64,29 @@ class pyb_utils:
                                            baseCollisionShapeIndex=wall_col, basePosition=wall_pos,
                                            baseOrientation=list(
                                                self.con.getQuaternionFromEuler(euler_rotation)))
-        self.con.changeVisualShape(objectUniqueId=wall_id, linkIndex=-1, textureUniqueId=wall_texture)
+        self.con.changeVisualShape(objectUniqueId=wall_id, linkIndex=-1, textureUniqueId=wall_texture,
+            rgbaColor=[1, 1, 1, 1],  # Keep original colors (optional)
+            specularColor=[0.5, 0.5, 0.5],  # Optional for shininess
+
+        )
         return wall_id
 
     def create_background(self) -> None:
-        wall_texture_path = os.path.join(MESHES_AND_URDF_PATH, 'textures', 'leaves-dead.png')
+        wall_texture_path = os.path.join(MESHES_AND_URDF_PATH, 'textures', 'background_envy.jpg')
+        ground_texture_path = os.path.join(MESHES_AND_URDF_PATH, 'textures', 'brown_mud.jpg')
+        sky_texture_path = os.path.join(MESHES_AND_URDF_PATH, 'textures', 'overcast_sky.jpg')
         self.wall_texture = self.con.loadTexture(wall_texture_path)
+        self.ground_texture = self.con.loadTexture(ground_texture_path)
+        self.sky_texture = self.con.loadTexture(sky_texture_path)
 
-        self.floor_id = self.create_wall_with_texture([0.01, 5, 5], [0, 0, 0], [0, np.pi / 2, 0], self.wall_texture)
-        self.wall_id = self.create_wall_with_texture([0.01, 5, 5], [0, -4, 5], [np.pi / 2, 0, np.pi / 2],
+        self.floor_id = self.create_wall_with_texture([0.01, 5, 5], [0, 0, 0], [0, np.pi / 2, 0], self.ground_texture)
+        self.wall_id = self.create_wall_with_texture([0.01, 5, 2], [0, -4, 2], [0, 0, np.pi+np.pi/2],
                                                      self.wall_texture)
-        self.side_wall_1_id = self.create_wall_with_texture([0.01, 5, 5], [-5, 0, 5], [0, 0, 0], self.wall_texture)
-        self.side_wall_2_id = self.create_wall_with_texture([0.01, 5, 5], [5, 0, 5], [0, 0, 0], self.wall_texture)
-        self.ceil_id = self.create_wall_with_texture([0.01, 5, 5], [0, 0, 10], [0, np.pi / 2, 0], self.wall_texture)
-        self.back_wall_id = self.create_wall_with_texture([0.01, 5, 5], [0, 2, 5], [np.pi / 2, 0, np.pi / 2],
-                                                          self.wall_texture)
+        self.side_wall_1_id = self.create_wall_with_texture([0.01, 5, 2], [-5, 0, 2], [0, 0, np.pi], self.wall_texture)
+        self.side_wall_2_id = self.create_wall_with_texture([0.01, 5, 2], [5, 0, 2], [0, 0, 0], self.wall_texture)
+        self.ceil_id = self.create_wall_with_texture([0.01, 5, 5], [0, 0, 4], [0, np.pi / 2, 0], self.sky_texture)
+        self.back_wall_id = self.create_wall_with_texture([0.01, 2, 5], [0, 5, 2], [np.pi / 2, 0, np.pi / 2],
+                                                       self.wall_texture)
     def remove_debug_items(self, where) -> None:
         if self.verbose > 1:
             print("DEBUG: Removing debug items")
