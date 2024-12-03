@@ -38,6 +38,7 @@ if __name__ == "__main__":
     print("Trajectories: ", len(traj_names))
 
     for dname in traj_names: #{"trajectory_0", "trajectory_1", "trajectory_2"
+
         with h5py.File(expert_trajectory_path, 'r') as file:
             observation_dict = {}
             expert_traj = file[dname]
@@ -52,6 +53,7 @@ if __name__ == "__main__":
                                     tree_scale=expert_traj.attrs['tree_scale'],tree_pos=expert_traj.attrs['tree_pos'],
                                     point_branch_normal=expert_traj.attrs['point_branch_normal'])
             env.set_ur5_pose(expert_traj.attrs['robot_pos'], expert_traj.attrs['robot_or'])
+            env.reset()
             actions = expert_traj['actions']
             #read all actions from the dataset
             actions = actions[:]
@@ -80,6 +82,7 @@ if __name__ == "__main__":
             # env.set_observation(observation)
             # env.set_action(action)
             obs, rew, term, trunc, _ = env.step(action)
+
             print("env", rew, term)
             print("file", rewards[i], dones[i])
             print("Observation: ", observation_dict['optical_flow'][i].shape)
