@@ -17,9 +17,9 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
         super(PruningEvalSetGoalCallback, self).__init__(verbose)
         self.or_bins = or_bins
         self.dataset = dataset
-        self.delta_pos_max = np.array([1, -0.675, 0])
-        self.delta_pos_min = np.array([-1, -0.9525, -2])
-        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(0.95, 0.05)
+        self.delta_pos_max = np.array([1, -0.9, 0])
+        self.delta_pos_min = np.array([-1, -1.2, -2])
+        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1.25, 0.05)
         self.type = type
         self.num_orientations = num_orientations
         self.num_points_per_orientation = num_points_per_or

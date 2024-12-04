@@ -35,8 +35,9 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
     def __init__(self, or_bins, verbose=0):
         super(PruningTrainSetGoalCallback, self).__init__(verbose)
         self.or_bins = or_bins
-        self.delta_pos_max = np.array([1, -0.675, 0])
-        self.delta_pos_min = np.array([-1, -1, -2])
+        self.delta_pos_max = np.array([1, -0.9, 0])
+        self.delta_pos_min = np.array([-1, -1.2, -2])
+        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1.2, 0.05)
         self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1, 0.05)
 
     def _init_callback(self) -> None:
