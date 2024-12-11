@@ -150,3 +150,5 @@ tanh_results.txt
 testfiles/combine_hdf5.py
 *.bash
 meshes_and_urdf/
+*.zip
+*.ps1

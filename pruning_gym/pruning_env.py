@@ -601,6 +601,7 @@ class PruningEnv(gym.Env):
         # TODO: Make this function nicer
         # Function. Be Nice.
 
+        #Reminder that numpy uses r,c framework whereas cv2 uses c,r framework
         point_mask = np.zeros((self.pyb.cam_height, self.pyb.cam_width), dtype=np.float32)
 
         proj_matrix = np.asarray(self.pyb.proj_mat).reshape([4, 4], order="F")
@@ -1154,7 +1155,7 @@ class PruningEnvRRT(PruningEnv):
             else:
                 raise ValueError("Planner not found")
 
-            self.save_waypoints_to_hdf5(env_info_dict, fail_mode, path, file_path + '_waypoints.hdf5')
+            self.save_waypoints_to_hdf5(env_info_dict, fail_mode, path, file_path + '.hdf5')
             print("Completed", i, fail_mode)
             # result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
             #           "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}#, "path": path, "tree_info": tree_info}
