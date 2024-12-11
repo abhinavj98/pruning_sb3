@@ -102,7 +102,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             ent_coef: float = 0.001,
             vf_coef: float = 0.5,
             ae_coeff: float = 0.,
-            max_grad_norm: float = 0.25,
+            max_grad_norm: float = 0.5,
             use_sde: bool = False,
             sde_sample_freq: int = -1,
             target_kl: Optional[float] = None,
@@ -1096,9 +1096,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             use_cached_optical_flow=self.use_cached_optical_flow
         )
 
-        min_log_prob = -10  # TODO: Is this necessary?
+        min_log_prob = -50  # TODO: Is this necessary?
         log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
-        log_prob_expert = 10 # ideally think of expert as a gaussian policy and this number is the density at expert action.
+        log_prob_expert = 6 # ideally think of expert as a gaussian policy and this number is the density at expert action.
         # Set this number according to the variance of that distribution
         ratio_old_expert_offline = th.exp(
             batch_offline.old_log_prob - log_prob_expert)
@@ -1107,6 +1107,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         values_offline = values_offline.flatten()
         # Normalize advantage
         advantages_online = batch_online.advantages
+
         advantages_offline = batch_offline.advantages * ratio_old_expert_offline
         # Concatenate advantages
         advantages = th.cat((advantages_online, advantages_offline), 0)
@@ -1133,10 +1134,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         #old/expert*current/old = current/expert (Expert sampled the data)
         policy_loss_2_offline = advantages_offline * th.clamp(ratio_current_old_offline, 1 - clip_range,
                                                               1 + clip_range)
-        #If advantage is -ve and log_prob_offline is below min_log_prob, set loss to 0
-        mask_low_prob = (advantages_offline < 0) & (log_prob_offline < min_log_prob)
-        policy_loss_2_offline[mask_low_prob] = 0
-        policy_loss_1_offline[mask_low_prob] = 0
+
         # old/expert*current/old
         policy_loss_offline = -th.mean(th.min(policy_loss_1_offline, policy_loss_2_offline)[mask_offline])
 
@@ -1155,7 +1153,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             )
 
         # Value loss using the TD(gae_lambda) target
-        value_loss_online = th.mean(((batch_online.returns - values_pred_online) ** 2)[mask_online]) * self.vf_coef
+        value_loss_online = th.mean((((batch_online.returns - values_pred_online) ** 2) * ratio_current_old_online)[
+                                        mask_online]) * self.vf_coef
         value_loss_offline = th.mean(
             (((batch_offline.returns - values_pred_offline) ** 2) * ratio_old_expert_offline)[
                 mask_offline]) * self.vf_coef
