@@ -317,10 +317,10 @@ class PruningEnv(gym.Env):
 
     def set_camera_pose(self):
         pan_bounds = (-2, 2)
-        tilt_bounds = (-2, 0)
+        tilt_bounds = (-1, 1)
         self.cam_pan = np.radians(np.random.uniform(*pan_bounds))
-        self.cam_tilt = np.deg2rad(6 + np.random.uniform(*tilt_bounds))
-        self.cam_xyz_offset =  np.array([0.0115, 0.015, 0.015]) + np.random.uniform(-1, 1, 3) * np.array([0.005, 0.005, 0.005]) #Realsense camera offset from base + randomization
+        self.cam_tilt = np.deg2rad(10 + np.random.uniform(*tilt_bounds))
+        self.cam_xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.005, 0.005, 0.005]) #Realsense camera offset from base + randomization np.array([0.0115, 0.015, 0.015]) +
 
     def reset(self, seed: Optional[int] = None, options=None) -> Tuple[dict, dict]:
         """Theres a chance that this is causing some memory leak. Shows up when using reset multiple times and parallelized."""
@@ -608,8 +608,10 @@ class PruningEnv(gym.Env):
         view_matrix = np.asarray(
             self.ur5.get_view_mat_at_curr_pose(pan=self.cam_pan, tilt=self.cam_tilt, xyz_offset=self.cam_xyz_offset
                                                )).reshape([4, 4], order="F")
-        projection = proj_matrix @ view_matrix @ np.array(
-            [self.tree_goal_pos[0], self.tree_goal_pos[1], self.tree_goal_pos[2], 1])
+
+        noisy_desired_pos = np.array(self.tree_goal_pos, dtype=np.float32) + self.cutpoint_noise
+        noisy_desired_pos_homog = np.array([noisy_desired_pos[0], noisy_desired_pos[1], noisy_desired_pos[2], 1])
+        projection = proj_matrix @ view_matrix @ noisy_desired_pos_homog
         # Normalize by w
         projection = projection / projection[3]
 
@@ -721,6 +723,11 @@ class PruningEnv(gym.Env):
         achieved_or_mat_b = np.array(self.pyb.con.getMatrixFromQuaternion(achieved_or_quat_b)).reshape(3, 3)
         achieved_or_b_6d = achieved_or_mat_b[:, :2].reshape(6, ).astype(np.float32)
 
+        #Convert achieved action to local frame
+        achieved_action_local = self.convert_global_action_to_local(np.hstack(
+                (self.observation_info['achieved_vel'], self.observation_info['achieved_ang_vel'])
+            ))
+
         # Update the observation dictionary
         self.observation.update({
             'achieved_goal': (np.array(achieved_pos_b) - np.array(init_pos_ee_b)).astype(np.float32),
@@ -731,9 +738,7 @@ class PruningEnv(gym.Env):
             'prev_rgb': np.array(self.observation_info['prev_rgb']).astype(np.float32),
             'point_mask': np.array(self.observation_info['point_mask']).astype(np.float32),
             'joint_angles': np.array(self.observation_info['joint_angles']).astype(np.float32),
-            'prev_action_achieved': np.hstack(
-                (self.observation_info['achieved_vel'], self.observation_info['achieved_ang_vel'])
-            ).astype(np.float32),
+            'prev_action_achieved': achieved_action_local.astype(np.float32),
             'critic_pointing_cosine_sim': np.array(self.observation_info['pointing_cosine_sim']).astype(
                 np.float32).reshape(1, ),
             'critic_perpendicular_cosine_sim': np.array(self.observation_info['perpendicular_cosine_sim']).astype(

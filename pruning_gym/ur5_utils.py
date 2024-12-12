@@ -44,7 +44,10 @@ class UR5:
         self.init_pos_base = None
         self.init_pos_eebase = None
         self.robot_urdf_path = robot_urdf_path
-        self.camera_base_offset = np.array([0.0, 0.08, 0.143])
+        camera_mount_center_offset = np.array([0.0, 0.081, 0.143])
+        camera_mount_camera_link_offset = np.array([0.0275, 0.0125, 0.025])
+        camera_link_optical_frame_offset = np.array([0.0, 0.00, -0.009])
+        self.camera_base_offset = camera_mount_center_offset + camera_mount_camera_link_offset + camera_link_optical_frame_offset
         #np.array(
             # [0.063179, 0.077119, 0.0420027])
         self.verbose = verbose
@@ -380,7 +383,7 @@ class UR5:
         pan_rot = np.array([[np.cos(pan), 0, np.sin(pan)], [0, 1, 0], [-np.sin(pan), 0, np.cos(pan)]])
         pan_tf[:3, :3] = pan_rot
 
-        tf = ee_transform @ pan_tf @ tilt_tf @ base_offset_tf
+        tf = ee_transform @ base_offset_tf @ tilt_tf @ pan_tf
         return tf
 
     # TODO: Better types for getCameraImage
