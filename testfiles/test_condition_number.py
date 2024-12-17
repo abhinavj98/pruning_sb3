@@ -132,7 +132,7 @@ if __name__ == "__main__":
         # print("Current velocity in ee frame", np.dot(orientation.T,trans))
         # print("Current angular velocity in ee frame", np.dot(orientation.T,ang))
         env.pyb.visualize_rot_mat(orientation, loc)
-        print("Current pose", env.ur5.get_current_pose(env.ur5.end_effector_index))
+        # print("Current pose", env.ur5.get_current_pose(env.ur5.end_effector_index))
         time.sleep(0.1)
         # print(env.ur5.check_)
         # print(env.ur5.get_joint_angles())

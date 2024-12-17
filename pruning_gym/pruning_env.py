@@ -316,10 +316,10 @@ class PruningEnv(gym.Env):
                 print("Curriculum level {} at {}".format(self.curriculum_level, self.global_step_counter))
 
     def set_camera_pose(self):
-        pan_bounds = (-2, 2)
+        pan_bounds = (-1, 1)
         tilt_bounds = (-1, 1)
         self.cam_pan = np.radians(np.random.uniform(*pan_bounds))
-        self.cam_tilt = np.deg2rad(10 + np.random.uniform(*tilt_bounds))
+        self.cam_tilt = np.deg2rad(10)
         self.cam_xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.005, 0.005, 0.005]) #Realsense camera offset from base + randomization np.array([0.0115, 0.015, 0.015]) +
 
     def reset(self, seed: Optional[int] = None, options=None) -> Tuple[dict, dict]:

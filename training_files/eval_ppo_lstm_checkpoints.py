@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
-from pruning_sb3.pruning_gym.custom_callbacks import CustomResultCallback
+from pruning_sb3.pruning_gym.callbacks.eval_callbacks import CustomResultCallback
 from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAE
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 from pruning_sb3.pruning_gym.models import AutoEncoder
@@ -50,15 +50,15 @@ if __name__ == "__main__":
                                          deterministic=True, render=False, or_bins=or_bins_test, save_video=False,
                                          **parsed_args_dict['args_callback'])
     mean_reward_list = []
-    load_timestep_list = [5504000, 5760000, 6016000, 6272000, 6528000, 6784000, 7040000, 7296000]
+    load_timestep_list = [880000]
     for i in range(len(load_timestep_list)):
         load_timestep = load_timestep_list[i]
         print("Loading model at timestep: ", load_timestep)
         if parsed_args_dict['args_global']['load_path']:
             load_path_model = "./logs/{}/current_model_{}.zip".format(
                 parsed_args_dict['args_global']['load_path'], load_timestep)
-            load_path_mean_std = "./logs/{}/current_mean_std_{}.pkl".format(
-                parsed_args_dict['args_global']['load_path'], load_timestep)
+            # load_path_mean_std = "./logs/{}/current_mean_std_{}.pkl".format(
+            #     parsed_args_dict['args_global']['load_path'], load_timestep)
         else:
             load_path_model = None
 
@@ -83,7 +83,7 @@ if __name__ == "__main__":
         }
         policy = RecurrentActorCriticPolicy
         model = RecurrentPPOAE.load(load_path_model, env=eval_env)  # , custom_objects=load_dict)
-        model.policy.load_running_mean_std_from_file(load_path_mean_std)
+        # model.policy.load_running_mean_std_from_file(load_path_mean_std)
         model.num_timesteps = load_timestep
         model._num_timesteps_at_start = load_timestep
 

@@ -36,13 +36,13 @@ if __name__ == "__main__":
     if args_global['load_path']:
         load_path_model = "./logs/{}/model_{}_steps.zip".format(
             args_global['load_path'], load_timestep)
-        load_path_mean_std = "./logs/{}/model_mean_std_{}_steps.pkl".format(
-            args_global['load_path'], load_timestep)
+        # load_path_mean_std = "./logs/{}/model_mean_std_{}_steps.pkl".format(
+        #     args_global['load_path'], load_timestep)
     else:
         load_path_model = None
 
     print(parsed_args_dict)
-    or_bins = make_or_bins(args_train, "test")
+    or_bins = make_or_bins(args_test, "test")
 
     env = make_vec_env(PruningEnv, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
@@ -69,7 +69,11 @@ if __name__ == "__main__":
     policy = RecurrentActorCriticPolicy
 
     model = RecurrentPPOAE.load(load_path_model, env=env)
-    model.policy.load_running_mean_std_from_file(load_path_mean_std)
+    model.save("test", exclude=["_last_obs", "_last_episode_starts", "_last_original_obs",
+                                "_last_obs", "_last_episode_starts", "_last_original_obs",
+                                "ep_info_buffer", "ep_success_buffer", "_last_obs_expert",
+                                "_last_lstm_states_expert", "rollout_buffer","expert_buffer"])
+    # model.policy.load_running_mean_std_from_file(load_path_mean_std)
     model.num_timesteps = load_timestep
     model._num_timesteps_at_start = load_timestep
     model.set_logger(new_logger)

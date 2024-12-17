@@ -297,6 +297,7 @@ class PruningLogResultCallback(BaseCallback):
                 print("INFO: Logging final metrics")
 
             for key in self._info_dict_list[i].keys():
+                infos['time'] = 0
                 self._info_dict_list[i][key].append(infos[key])
 
             self._terminal_dict["init_distance"].append(self.training_env.get_attr("init_distance", i)[0])

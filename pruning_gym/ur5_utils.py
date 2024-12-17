@@ -44,9 +44,9 @@ class UR5:
         self.init_pos_base = None
         self.init_pos_eebase = None
         self.robot_urdf_path = robot_urdf_path
-        camera_mount_center_offset = np.array([0.0, 0.081, 0.143])
+        camera_mount_center_offset = np.array([0.0, 0.08033, 0.14409])
         camera_mount_camera_link_offset = np.array([0.0275, 0.0125, 0.025])
-        camera_link_optical_frame_offset = np.array([0.0, 0.00, -0.009])
+        camera_link_optical_frame_offset = np.array([0.0, 0.00,0.0])
         self.camera_base_offset = camera_mount_center_offset + camera_mount_camera_link_offset + camera_link_optical_frame_offset
         #np.array(
             # [0.063179, 0.077119, 0.0420027])
