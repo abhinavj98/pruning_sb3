@@ -100,7 +100,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             clip_range_vf: Union[None, float, Schedule] = None,
             normalize_advantage: bool = True,
             ent_coef: float = 0.001,
-            vf_coef: float = 0.5,
+            vf_coef: float = 0.05,
             ae_coeff: float = 0.,
             max_grad_norm: float = 0.5,
             use_sde: bool = False,
@@ -1098,7 +1098,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         min_log_prob = -50  # TODO: Is this necessary?
         log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
-        log_prob_expert = 6 # ideally think of expert as a gaussian policy and this number is the density at expert action.
+        log_prob_expert = 10 # ideally think of expert as a gaussian policy and this number is the density at expert action.
         # Set this number according to the variance of that distribution
         ratio_old_expert_offline = th.exp(
             batch_offline.old_log_prob - log_prob_expert)
@@ -1436,8 +1436,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
                 elif self.use_online_data:
                     # Train just on online data using PPO Clip -- Same as train_ppo_lstm.py
-                    (loss_online, online_loss_dict, depth_proxy,
-                     depth_proxy_recon) = self.train_online_batch(
+                    loss_online, online_loss_dict = self.train_online_batch(
                         online_data, clip_range, clip_range_vf)
 
                     loss_online.backward()
@@ -1606,6 +1605,16 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         print("Learning with PPO Offline", self.use_ppo_offline)
         print("Learning with AWAC", self.use_awac)
         while self.num_timesteps < total_timesteps:
+            # If timesteps > half of total timesteps, start using only online data
+            if self.num_timesteps > total_timesteps / 2:
+                print("**********Switching to Online Data**********")
+                print("**********Switching to Online Data**********")
+                self.use_online_data = True
+                self.use_offline_data = False
+                self.use_ppo_offline = False
+                self.use_online_bc = False
+                self.collect_online_data = True
+                self.collect_offline_data = False
             if self.use_online_data or self.use_ppo_offline or self.use_online_bc or self.use_awac:
                 continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer,
                                                           n_rollout_steps=self.n_steps)
