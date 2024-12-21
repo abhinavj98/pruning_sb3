@@ -64,7 +64,8 @@ class Tree:
         self.scale = scale
         self.init_pos = pos
         self.init_orientation = orientation
-
+        # print("URDF path: ", urdf_path)
+        # print("OBJ path: ", obj_path)
         if randomize_pose:
             # set pos to 0,0,0
             new_pos = np.array([0, 0, 0])
@@ -80,21 +81,27 @@ class Tree:
 
         # Variables to store the vertices and statistics of the tree
         self.vertex_and_projection = []
-        # self.projection_mean = np.array(0.)
-        # self.projection_std = np.array(0.)
-        # self.projection_sum_x = np.array(0.)
-        # self.projection_sum_x2 = np.array(0.)
+        self.projection_mean = np.array(0.)
+        self.projection_std = np.array(0.)
+        self.projection_sum_x = np.array(0.)
+        self.projection_sum_x2 = np.array(0.)
         self.reachable_points = []
 
         # Label textured tree
         vertex_to_label = self.label_vertex_by_color(self.label, tree_obj.vertices, labelled_tree_obj.vertices)
-
+        # print("Vertex to label: ", vertex_to_label)
         # append the label to each vertex
         tree_obj_vertices_labelled = []
         for i, vertex in enumerate(tree_obj.vertices):
+            # print("Vertex: ", vertex)
+            # assert vertex in vertex_to_label.keys()
+            # assert vertex_to_label[vertex] is not None
             tree_obj_vertices_labelled.append(vertex + (vertex_to_label[vertex],))
+            # print("Vertex: ", vertex, "Label: ", vertex_to_label[vertex])
 
         self.transformed_vertices = list(map(lambda x: self.transform_obj_vertex(x, pyb), tree_obj_vertices_labelled))
+
+        # print("Some transformed vertices: ", self.transformed_vertices[:5])
 
         # if pickled file exists load and return
         path_component = os.path.normpath(self.urdf_path).split(os.path.sep)
@@ -107,6 +114,8 @@ class Tree:
         else:
             # Get all points on the tree
             self.get_all_cutpoints(tree_obj)
+            # Filter out outliers
+            self.filter_outliers()
             # dump reachable points to file using pickle
             with open(pkl_path, 'wb') as f:
                 pickle.dump((self.pos, self.orientation, self.vertex_and_projection), f)
@@ -219,7 +228,10 @@ class Tree:
         vertex_w_transform = pyb.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation)
         return np.array(vertex_w_transform[0]), vertex[3]
 
+
     def get_all_cutpoints(self, tree_obj):
+        if self.verbose > 2:
+            print("DEBUG: Number of faces: ", len(tree_obj.mesh_list[0].faces))
         for num, face in enumerate(tree_obj.mesh_list[0].faces):
             # Order the sides of the face by length
             ab = (
@@ -234,7 +246,12 @@ class Tree:
 
             normal_vec = np.cross(self.transformed_vertices[ac[0]][0] - self.transformed_vertices[ac[1]][0],
                                   self.transformed_vertices[bc[0]][0] - self.transformed_vertices[bc[1]][0])
+
+            # print(self.transformed_vertices[ac[0]], self.transformed_vertices[ac[1]])
+            # print(self.transformed_vertices[ac[0]][1], self.transformed_vertices[bc[1]][1])
+
             # Only front facing faces
+            # print("Normal vec: ", np.dot(normal_vec, [0, 1, 0]))
             if np.dot(normal_vec, [0, 1, 0]) < 0:
                 continue
             # argsort sorts in ascending order
@@ -262,6 +279,7 @@ class Tree:
             labels = [self.transformed_vertices[ab[0]][1], self.transformed_vertices[ab[1]][1],
                       self.transformed_vertices[ac[0]][1], self.transformed_vertices[ac[1]][1],
                       self.transformed_vertices[bc[0]][1], self.transformed_vertices[bc[1]][1]]
+            # print("Labels: ", labels)
 
             # If all three vertices are the same label, assign that label
             # else assign label "JOINT"
@@ -271,24 +289,25 @@ class Tree:
                 label = "JOINT"
             if label != "SPUR":
                 continue
+            # print("Label: ", label)
             self.vertex_and_projection.append((tree_point, perpendicular_projection,
                                                normal_vec, label))
 
             #Do not need filtering since we have each label present
-        #     # This projection mean is used to filter corner/flushed faces which do not correspond to a branch
-        #     self.projection_sum_x += np.linalg.norm(perpendicular_projection)
-        #     self.projection_sum_x2 += np.linalg.norm(perpendicular_projection) ** 2
-        # self.projection_mean = self.projection_sum_x / len(self.vertex_and_projection)
-        # self.projection_std = np.sqrt(
-        #     self.projection_sum_x2 / len(self.vertex_and_projection) - self.projection_mean ** 2)
+            # This projection mean is used to filter corner/flushed faces which do not correspond to a branch
+            self.projection_sum_x += np.linalg.norm(perpendicular_projection)
+            self.projection_sum_x2 += np.linalg.norm(perpendicular_projection) ** 2
+        self.projection_mean = self.projection_sum_x / len(self.vertex_and_projection)
+        self.projection_std = np.sqrt(
+            self.projection_sum_x2 / len(self.vertex_and_projection) - self.projection_mean ** 2)
 
-    # def filter_outliers(self):
-    #     # Filter out outliers
-    #     print("Number of points before filtering: ", len(self.vertex_and_projection))
-    #     self.vertex_and_projection = list(
-    #         filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean + 0.5 * self.projection_std,
-    #                self.vertex_and_projection))
-    #     print("Number of points after filtering: ", len(self.vertex_and_projection))
+    def filter_outliers(self):
+        # Filter out outliers
+        print("Number of points before filtering: ", len(self.vertex_and_projection))
+        self.vertex_and_projection = list(
+            filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean,# + 0.5 * self.projection_std,
+                   self.vertex_and_projection))
+        print("Number of points after filtering: ", len(self.vertex_and_projection))
 
     def filter_points_below_base(self):
         # Filter out points below the base of the arm
