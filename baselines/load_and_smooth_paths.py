@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     # return
 
-    or_bins = make_or_bins(args_train, "train")
+    or_bins = make_or_bins(args_test, "train", args_global['tree_type'])
     file_path = args_baseline['load_file_path']+'.hdf5'
     args_train['save_optical_flow'] = True
     args_train['shared_var'] = optical_flow_create_shared_vars(args_global['n_envs'], (args_env['algo_height'], args_env['algo_width']))
@@ -66,9 +66,12 @@ if __name__ == "__main__":
 
     controllable_joints = [3, 4, 5, 6, 7, 8]
     #create expert_trajectories folder
-    if not os.path.exists('expert_trajectories'):
-        os.makedirs('expert_trajectories')
-    env.env_method("run_smoothing", save_video = args_baseline['save_video'], save_path = args_baseline['save_file_path'],)
+    save_folder = os.path.join('expert_trajectories', args_global['tree_type'])
+    os.makedirs(save_folder, exist_ok=True)
+
+    save_path = os.path.join(save_folder, args_baseline['save_file_path'])
+
+    env.env_method("run_smoothing", save_video = args_baseline['save_video'], save_path = save_path)
     #Kill the processes
     env.close()
     print("Done!")

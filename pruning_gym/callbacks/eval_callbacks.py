@@ -13,7 +13,7 @@ from stable_baselines3.common.vec_env import VecEnv, DummyVecEnv
 import random
 
 class PruningEvalSetGoalCallback(PruningSetGoalCallback):
-    def __init__(self, or_bins, type, dataset, num_orientations, num_points_per_or, verbose=0):
+    def __init__(self, or_bins, type, dataset, num_orientations, num_points_per_or, verbose=0, tree_type = "envy"):
         super(PruningEvalSetGoalCallback, self).__init__(verbose)
         self.or_bins = or_bins
         self.dataset = dataset
@@ -21,6 +21,7 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
         self.delta_pos_min = np.array([-1, -1.2, -2])
         self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1.25, 0.05)
         self.type = type
+        self.tree_type = tree_type
         self.num_orientations = num_orientations
         self.num_points_per_orientation = num_points_per_or
 
@@ -66,7 +67,7 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
             print("INFO: Making uniform dataset")
         num_points = self.num_orientations
         orientations = self.fibonacci_sphere(samples=num_points)
-        print("Orientations: ", len(orientations))
+        # print("Orientations: ", len(orientations))
         or_list = [self.get_bin_from_orientation(x) for x in orientations]
         num_bins = len(or_list)
         num_points_per_or = self.num_points_per_orientation
@@ -112,7 +113,7 @@ class PruningEvalSetGoalCallback(PruningSetGoalCallback):
             self.dataset = self.make_analysis_dataset()
             if self.verbose > 0:
                 print("INFO: Dataset made", len(self.dataset))
-        with open(f"{self.type}_dataset_{self.num_points_per_orientation}_{self.num_orientations}.pkl", "wb") as f:
+        with open(f"{self.tree_type}_{self.type}_dataset_{self.num_points_per_orientation}_{self.num_orientations}.pkl", "wb") as f:
             pickle.dump(self.dataset, f)
     def _sample_tree_and_point(self, idx):
         if self.verbose > 0:

@@ -1,4 +1,6 @@
 # Repace bool elements with flags (Bool doesnt work)
+# TODO: Add a tree type argument to the environment and the tree class
+# TODO: Dynamically populate tree paths using the tree type
 args = {
     'args_callback': {
         'save_freq': {
@@ -150,19 +152,21 @@ args = {
             'type': str,
             'default': 'trainenv'
         },
+
+        #Place holder tree_type is replaced in organize_args in helpers.py
         'tree_urdf_path': {
             'type': str,
-            'default': './meshes_and_urdf/urdf/trees/envy/train',
+            'default': './meshes_and_urdf/urdf/trees/tree_type/train',
             'help': 'path to the train URDF file for the tree environment'
         },
         'tree_obj_path': {
             'type': str,
-            'default': './meshes_and_urdf/meshes/trees/envy/train',
+            'default': './meshes_and_urdf/meshes/trees/tree_type/train',
             'help': 'path to the train OBJ file for the tree environment'
         },
         'tree_labelled_path': {
             'type': str,
-            'default': './meshes_and_urdf/meshes/trees/envy/train_labelled',
+            'default': './meshes_and_urdf/meshes/trees/tree_type/train_labelled',
             'help': 'path to the train OBJ file for the tree environment'
         },
         'renders': {
@@ -182,17 +186,17 @@ args = {
     'args_test': {
         'tree_urdf_path': {
             'type': str,
-            'default': './meshes_and_urdf/urdf/trees/envy/test',
+            'default': './meshes_and_urdf/urdf/trees/tree_type/test',
             'help': 'path to the test URDF file for the tree environment'
         },
         'tree_obj_path': {
             'type': str,
-            'default': './meshes_and_urdf/meshes/trees/envy/test',
+            'default': './meshes_and_urdf/meshes/trees/tree_type/test',
             'help': 'path to the test OBJ file for the tree environment'
         },
         'tree_labelled_path': {
             'type': str,
-            'default': './meshes_and_urdf/meshes/trees/envy/test_labelled',
+            'default': './meshes_and_urdf/meshes/trees/tree_type/test_labelled',
             'help': 'path to the test OBJ file for the tree environment'
         },
         'renders': {
@@ -225,6 +229,12 @@ args = {
     },
 
     'args_global': {
+        'tree_type': {
+            'type': str,
+            'default': 'envy',
+            'help': 'type of tree to load'
+        },
+
         'n_envs': {
             'type': int,
             'default': 16,

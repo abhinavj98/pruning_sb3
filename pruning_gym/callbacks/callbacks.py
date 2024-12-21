@@ -15,6 +15,7 @@ class PruningSetGoalCallback(BaseCallback):
         self.delta_pos_max = None
         self.delta_pos_min = None
         self.reachable_euclidean_grid = None
+        self.tree_type = None
     @abstractmethod
     def _init_callback(self) -> None:
         pass

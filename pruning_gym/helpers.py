@@ -15,6 +15,7 @@ import ast
 from .optical_flow import OpticalFlow
 import math
 
+
 def init_wandb(args, name):
     if os.path.exists("../keys.json"):
         with open("../keys.json") as f:
@@ -105,7 +106,7 @@ def optical_flow_create_shared_vars(num_envs: int = 1, algo_size=(224, 224)):
 
 
 def compute_perpendicular_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
-    projection = ab - np.dot(ab, bc) / (np.dot(bc, bc)+1e-8) * bc
+    projection = ab - np.dot(ab, bc) / (np.dot(bc, bc) + 1e-8) * bc
     return projection
 
 
@@ -142,6 +143,28 @@ def organize_args(args_dict):
         arg_val = arg_name[index + 1:]
         arg_key = arg_name[:index]
         parse_args_dict[arg_key][arg_val] = arg_params
+
+    # In tree path replace placeholder 'tree_type' with the actual tree type
+    parse_args_dict['args_train']['tree_urdf_path'] = parse_args_dict['args_train']['tree_urdf_path'].replace(
+        'tree_type', parse_args_dict['args_global']['tree_type'])
+    parse_args_dict['args_train']['tree_obj_path'] = parse_args_dict['args_train']['tree_obj_path'].replace('tree_type',
+                                                                                                            parse_args_dict[
+                                                                                                                'args_global'][
+                                                                                                                'tree_type'])
+    parse_args_dict['args_train']['tree_labelled_path'] = parse_args_dict['args_train']['tree_labelled_path'].replace(
+        'tree_type', parse_args_dict['args_global']['tree_type'])
+    # Same for test
+    parse_args_dict['args_test']['tree_urdf_path'] = parse_args_dict['args_test']['tree_urdf_path'].replace('tree_type',
+                                                                                                            parse_args_dict[
+                                                                                                                'args_global'][
+                                                                                                                'tree_type'])
+    parse_args_dict['args_test']['tree_obj_path'] = parse_args_dict['args_test']['tree_obj_path'].replace('tree_type',
+                                                                                                          parse_args_dict[
+                                                                                                              'args_global'][
+                                                                                                              'tree_type'])
+    parse_args_dict['args_test']['tree_labelled_path'] = parse_args_dict['args_test']['tree_labelled_path'].replace(
+        'tree_type', parse_args_dict['args_global']['tree_type'])
+    print(parse_args_dict['args_train']['tree_urdf_path'], parse_args_dict['args_test']['tree_urdf_path'])
     args_global = parse_args_dict['args_global']
     args_train = dict(parse_args_dict['args_env'], **parse_args_dict['args_train'])
     args_test = dict(parse_args_dict['args_env'], **parse_args_dict['args_test'])
@@ -159,11 +182,12 @@ def add_arg_to_env(key, val, env_name, parsed_args_dict):
         parsed_args_dict[name][key] = val
 
 
-def make_or_bins(args, type):
+def make_or_bins(args, train_type, tree_type):
+    # TODO: replace path with a variable instead of repeating it
     from pruning_sb3.pruning_gym.pruning_env import PruningEnv
     from pruning_sb3.pruning_gym.tree import Tree
-    if os.path.exists(f"{type}_or_bins_{args['tree_count']}.pkl"):
-        with open(f"{type}_or_bins_{args['tree_count']}.pkl", "rb") as f:
+    if os.path.exists(f"{tree_type}_{train_type}_or_bins_{args['tree_count']}.pkl"):
+        with open(f"{tree_type}_{train_type}_or_bins_{args['tree_count']}.pkl", "rb") as f:
             or_bins = pickle.load(f)
             for key in or_bins.keys():
                 random.shuffle(or_bins[key])
@@ -179,7 +203,7 @@ def make_or_bins(args, type):
         for key in or_bins.keys():
             random.shuffle(or_bins[key])
 
-        with open(f"{type}_or_bins_{args['tree_count']}.pkl", "wb") as f:
+        with open(f"{tree_type}_{train_type}_or_bins_{args['tree_count']}.pkl", "wb") as f:
             pickle.dump(or_bins, f)
     return or_bins
 
@@ -206,6 +230,7 @@ def get_policy_kwargs(args_policy, args_env, features_extractor_class):
     }
 
     return policy_kwargs
+
 
 def convert_string(data_str):
     # Find all array parts and replace them with placeholders
@@ -234,8 +259,11 @@ def convert_string(data_str):
         data_list = tuple(replace_placeholders(item) for item in data_list)
 
     return data_list
+
+
 def roundup(x):
     return math.ceil(x / 10.0) * 10
+
 
 def rounddown(x):
     return math.floor(x / 10.0) * 10

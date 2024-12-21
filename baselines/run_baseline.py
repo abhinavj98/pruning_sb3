@@ -25,18 +25,20 @@ if __name__ == "__main__":
         parsed_args)
 
     print(parsed_args_dict)
-    or_bins = make_or_bins(args_train, args_baseline["tree_set"])
+
+    or_bins = make_or_bins(args_test, "train", args_global['tree_type'])
 
     env = make_vec_env(PruningEnvRRT, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
 
     dataset = None
     planner = args_baseline['planner']
     type = args_baseline['dataset_type']
+    tree_type = args_global['tree_type']
     print(args_callback)
     num_points_per_or = args_callback['n_points_per_orientation']
     num_orientations = args_callback['n_eval_orientations']
-    if os.path.exists(f"{type}_dataset_{num_points_per_or}_{num_orientations}.pkl"):
-        with open(f"{type}_dataset_{num_points_per_or}_{num_orientations}.pkl", "rb") as f:
+    if os.path.exists(f"{tree_type}_{type}_dataset_{num_points_per_or}_{num_orientations}.pkl"):
+        with open(f"{tree_type}_{type}_dataset_{num_points_per_or}_{num_orientations}.pkl", "rb") as f:
             dataset = pickle.load(f)
     # Shuffle dataset
     if dataset is not None:

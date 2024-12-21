@@ -47,8 +47,8 @@ if __name__ == "__main__":
         load_path_model = None
 
     print(parsed_args_dict)
-    or_bins = make_or_bins(args_train, "train")
-    expert_trajectory_path = "expert_trajectories"
+    or_bins = make_or_bins(args_train, "train", args_global['tree_type'])
+    expert_trajectory_path = os.path.join("expert_trajectories", args_global["tree_type"])
     # print("Number of expert trajectories: ", len(glob.glob(expert_trajectory_path + "/*.pkl")))
     # expert_trajectories = glob.glob(expert_trajectory_path + "/*.pkl")
     # shuffle the expert trajectories
