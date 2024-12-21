@@ -319,8 +319,8 @@ class PruningEnv(gym.Env):
         pan_bounds = (-1, 1)
         tilt_bounds = (-1, 1)
         self.cam_pan = np.radians(np.random.uniform(*pan_bounds))
-        self.cam_tilt = np.deg2rad(10)
-        self.cam_xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.005, 0.005, 0.005]) #Realsense camera offset from base + randomization np.array([0.0115, 0.015, 0.015]) +
+        self.cam_tilt = np.deg2rad(10 + np.random.uniform(*tilt_bounds))
+        self.cam_xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.01, 0.005, 0.005]) #Realsense camera offset from base + randomization np.array([0.0115, 0.015, 0.015]) +
 
     def reset(self, seed: Optional[int] = None, options=None) -> Tuple[dict, dict]:
         """Theres a chance that this is causing some memory leak. Shows up when using reset multiple times and parallelized."""
@@ -1644,6 +1644,7 @@ class PruningEnvRRT(PruningEnv):
             info = {}
 
             #Truncate length of observations, new_observations, rewards, dones, actions to max_steps
+            #This is not required as we are continuing if >100 length LINE 1623
             observations = observations[:self.maxSteps]
             new_observations = new_observations[:self.maxSteps]
             rewards = rewards[:self.maxSteps]

@@ -44,7 +44,7 @@ class UR5:
         self.init_pos_base = None
         self.init_pos_eebase = None
         self.robot_urdf_path = robot_urdf_path
-        camera_mount_center_offset = np.array([0.0, 0.08033, 0.14409])
+        camera_mount_center_offset = np.array([0.0, 0.08033, 0.15709])
         camera_mount_camera_link_offset = np.array([0.0275, 0.0125, 0.025])
         camera_link_optical_frame_offset = np.array([0.0, 0.00,0.0])
         self.camera_base_offset = camera_mount_center_offset + camera_mount_camera_link_offset + camera_link_optical_frame_offset
@@ -62,9 +62,9 @@ class UR5:
         if self.ur5_robot is not None:
             self.con.removeBody(self.ur5_robot) #This trigger "Failed to remove body" warning
             self.ur5_robot = None
-        self.pruner_base_link_index = 17
-        self.end_effector_index = 19
-        self.success_link_index = 20
+        self.pruner_base_link_index = 10
+        self.end_effector_index = 22
+        self.success_link_index = 23
         self.base_index = 3
         flags = self.con.URDF_USE_SELF_COLLISION
 
@@ -151,10 +151,18 @@ class UR5:
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 14, 15, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 16, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 16, 17, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 18, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 20, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 12, 18, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 8, 18, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 12, 15, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 20, 18, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 8, 12, 0)
-        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 17, 0)
-        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 17, 20, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 23, 20, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 12, 15, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 8, 12, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 18, 0)
+        # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 17, 20, 0)
         # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 8, 0)
         # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 11, 9, 0)
         #TODO: Add collision filter for tree and UR5. But not tree collision objects.
@@ -324,7 +332,7 @@ class UR5:
 
     def check_success_collision(self, body_b) -> bool:
         """Check if there are any collisions between the robot and the environment
-        Returns: Boolw
+        Returns: Bool
         """
         collisions_success = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=body_b,
                                                        linkIndexA=self.success_link_index)
