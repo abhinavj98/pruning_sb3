@@ -35,7 +35,6 @@ if __name__ == "__main__":
     with h5py.File(args_baseline['load_file_path']+'.hdf5', 'r') as f:
         #go through all datasets and append the successful paths to path_success
         for key in f.keys():
-
             dataset = f[key]
             #print all attributes
             print(dataset.attrs)
@@ -44,7 +43,7 @@ if __name__ == "__main__":
 
     # return
 
-    or_bins = make_or_bins(args_test, "train", args_global['tree_type'])
+    or_bins = make_or_bins(args_train, "train", args_global['tree_type'])
     file_path = args_baseline['load_file_path']+'.hdf5'
     args_train['save_optical_flow'] = True
     args_train['shared_var'] = optical_flow_create_shared_vars(args_global['n_envs'], (args_env['algo_height'], args_env['algo_width']))

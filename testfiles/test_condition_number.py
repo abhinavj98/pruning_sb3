@@ -6,7 +6,7 @@ from pruning_sb3.pruning_gym.models import *
 import numpy as np
 import random
 import argparse
-from pruning_sb3.args.args_test import args
+from pruning_sb3.args.args import args
 from pruning_sb3.pruning_gym.helpers import linear_schedule, exp_schedule, set_args, organize_args
 from pruning_sb3.pruning_gym.helpers import make_or_bins, get_policy_kwargs
 from pruning_sb3.pruning_gym.callbacks.train_callbacks import PruningTrainSetGoalCallback
@@ -44,7 +44,7 @@ if __name__ == "__main__":
         load_path_model = None
 
     print(parsed_args_dict)
-    or_bins = make_or_bins(args_test, "test")
+    or_bins = make_or_bins(args_test, "test", args_global['tree_type'])
 
     env = PruningEnv(**args_record)
     print("Env created")

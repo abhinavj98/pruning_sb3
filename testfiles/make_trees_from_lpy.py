@@ -10,11 +10,12 @@ parser.add_argument("--step", help="Which step to run", type=int, default=1)
 args = parser.parse_args()
 step = args.step
 
-type = "envy"
+type = "ufo"
 input_folder = os.path.join("meshes_and_urdf", "meshes", "trees", type)
 ply_folder = os.path.join(input_folder, "ply")
 obj_folder = os.path.join(input_folder, "obj")
 os.makedirs(obj_folder, exist_ok=True)
+
 total_files = len(glob(os.path.join(obj_folder, "*.obj")))
 train_folder = os.path.join(input_folder, "train")
 test_folder = os.path.join(input_folder, "test")
@@ -249,5 +250,5 @@ if step == 6:
         with open(os.path.join(urdf_folder_test_labelled_split, output_file + ".urdf"), "w") as f:
             f.write(urdf_content)
 
-#Remember to replace mtl files with relative paths
+#Remember to replace mtl files with relative paths and switch forward slashes to backslashes
 # python .\baselines\run_baseline.py --args_global_n_envs 15  --args_env_verbose 1  --args_baseline_dataset_type uniform --args_baseline_planner rrt_connect --args_env_randomize_ur5_pose --args_env_randomize_tree_pose  --args_callback_n_eval_orientations 600 --args_callback_n_points_per_orientation 30  --args_baseline_tree_set train --args_baseline_results_save_path rrt_connect_uniform_waypoints

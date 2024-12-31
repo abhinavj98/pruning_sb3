@@ -62,7 +62,7 @@ class UR5:
         if self.ur5_robot is not None:
             self.con.removeBody(self.ur5_robot) #This trigger "Failed to remove body" warning
             self.ur5_robot = None
-        self.pruner_base_link_index = 10
+        self.pruner_base_link_index = 10 #Tool0
         self.end_effector_index = 22
         self.success_link_index = 23
         self.base_index = 3
@@ -103,6 +103,8 @@ class UR5:
             controllable = True if jointName in self.control_joints else False
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
                                    jointMaxVelocity, controllable)  # type: ignore
+            if self.verbose > 1:
+                print(info)
             # print(jointID, jointName)
             if info.type == "REVOLUTE":
                 self.con.setJointMotorControl2(self.ur5_robot, info.id, self.con.VELOCITY_CONTROL, targetVelocity=0,
