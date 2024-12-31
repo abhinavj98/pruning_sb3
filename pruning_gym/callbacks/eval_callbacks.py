@@ -229,6 +229,7 @@ class PruningEvalRecordEnvCallback(BaseCallback):
 class PruningLogResultCallback(BaseCallback):
     def __init__(
             self,
+            timestep: Optional[int] = 0,
             log_path: Optional[str] = None,
             deterministic: bool = True,
             render: bool = False,
@@ -238,6 +239,7 @@ class PruningLogResultCallback(BaseCallback):
         self.deterministic = deterministic
         self.render = render
         self.log_path = log_path
+        self.timestep = timestep
 
     def _init_callback(self) -> None:
         self._init_buffers()
@@ -336,7 +338,7 @@ class PruningLogResultCallback(BaseCallback):
         episode_info_df = pd.DataFrame(self._episode_info)
         terminal_info_df = pd.DataFrame(self._terminal_dict)
         save_df = pd.concat([episode_info_df, terminal_info_df], axis=1)
-        save_df.to_csv("episode_info.csv", mode='a')
+        save_df.to_csv(f"episode_info_{self.timestep}.csv", mode='a')
 
 
 class GenerateResults:
