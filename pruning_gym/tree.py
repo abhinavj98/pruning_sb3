@@ -297,7 +297,7 @@ class Tree:
             # This projection mean is used to filter corner/flushed faces which do not correspond to a branch
             self.projection_sum_x += np.linalg.norm(perpendicular_projection)
             self.projection_sum_x2 += np.linalg.norm(perpendicular_projection) ** 2
-        self.projection_mean = self.projection_sum_x / len(self.vertex_and_projection)
+        self.projection_mean = self.projection_sum_x / (len(self.vertex_and_projection)+1e-5)
         self.projection_std = np.sqrt(
             self.projection_sum_x2 / len(self.vertex_and_projection) - self.projection_mean ** 2)
 
@@ -358,16 +358,27 @@ class Tree:
                                curriculum_distances: Tuple, curriculum_level_steps: Tuple,
                                randomize_pose: bool = False) -> List:
         trees: List[Tree] = []
-        for urdf, obj, labelled_obj in zip(sorted(glob.glob(trees_urdf_path + '/*.urdf')),
-                                           sorted(glob.glob(trees_obj_path + '/*.obj')),
-                                           sorted(glob.glob(trees_labelled_path + '/*.obj'))):
-            print("Making tree from urdf: ", urdf, obj, labelled_obj)
-            if len(trees) >= num_trees:
-                break
-            trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
-                              num_points=num_points, curriculum_distances=curriculum_distances,
-                              curriculum_level_steps=curriculum_level_steps, labelled_obj_path=labelled_obj,
-                              randomize_pose=randomize_pose))
+        for urdf in sorted(glob.glob(trees_urdf_path + '/*.urdf')):
+            base_name = os.path.splitext(os.path.basename(urdf))[0]
+            obj = os.path.join(trees_obj_path, base_name + '.obj')
+            labelled_obj = os.path.join(trees_labelled_path, base_name + '.obj')
+
+            if os.path.exists(obj) and os.path.exists(labelled_obj):
+                print("Making tree from urdf: ", urdf, obj, labelled_obj)
+                trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
+                                  num_points=num_points, curriculum_distances=curriculum_distances,
+                                  curriculum_level_steps=curriculum_level_steps, labelled_obj_path=labelled_obj,
+                                  randomize_pose=randomize_pose))
+        # for urdf, obj, labelled_obj in zip(sorted(glob.glob(trees_urdf_path + '/*.urdf')),
+        #                                    sorted(glob.glob(trees_obj_path + '/*.obj')),
+        #                                    sorted(glob.glob(trees_labelled_path + '/*.obj'))):
+        #     print("Making tree from urdf: ", urdf, obj, labelled_obj)
+        #     if len(trees) >= num_trees:
+        #         break
+        #     trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,
+        #                       num_points=num_points, curriculum_distances=curriculum_distances,
+        #                       curriculum_level_steps=curriculum_level_steps, labelled_obj_path=labelled_obj,
+        #                       randomize_pose=randomize_pose))
         return trees
 
     def make_curriculum(self, env, init_or=None):
