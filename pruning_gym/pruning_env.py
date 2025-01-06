@@ -506,6 +506,7 @@ class PruningEnv(gym.Env):
 
     def convert_local_action_to_global(self, action):
         """Convert local action to global action"""
+        """This is wrong, use adjoints"""
         pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
         current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
         global_velocity = np.dot(current_or_mat, action[:3])
@@ -514,6 +515,7 @@ class PruningEnv(gym.Env):
 
     def convert_global_action_to_local(self, action):
         """Convert global action to local action"""
+        """This is wrong, use adjoints"""
         pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
         current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
         local_velocity = np.dot(current_or_mat.T, action[:3])
