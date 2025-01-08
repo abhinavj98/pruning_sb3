@@ -367,7 +367,7 @@ class PruningEnv(gym.Env):
         self.set_camera_pose()
 
         #Noise to add to cutpoint. A cuboid with noisier depth (-y)
-        self.cutpoint_noise = np.array([np.random.uniform(-0.02, 0.02), np.random.uniform(-0.05, 0.05), np.random.uniform(-0.02, 0.02)])
+        self.cutpoint_noise = np.array([np.random.uniform(-0.01, 0.01), np.random.uniform(-0.01, 0.01), np.random.uniform(-0.01, 0.01)])
 
         for i in range(2):
             self.pyb.con.stepSimulation()
@@ -560,8 +560,8 @@ class PruningEnv(gym.Env):
         action[3:] = action[3:] * self.action_scale
         self.action = self.convert_local_action_to_global(action)
         # Calculate joint velocities from end effector velocities/or if ik is false, just use the action
-        self.ur5.action = self.calculate_joint_velocities_from_ee_constrained(self.action)
-        singularity = self.ur5.set_joint_velocities(self.ur5.action)
+        joint_vel = self.calculate_joint_velocities_from_ee_constrained(self.action)
+        singularity = self.ur5.set_joint_velocities(joint_vel)
 
         # Step simulation
         for i in range(self.num_control_simulation_steps):

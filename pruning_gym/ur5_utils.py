@@ -25,7 +25,7 @@ class UR5:
         self.pos = pos
         self.orientation = orientation
         self.randomize_pose = randomize_pose
-        self.pruner_base_link_index = None
+        self.tool0_index = None
         self.end_effector_index = None
         self.success_link_index = None
         self.tool_link_index = None
@@ -37,7 +37,7 @@ class UR5:
         self.joint_info = None
         self.joints = None
         self.init_joint_angles = None
-        self.action = None
+        # self.action = None
         self.joint_angles = None
         self.achieved_pos = None
         self.init_pos_ee = None
@@ -62,10 +62,10 @@ class UR5:
         if self.ur5_robot is not None:
             self.con.removeBody(self.ur5_robot) #This trigger "Failed to remove body" warning
             self.ur5_robot = None
-        self.pruner_base_link_index = 10 #Tool0
+        self.tool0_index = 10 #Tool0
         self.end_effector_index = 22
         self.success_link_index = 23
-        self.base_index = 3
+        self.base_index = 2
         flags = self.con.URDF_USE_SELF_COLLISION
 
         if self.randomize_pose:
@@ -120,7 +120,7 @@ class UR5:
         self.init_pos_ee = self.get_current_pose(self.end_effector_index)
         self.init_pos_base = self.get_current_pose(self.base_index)
         self.init_pos_eebase = self.get_current_pose(self.success_link_index)
-        self.action = np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
+        # self.action = np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
         self.joint_angles = np.array(self.init_joint_angles).astype(np.float32)
         self.achieved_pos = np.array(self.get_current_pose(self.end_effector_index)[0])
         base_pos, base_or = self.get_current_pose(self.base_index)
@@ -256,7 +256,7 @@ class UR5:
         return joints  # type: ignore
 
     def calculate_jacobian(self):
-        jacobian = self.con.calculateJacobian(self.ur5_robot, self.pruner_base_link_index, [0, 0, 0],
+        jacobian = self.con.calculateJacobian(self.ur5_robot, self.tool0_index, [0, 0, 0],
                                               self.get_joint_angles(),
                                               [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         jacobian = np.vstack(jacobian)
@@ -399,7 +399,7 @@ class UR5:
     # TODO: Better types for getCameraImage
     def get_view_mat_at_curr_pose(self, pan, tilt, xyz_offset) -> np.ndarray:
         """Get view matrix at current pose"""
-        pose, orientation = self.get_current_pose(self.pruner_base_link_index)
+        pose, orientation = self.get_current_pose(self.tool0_index)
 
         camera_tf = self.create_camera_transform(pose, orientation, pan, tilt, xyz_offset)
 
@@ -411,7 +411,7 @@ class UR5:
         return view_matrix
 
     def get_camera_location(self, tilt, pan, xyz_offset):
-        pose, orientation = self.get_current_pose(self.pruner_base_link_index)
+        pose, orientation = self.get_current_pose(self.tool0_index)
 
 
         camera_tf = self.create_camera_transform(pose, orientation, pan, tilt, xyz_offset)
@@ -419,7 +419,7 @@ class UR5:
 
     def get_condition_number(self) -> float:
         # get jacobian
-        jacobian = self.con.calculateJacobian(self.ur5_robot, self.pruner_base_link_index, [0, 0, 0],
+        jacobian = self.con.calculateJacobian(self.ur5_robot, self.tool0_index, [0, 0, 0],
                                               self.get_joint_angles(),
                                               [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         jacobian = np.vstack(jacobian)
