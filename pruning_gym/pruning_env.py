@@ -504,22 +504,54 @@ class PruningEnv(gym.Env):
 
         return infos
 
+    def skew_symmetric(self, vector):
+        """
+        Compute the skew-symmetric matrix of a vector.
+        :param vector: np.array, shape (3,)
+        :return: np.array, shape (3, 3)
+        """
+        x, y, z = vector
+        return np.array([
+            [0, -z, y],
+            [z, 0, -x],
+            [-y, x, 0]
+        ])
+
+    def make_adjoint(self, rotation_matrix, translation_vector):
+        """
+        Create the adjoint transformation matrix.
+        :param rotation_matrix: np.array, shape (3, 3), rotation matrix R
+        :param translation_vector: np.array, shape (3,), translation vector p
+        :return: np.array, shape (6, 6), adjoint transformation matrix
+        """
+        # Ensure inputs are numpy arrays
+        rotation_matrix = np.array(rotation_matrix).reshape(3, 3)
+        translation_vector = np.array(translation_vector).reshape(3)
+
+        # Compute skew-symmetric matrix for the translation vector
+        p_skew = self.skew_symmetric(translation_vector)
+
+        # Construct the adjoint matrix
+        adjoint = np.block([
+            [rotation_matrix, np.zeros((3, 3))],
+            [np.dot(p_skew, rotation_matrix), rotation_matrix]
+        ])
+
+        return adjoint
+
     def convert_local_action_to_global(self, action):
         """Convert local action to global action"""
-        pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
-        current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
-        global_velocity = np.dot(current_or_mat, action[:3])
-        global_angular_velocity = np.dot(current_or_mat, action[3:])
-        return np.hstack((global_velocity, global_angular_velocity))
+        pos, orient = self.ur5.get_current_pose(self.ur5.tool0_index) #TODO: Movement according to tool0
+        adjoint = self.make_adjoint(np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3), pos)
+        global_action = np.dot(adjoint, action) #Adj(world_tool)* Vtool = Vworld
+        return global_action
 
     def convert_global_action_to_local(self, action):
         """Convert global action to local action"""
-        pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
-        current_or_mat = np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3)
-        local_velocity = np.dot(current_or_mat.T, action[:3])
-        local_angular_velocity = np.dot(current_or_mat.T, action[3:])
-        return np.hstack((local_velocity, local_angular_velocity))
-
+        pos, orient = self.ur5.get_current_pose(self.ur5.tool0_index)
+        adjoint = self.make_adjoint(np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3), pos)
+        local_action = np.dot(np.linalg.inv(adjoint), action)
+        return local_action
     def step(self, action: NDArray[Shape['6, 1'], Float]) -> Tuple[dict, float, bool, bool, dict]:
 
         self.pyb.remove_debug_items("step")
