@@ -554,6 +554,7 @@ class PruningEnv(gym.Env):
         adjoint = self.make_adjoint(np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3), pos)
         local_action = np.dot(np.linalg.inv(adjoint), action)
         return local_action
+
     def step(self, action: NDArray[Shape['6, 1'], Float]) -> Tuple[dict, float, bool, bool, dict]:
 
         self.pyb.remove_debug_items("step")
