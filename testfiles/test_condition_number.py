@@ -75,42 +75,40 @@ if __name__ == "__main__":
     val = np.array([0, 0, 0, 0, 0, 0])
     # Use keyboard to move the robot
     while True:
-
-        tf = env.ur5.get_camera_location(env.cam_pan, env.cam_tilt, env.cam_xyz_offset)
-        # orientation = np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
-        orientation = tf[:3, :3]
-        loc = tf[:3, 3]
-        print(env.ur5.get_view_mat_at_curr_pose(0,0,0))
+        # tf = env.ur5.get_camera_location(env.cam_pan, env.cam_tilt, env.cam_xyz_offset)
+        # # orientation = np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+        # orientation = tf[:3, :3]
+        # loc = tf[:3, 3]
+        # print(env.ur5.get_view_mat_at_curr_pose(0,0,0))
         # Read keyboard input using python input
         action = get_key_pressed(env)
         # if action is wasd, then move the robot
         if ord('a') in action:
-            val = np.array([0.1, 0, 0, 0, 0, 0])
+            val = np.array([0.05, 0, 0, 0, 0, 0])
         elif ord('d') in action:
-            val = np.array([-0.1, 0, 0, 0, 0, 0])
+            val = np.array([-0.05, 0, 0, 0, 0, 0])
         elif ord('s') in action:
-            val = np.array([0, 0.1, 0, 0, 0, 0])
+            val = np.array([0, 0.05, 0, 0, 0, 0])
         elif ord('w') in action:
-            val = np.array([0, -0.1, 0, 0, 0, 0])
+            val = np.array([0, -0.05, 0, 0, 0, 0])
         elif ord('q') in action:
-            val = np.array([0, 0, 0.1, 0, 0, 0])
+            val = np.array([0, 0, 0.05, 0, 0, 0])
         elif ord('e') in action:
-            val = np.array([0, 0, -0.1, 0, 0, 0])
+            val = np.array([0, 0, -0.05, 0, 0, 0])
         elif ord('z') in action:
-            val = np.array([0, 0, 0, 0.1, 0, 0])
+            val = np.array([0, 0, 0, 0.05, 0, 0])
         elif ord('c') in action:
-            val = np.array([0, 0, 0, -0.1, 0, 0])
+            val = np.array([0, 0, 0, -0.05, 0, 0])
         elif ord('x') in action:
-            val = np.array([0, 0, 0, 0, 0.1, 0])
+            val = np.array([0, 0, 0, 0, 0.05, 0])
         elif ord('v') in action:
-            val = np.array([0, 0, 0, 0, -0.1, 0])
+            val = np.array([0, 0, 0, 0, -0.05, 0])
         elif ord('r') in action:
-            val = np.array([0, 0, 0, 0, 0, 0.5])
+            val = np.array([0, 0, 0, 0, 0, 0.05])
         elif ord('f') in action:
-            val = np.array([0, 0, 0, 0, 0, -0.5])
+            val = np.array([0, 0, 0, 0, 0, -0.05])
         elif ord('t') in action:
             # env.force_time_limit()
-
             infos = {}
             infos['TimeLimit.truncated'] = True
             set_goal_callback.locals = {"infos": [infos]}
@@ -120,20 +118,39 @@ if __name__ == "__main__":
         else:
             val = np.array([0.,0.,0, 0., 0., 0.])
 
-        # global_velocity = np.dot(orientation, val[:3])
-        # global_angular_velocity = np.dot(orientation, val[3:])
-        #
+        val_loc = env.convert_global_action_to_local(val)
         # val =  np.hstack((global_velocity, global_angular_velocity))
         # print()
         observation, reward, terminated, truncated, infos = env.step(val)
+        print("infos", infos)
         set_goal_callback.locals = {"infos": [infos]}
         # print(np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3))
         # trans, ang = env.ur5.get_current_vel(env.ur5.end_effector_index)
         # print("Current velocity in ee frame", np.dot(orientation.T,trans))
         # print("Current angular velocity in ee frame", np.dot(orientation.T,ang))
-        env.pyb.visualize_rot_mat(orientation, loc)
+        # env.pyb.visualize_rot_mat(orientation, loc)
         # print("Current pose", env.ur5.get_current_pose(env.ur5.end_effector_index))
-        time.sleep(0.1)
+        time.sleep(0.05)
         # print(env.ur5.check_)
         # print(env.ur5.get_joint_angles())
-        print(env.ur5.check_collisions(env.collision_object_ids))
+        # for i in range(20):
+        #     pos, orn = env.ur5.get_current_pose(i)
+        #     orn_mat = np.array(env.pyb.con.getMatrixFromQuaternion(orn)).reshape(3, 3)
+        #     env.pyb.visualize_rot_mat(orn_mat, pos)
+        #     # print(env.ur5.calculate_jacobian())
+        #
+        # # print("Velocity global", val, val_loc, env.ur5.get_current_vel(env.ur5.tool0_index))
+        # # print("Current pose", env.ur5.get_current_pose(env.ur5.end_effector_index))
+        # # print(infos)
+        # input()
+        pos, orn = env.ur5.get_current_pose(env.ur5.end_effector_index)
+        # camera_tf = env.ur5.create_camera_transform(0, np.pi/180*10, np.array([0,0,0]))
+        orn_mat = np.array(env.pyb.con.getMatrixFromQuaternion(orn)).reshape(3, 3)
+        # print(camera_tf)
+        env.pyb.visualize_rot_mat(orn_mat, pos)
+
+        pos, orn = env.ur5.get_current_pose(env.ur5.tool0_index)
+        # camera_tf = env.ur5.create_camera_transform(0, np.pi/180*10, np.array([0,0,0]))
+        orn_mat = np.array(env.pyb.con.getMatrixFromQuaternion(orn)).reshape(3, 3)
+        # print(camera_tf)
+        env.pyb.visualize_rot_mat(orn_mat, pos)

@@ -138,7 +138,7 @@ class Reward:
         # ideal_pointing_vector = (desired_pos - achieved_pos) / np.linalg.norm(desired_pos - achieved_pos)
         rot_mat = np.array(getMatrixFromQuaternion(achieved_or)).reshape(3, 3)
         # Initial vectors
-        init_vector = np.array([0, 0, 1])  # Coz of starting orientation of end effector
+        init_vector = np.array([0, 0, 1])  # Z points forward
         current_pointing_vector = rot_mat.dot(init_vector)
         pointing_cos_sim = np.dot(current_pointing_vector, ideal_pointing_vector) / (
                 np.linalg.norm(current_pointing_vector) * np.linalg.norm(ideal_pointing_vector))

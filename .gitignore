@@ -1,4 +1,5 @@
 # Editors
+*.npz
 *.out
 *.pkl
 .vscode/
@@ -152,3 +153,5 @@ testfiles/combine_hdf5.py
 meshes_and_urdf/
 *.zip
 *.ps1
+testfiles/load_log_data.py
+testfiles/log_vel_obs_data.py

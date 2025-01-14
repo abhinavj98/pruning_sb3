@@ -55,7 +55,7 @@ if __name__ == "__main__":
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
 
-    load_timestep_list = [2024000, 2112000, 2200000, 2288000]
+    load_timestep_list = [2108000]
     for i in range(len(load_timestep_list)):
         load_timestep = load_timestep_list[i]
         logging_callback = PruningLogResultCallback(timestep = load_timestep, verbose=args_callback['verbose'])
@@ -65,7 +65,8 @@ if __name__ == "__main__":
                 parsed_args_dict['args_global']['load_path'], load_timestep)
 
         model = RecurrentPPOAE.load(load_path_model, env=env)
-        # model.save("test", exclude=["_last_obs", "_last_episode_starts", "_last_original_obs",
+        # model.save("./logs/{}/model_{}_steps.zip".format(
+        #         "test", load_timestep), exclude=["_last_obs", "_last_episode_starts", "_last_original_obs",
         #                             "_last_obs", "_last_episode_starts", "_last_original_obs",
         #                             "ep_info_buffer", "ep_success_buffer", "_last_obs_expert",
         #                             "_last_lstm_states_expert", "rollout_buffer","expert_buffer"])

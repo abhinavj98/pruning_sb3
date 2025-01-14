@@ -62,8 +62,6 @@ if __name__ == "__main__":
         dataset = paths_success[i*num_points_per_env:(i+1)*num_points_per_env]
         env.env_method("set_dataset", dataset=dataset, dataset_file_path = file_path, indices=i)
 
-
-    controllable_joints = [3, 4, 5, 6, 7, 8]
     #create expert_trajectories folder
     save_folder = os.path.join('expert_trajectories', args_global['tree_type'])
     os.makedirs(save_folder, exist_ok=True)
