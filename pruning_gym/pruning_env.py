@@ -861,7 +861,9 @@ class PruningEnv(gym.Env):
                                                                                            previous_pos_eebase,
                                                                                            previous_or_eebase,
                                                                                            self.tree_goal_or)
-        reward += point_reward
+
+        #Clip point reward between +- 0.2
+        reward += np.clip(point_reward, -0.2, 0.2)
 
         perp_reward, perp_cosine_sim = self.reward.calculate_perpendicular_orientation_reward(achieved_or_eebase,
                                                                                               previous_or_eebase,
@@ -915,7 +917,6 @@ class PruningEnv(gym.Env):
 
 
 class PruningEnvRRT(PruningEnv):
-
     def __init__(self, tree_urdf_path: str, tree_obj_path: str, tree_labelled_path: str, renders: bool = False,
                  max_steps: int = 500,
                  distance_threshold: float = 0.05, angle_threshold_perp: float = 0.52,
@@ -958,10 +959,10 @@ class PruningEnvRRT(PruningEnv):
         return optical_flow
 
     def generate_goal_pos(self):
-        # self.pyb.remove_debug_items("step")
         branch_normal = self.tree_goal_normal / np.linalg.norm(self.tree_goal_normal)
         branch_parallel = self.tree_goal_or / np.linalg.norm(self.tree_goal_or)
         forward = np.cross(branch_parallel, branch_normal)
+
         # Get a vector in plane of forward and right using linear combination
         rotation_matrix = np.column_stack((branch_parallel, branch_normal, forward))
         rotation_matrix = R.from_matrix(rotation_matrix).as_matrix()
@@ -976,16 +977,12 @@ class PruningEnvRRT(PruningEnv):
         # Project rot_pointing perpendicular to rotation_axis_x
         rot_pointing = rot_pointing - np.dot(rot_pointing, rotation_axis_x) * rotation_axis_x
         rot_pointing = rot_pointing / np.linalg.norm(rot_pointing)
+
         # Minimize the angle between the branch normal and the rotation matrix [2] axis
         cos_theta = np.dot(rot_pointing, rotation_matrix[:, 2])
         sin_theta = np.linalg.norm(np.cross(rot_pointing, rotation_matrix[:, 2]))
         theta = np.arctan2(sin_theta, cos_theta)
-        # if np.dot(cross_product, rotation_axis_x) < 0:
-        #     theta = theta + np.pi
-        # print(np.rad2deg(theta), theta)
-        # if theta > np.pi:
-        #     theta = theta - np.pi
-        # print(np.rad2deg(theta), theta)
+
         # Make this concentration lower to make the solutions more random as num_attempts increases.
         concentration = 0.85
 
@@ -1245,7 +1242,7 @@ class PruningEnvRRT(PruningEnv):
         timing = {'time_find_end_config': 0, 'time_find_path': 0, 'time_total': 0}
         tree_info = [self.tree_urdf, self.tree_goal_pos, self.tree_goal_or, self.tree_orientation, self.tree_scale,
                      self.tree_pos, self.tree_goal_normal]
-        controllable_joints = [3, 4, 5, 6, 7, 8]
+        controllable_joints = self.ur5.controllable_joint_idx
         distance_fn = get_distance_fn(self.ur5.ur5_robot, controllable_joints)
         sample_position = get_sample_fn(self.ur5.ur5_robot, controllable_joints)
         extend_fn = get_extend_fn(self.ur5.ur5_robot, controllable_joints)
@@ -1306,7 +1303,7 @@ class PruningEnvRRT(PruningEnv):
                         frames, loop=0)
 
     def get_planning_fns(self):
-        controllable_joints = [3, 4, 5, 6, 7, 8]
+        controllable_joints = self.ur5.controllable_joint_idx
         distance_fn = get_distance_fn(self.ur5.ur5_robot, controllable_joints)
         sample_position = get_sample_fn(self.ur5.ur5_robot, controllable_joints)
         extend_fn = get_extend_fn(self.ur5.ur5_robot, controllable_joints)
@@ -1381,7 +1378,7 @@ class PruningEnvRRT(PruningEnv):
                          "robot_or": self.ur5.orientation}
 
         distance_fn, sample_position, extend_fn, collision_fn = self.get_planning_fns()
-        controllable_joints = [3, 4, 5, 6, 7, 8]
+        controllable_joints = self.ur5.controllable_joint_idx
 
         start_find_path = time.time()
         path = None
@@ -1522,7 +1519,7 @@ class PruningEnvRRT(PruningEnv):
 
         count_in_frame = 0
         for i, vel in enumerate(ee_vel):
-            if np.isclose(vel, np.zeros(6), atol=0.001).all():
+            if np.isclose(vel, np.zeros(6), atol=0.001).all(): #Remove 0 velocity actions
                 continue
             # Unscale the velocity because step function will scale it back
             scaled_vel = vel / self.action_scale  # Value passed by name, will get unscaled after step
@@ -1622,7 +1619,7 @@ class PruningEnvRRT(PruningEnv):
         return obs, info
 
     def run_smoothing(self, save_video=False, save_path=None):
-        controllable_joints = [3, 4, 5, 6, 7, 8]
+        controllable_joints = self.ur5.controllable_joint_idx
         paths_success = self.dataset
 
         for i in paths_success:
