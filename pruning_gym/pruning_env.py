@@ -35,7 +35,7 @@ from scipy.stats import vonmises
 from filelock import FileLock
 import h5py
 
-
+#Keep tool0 and pruner in the same relative orientation
 class PruningEnv(gym.Env):
     """
         PruningEnv is a custom environment that extends the gym.Env class from OpenAI Gym.
@@ -320,10 +320,9 @@ class PruningEnv(gym.Env):
         tilt_bounds = (-1, 1)
         self.cam_pan = np.radians(np.random.uniform(*pan_bounds))
         self.cam_tilt = np.deg2rad(10 + np.random.uniform(*tilt_bounds))
-        self.cam_xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.01, 0.005, 0.005]) #Realsense camera offset from base + randomization np.array([0.0115, 0.015, 0.015]) +
+        self.cam_xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.005, 0.005, 0.005]) #Realsense camera offset from base + randomization np.array([0.0115, 0.015, 0.015]) +
 
     def reset(self, seed: Optional[int] = None, options=None) -> Tuple[dict, dict]:
-        """Theres a chance that this is causing some memory leak. Shows up when using reset multiple times and parallelized."""
         """Environment reset function"""
         super().reset(seed=seed)
         self.pyb.con.resetSimulation()
@@ -480,26 +479,26 @@ class PruningEnv(gym.Env):
             if self.verbose > 0:
                 print("INFO: Episode Length: ", self.step_counter)
 
-            # Logging errors at the end of episode
-            infos["pointing_cosine_sim_error"] = np.abs(Reward.compute_pointing_cos_sim(
-                achieved_pos=self.observation_info['achieved_eebase_pos'],
-                desired_pos=self.observation_info['desired_pos'],
-                achieved_or=self.observation_info['achieved_eebase_or_quat'],
-                branch_vector=self.tree_goal_or))
+            # Logging errors at the end of episodeclear
+        infos["pointing_cosine_sim_error"] = np.abs(Reward.compute_pointing_cos_sim(
+            achieved_pos=self.observation_info['achieved_eebase_pos'],
+            desired_pos=self.observation_info['desired_pos'],
+            achieved_or=self.observation_info['achieved_eebase_or_quat'],
+            branch_vector=self.tree_goal_or))
 
-            infos["perpendicular_cosine_sim_error"] = np.abs(Reward.compute_perpendicular_cos_sim(
-                achieved_or=self.observation_info['achieved_eebase_or_quat'], branch_vector=self.tree_goal_or))
+        infos["perpendicular_cosine_sim_error"] = np.abs(Reward.compute_perpendicular_cos_sim(
+            achieved_or=self.observation_info['achieved_eebase_or_quat'], branch_vector=self.tree_goal_or))
 
-            infos["euclidean_error"] = np.linalg.norm(
-                self.observation_info['achieved_pos'] - self.observation_info['desired_pos'])
+        infos["euclidean_error"] = np.linalg.norm(
+            self.observation_info['achieved_pos'] - self.observation_info['desired_pos'])
 
-            current_or_mat = np.array(
-                self.pyb.con.getMatrixFromQuaternion(self.observation_info['achieved_or_quat'])).reshape(3, 3)
-            theta, rf = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_or,
-                                                            self.observation_info['achieved_pos'],
-                                                            self.observation_info['desired_pos'])
-            infos["angular_error"] = theta
-            infos['velocity'] = np.linalg.norm(self.action)
+        current_or_mat = np.array(
+            self.pyb.con.getMatrixFromQuaternion(self.observation_info['achieved_or_quat'])).reshape(3, 3)
+        theta, rf = Reward.get_angular_distance_to_goal(current_or_mat.T, self.tree_goal_or,
+                                                        self.observation_info['achieved_pos'],
+                                                        self.observation_info['desired_pos'])
+        infos["angular_error"] = theta
+        infos['velocity'] = np.linalg.norm(self.action)
             # infos['time'] = time.time() - self.start_time
 
         return infos
@@ -541,6 +540,9 @@ class PruningEnv(gym.Env):
 
     def convert_local_action_to_global(self, action):
         """Convert local action to global action"""
+        #Ideally would like to move about the pruner end-effector
+        #But in real world moveit will have to make a robot that has pruner included in moveit
+        #So currently moving about the tool0
         pos, orient = self.ur5.get_current_pose(self.ur5.tool0_index) #TODO: Movement according to tool0
         adjoint = self.make_adjoint(np.array(self.pyb.con.getMatrixFromQuaternion(orient)).reshape(3, 3), pos)
         global_action = np.dot(adjoint, action) #Adj(world_tool)* Vtool = Vworld
@@ -559,6 +561,7 @@ class PruningEnv(gym.Env):
         action[:3] = action[:3] * self.action_scale
         action[3:] = action[3:] * self.action_scale
         self.action = self.convert_local_action_to_global(action)
+
         # Calculate joint velocities from end effector velocities/or if ik is false, just use the action
         joint_vel = self.calculate_joint_velocities_from_ee_constrained(self.action)
         singularity = self.ur5.set_joint_velocities(joint_vel)
@@ -593,7 +596,7 @@ class PruningEnv(gym.Env):
         self.global_step_counter += 1
 
         # Check if task is done
-        done, terminate_info = self.is_task_done()  # done is for gym loggin -> custom_callback
+        done, terminate_info = self.is_task_done()  # done is for gym logging -> custom_callback
 
         # Truncated is when the episode is terminated due to time limit,
         # truncated is used to add estimate of reward at the end of the episode to boost training
@@ -606,6 +609,14 @@ class PruningEnv(gym.Env):
         infos.update(reward_infos)
         # return self.observation, reward, done, infos
         # v26
+        # use cv2 to show the point mask
+        # try:
+        #multiply one channel mask with rgb
+        #
+        # cv2.imshow("point_mask", self.observation['point_mask'][0][:,:, np.newaxis] * self.observation['rgb'])
+        # cv2.waitKey(1)
+        # except:
+        #     pass
         return self.observation, reward, terminated, truncated, infos
 
     def render(self, mode=None) -> NDArray:  # type: ignore
@@ -652,7 +663,7 @@ class PruningEnv(gym.Env):
             projection = (projection + 1) / 2
             row = self.pyb.cam_height - 1 - int(projection[1] * (self.pyb.cam_height))
             col = int(projection[0] * self.pyb.cam_width)
-            radius = 5  # TODO: Make this a variable proportional to distance
+            radius = 40  # TODO: Make this a variable proportional to distance
             # modern scikit uses a tuple for center
             rr, cc = disk((row, col), radius)
             point_mask[np.clip(0, rr, self.pyb.cam_height - 1), np.clip(0, cc,
@@ -661,6 +672,7 @@ class PruningEnv(gym.Env):
         # resize point mask to algo_height, algo_width
         point_mask_resize = cv2.resize(point_mask, dsize=(self.algo_width, self.algo_height))
         point_mask = np.expand_dims(point_mask_resize, axis=0).astype(np.float32)
+
         return point_mask
 
     def update_prev_observation_info(self):
@@ -679,9 +691,9 @@ class PruningEnv(gym.Env):
     def update_observation_info(self):
         """Collects current sensor data, calculates metrics, and updates observation info."""
         # Collecting current position, orientation, and velocity
-        tool_pos, tool_orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
+        tool_pos, tool_orient = self.ur5.get_current_pose(self.ur5.end_effector_index) #end effector for rewards tool for control. This is the endpoint
         tool_base_pos, tool_base_orient = self.ur5.get_current_pose(self.ur5.success_link_index)
-        achieved_vel, achieved_ang_vel = self.ur5.get_current_vel(self.ur5.end_effector_index)
+        achieved_vel, achieved_ang_vel = self.ur5.get_current_vel(self.ur5.tool0_index) #Control link
 
         # Standardize data types for consistency
         achieved_pos = np.array(tool_pos, dtype=np.float32)
@@ -716,10 +728,10 @@ class PruningEnv(gym.Env):
         # Update observation info with calculated values
         self.observation_info.update({
             'desired_pos': desired_pos,
-            'achieved_pos': achieved_pos,
-            'achieved_or_quat': achieved_or_quat,
-            'achieved_eebase_pos': achieved_tool_base_pos,
-            'achieved_eebase_or_quat': achieved_tool_base_orient,
+            'achieved_pos': achieved_pos, #Used for observations
+            'achieved_or_quat': achieved_or_quat, #Used for observations
+            'achieved_eebase_pos': achieved_tool_base_pos, #Used for rewards
+            'achieved_eebase_or_quat': achieved_tool_base_orient, #Used for rewards
             'rgb': rgb,
             'prev_rgb': prev_rgb,
             'point_mask': point_mask,
