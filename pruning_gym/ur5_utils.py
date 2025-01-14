@@ -47,7 +47,11 @@ class UR5:
         camera_mount_center_offset = np.array([0.0, 0.08033, 0.15709])
         camera_mount_camera_link_offset = np.array([0.0275, 0.0125, 0.025])
         camera_link_optical_frame_offset = np.array([0.0, 0.00,0.0])
-        self.camera_base_offset = camera_mount_center_offset + camera_mount_camera_link_offset + camera_link_optical_frame_offset
+        camera_thickness_to_glass = 0.02505 - 0.0009
+        camera_center_to_left_imager = 0.0175
+        camera_left_imager_to_rgb = 0.015
+        self.camera_link_rgb_offset = np.array([-camera_center_to_left_imager-camera_left_imager_to_rgb, 0, camera_thickness_to_glass])
+        # self.camera_base_offset = camera_mount_center_offset + camera_mount_camera_link_offset + camera_link_optical_frame_offset
         #np.array(
             # [0.063179, 0.077119, 0.0420027])
         self.verbose = verbose
@@ -63,10 +67,14 @@ class UR5:
         if self.ur5_robot is not None:
             self.con.removeBody(self.ur5_robot) #This trigger "Failed to remove body" warning
             self.ur5_robot = None
-        self.tool0_index = 10 #Tool0
-        self.end_effector_index = 22
-        self.success_link_index = 23
+        self.tool0_index = 14 #Tool0
+
+        #End effector is the last endpoint of the pruner
+        #Success link is the pruner mouth
+        self.end_effector_index = 24
+        self.success_link_index = 26
         self.base_index = 2
+        self.camera_link_index = 27
         flags = self.con.URDF_USE_SELF_COLLISION
 
         if self.randomize_pose:
@@ -115,7 +123,7 @@ class UR5:
             self.joints[info.name] = info
         # self.set_collision_filter()
         self.init_joint_angles = (-np.pi / 2, -np.pi * 2 / 3, np.pi * 2 / 3, -np.pi, -np.pi / 2,
-                                  np.pi)  # (-np.pi/2, -np.pi/6, np.pi*2/3, -np.pi*3/2, -np.pi/2, np.pi)#
+                                  0)  # (-np.pi/2, -np.pi/6, np.pi*2/3, -np.pi*3/2, -np.pi/2, np.pi)#
         self.set_joint_angles_no_collision(self.init_joint_angles)
         for _ in range(10):
             self.con.stepSimulation()
@@ -156,7 +164,9 @@ class UR5:
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 14, 15, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 16, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 16, 17, 0)
+
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 18, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 20, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 20, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 12, 18, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 8, 18, 0)
@@ -164,6 +174,14 @@ class UR5:
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 20, 18, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 8, 12, 0)
         self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 23, 20, 0)
+
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 10, 15, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 1, 4, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 21, 23, 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 26, 23
+                                        , 0)
+        self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 18, 21, 0)
+
         # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 12, 15, 0)
         # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 8, 12, 0)
         # self.con.setCollisionFilterPair(self.ur5_robot, self.ur5_robot, 15, 18, 0)
@@ -341,8 +359,10 @@ class UR5:
         """
         collisions_success = self.con.getContactPoints(bodyA=self.ur5_robot, bodyB=body_b,
                                                        linkIndexA=self.success_link_index)
+        if len(collisions_success) > 0:
+            print("DEBUG: Success Collision")
         for i in range(len(collisions_success)):
-            if collisions_success[i][-6] < 0.01:
+            if collisions_success[i][-6] < 0.05:
                 if self.verbose > 1:
                     print("DEBUG: Success Collision")
                 return True
@@ -354,6 +374,7 @@ class UR5:
                      orientation: Optional[Tuple[float, float, float, float]]) -> \
             Tuple[float, float, float, float, float, float]:
         """Calculates joint angles from end effector position and orientation using inverse kinematics"""
+        #TODO: Add index instead of directly using self.end_effector_index
         lower_limits = [-np.pi] * 6
         upper_limits = [np.pi] * 6
         joint_ranges = [2 * np.pi] * 6
@@ -378,46 +399,45 @@ class UR5:
         trans, ang = link_state[6], link_state[7]
         return trans, ang
 
-    def create_camera_transform(self, pos, orientation, pan, tilt, xyz_offset) -> np.ndarray:
+    def create_camera_transform(self,  pan, tilt, xyz_offset) -> np.ndarray:
         """Create rotation matrix for camera"""
-        base_offset_tf = np.identity(4)
-        base_offset_tf[:3, 3] = self.camera_base_offset + xyz_offset
 
-        ee_transform = np.identity(4)
-        ee_rot_mat = np.array(self.con.getMatrixFromQuaternion(orientation)).reshape(3, 3)
-        ee_transform[:3, :3] = ee_rot_mat
-        ee_transform[:3, 3] = pos
+        cam_center_tf = np.identity(4)
+        camera_center, camera_center_pose = self.get_current_pose(self.camera_link_index)
+        camera_center_rot_mat = np.array(self.con.getMatrixFromQuaternion(camera_center_pose)).reshape(3, 3)
+        cam_center_tf[:3, :3] = camera_center_rot_mat
+        cam_center_tf[:3, 3] = camera_center
+
+        local_offset_tf = np.identity(4)
+        local_offset_tf[:3, 3] = self.camera_link_rgb_offset + xyz_offset
 
         tilt_tf = np.identity(4)
+        tilt = tilt*-1 #As rotation is happeing in -ve x
         tilt_rot = np.array([[1, 0, 0], [0, np.cos(tilt), -np.sin(tilt)], [0, np.sin(tilt), np.cos(tilt)]])
         tilt_tf[:3, :3] = tilt_rot
 
+        # pan_rot
         pan_tf = np.identity(4)
         pan_rot = np.array([[np.cos(pan), 0, np.sin(pan)], [0, 1, 0], [-np.sin(pan), 0, np.cos(pan)]])
         pan_tf[:3, :3] = pan_rot
 
-        tf = ee_transform @ base_offset_tf @ tilt_tf @ pan_tf
+        tf = cam_center_tf @ local_offset_tf @ pan_tf @ tilt_tf
         return tf
 
     # TODO: Better types for getCameraImage
     def get_view_mat_at_curr_pose(self, pan, tilt, xyz_offset) -> np.ndarray:
         """Get view matrix at current pose"""
-        pose, orientation = self.get_current_pose(self.tool0_index)
-
-        camera_tf = self.create_camera_transform(pose, orientation, pan, tilt, xyz_offset)
+        camera_tf = self.create_camera_transform(pan, tilt, xyz_offset)
 
         # Initial vectors
-        camera_vector = np.array([0, 0, 1]) @ camera_tf[:3, :3].T  #
-        up_vector = np.array([0, 1, 0]) @ camera_tf[:3, :3].T  #
+        camera_vector = np.array([0, 0, 1]) @ camera_tf[:3, :3].T  #Defined in local frame and then rotated to world frame
+        up_vector = np.array([0, -1, 0]) @ camera_tf[:3, :3].T
         # Rotated vectors
         view_matrix = self.con.computeViewMatrix(camera_tf[:3, 3], camera_tf[:3, 3] + 0.1 * camera_vector, up_vector)
         return view_matrix
 
     def get_camera_location(self, tilt, pan, xyz_offset):
-        pose, orientation = self.get_current_pose(self.tool0_index)
-
-
-        camera_tf = self.create_camera_transform(pose, orientation, pan, tilt, xyz_offset)
+        camera_tf = self.create_camera_transform(pan, tilt, xyz_offset)
         return camera_tf
 
     def get_condition_number(self) -> float:
