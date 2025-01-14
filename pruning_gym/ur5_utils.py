@@ -59,6 +59,7 @@ class UR5:
         self.init_orientation = orientation
         self.setup_ur5_arm()
     def setup_ur5_arm(self) -> None:
+        self.controllable_joint_idx = []
         if self.ur5_robot is not None:
             self.con.removeBody(self.ur5_robot) #This trigger "Failed to remove body" warning
             self.ur5_robot = None
@@ -101,6 +102,8 @@ class UR5:
                 print("Joint Name: ", jointName, "Joint ID: ", jointID)
 
             controllable = True if jointName in self.control_joints else False
+            if controllable:
+                self.controllable_joint_idx.append(i)
             info = self.joint_info(jointID, jointName, jointType, jointLowerLimit, jointUpperLimit, jointMaxForce,
                                    jointMaxVelocity, controllable)  # type: ignore
             if self.verbose > 1:
@@ -251,7 +254,7 @@ class UR5:
         return singularity
 
     def get_joint_velocities(self):
-        j = self.con.getJointStates(self.ur5_robot, [3, 4, 5, 6, 7, 8])
+        j = self.con.getJointStates(self.ur5_robot, self.controllable_joint_idx)
         joints = tuple((i[1] for i in j))
         return joints  # type: ignore
 
@@ -286,7 +289,7 @@ class UR5:
 
     def get_joint_angles(self) -> Tuple[float, float, float, float, float, float]:
         """Return joint angles"""
-        j = self.con.getJointStates(self.ur5_robot, [3, 4, 5, 6, 7, 8])
+        j = self.con.getJointStates(self.ur5_robot, self.controllable_joint_idx)
         joints = tuple((i[0] for i in j))
         return joints  # type: ignore
 
