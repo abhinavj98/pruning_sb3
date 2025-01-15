@@ -273,7 +273,7 @@ args = {
         # Training parameters
         'total_timesteps': {
             'type': int,
-            'default': 2_500_000,
+            'default': 3_500_000,
             'help': 'total number of timesteps to train for'
         },
         # For logging purposes keep as multiple of episode length

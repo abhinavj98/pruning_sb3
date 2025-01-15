@@ -100,7 +100,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
             clip_range_vf: Union[None, float, Schedule] = None,
             normalize_advantage: bool = True,
             ent_coef: float = 0.001,
-            vf_coef: float = 0.05,
+            vf_coef: float = 0.5,
             ae_coeff: float = 0.,
             max_grad_norm: float = 0.5,
             use_sde: bool = False,
@@ -1096,7 +1096,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             use_cached_optical_flow=self.use_cached_optical_flow
         )
 
-        min_log_prob = -50  # TODO: Is this necessary?
+        min_log_prob = -20  # TODO: Is this necessary?
         log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
         log_prob_expert = 10 # ideally think of expert as a gaussian policy and this number is the density at expert action.
         # Set this number according to the variance of that distribution
@@ -1154,10 +1154,10 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # Value loss using the TD(gae_lambda) target
         value_loss_online = th.mean((((batch_online.returns - values_pred_online) ** 2) * ratio_current_old_online)[
-                                        mask_online]) * self.vf_coef
+                                        mask_online]) * self.vf_coef/10
         value_loss_offline = th.mean(
             (((batch_offline.returns - values_pred_offline) ** 2) * ratio_old_expert_offline)[
-                mask_offline]) * self.vf_coef
+                mask_offline]) * self.vf_coef/10
 
         # Entropy loss favor exploration
         if entropy_online is None:

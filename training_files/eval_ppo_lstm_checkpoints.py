@@ -47,7 +47,7 @@ if __name__ == "__main__":
                                          deterministic=True, render=False, or_bins=or_bins_test, save_video=False,
                                          **parsed_args_dict['args_callback'])
     mean_reward_list = []
-    load_timestep_list = [880000]
+    load_timestep_list = [2024000, 2112000, 2200000, 2288000]
     for i in range(len(load_timestep_list)):
         load_timestep = load_timestep_list[i]
         print("Loading model at timestep: ", load_timestep)
