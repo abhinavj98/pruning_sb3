@@ -612,10 +612,10 @@ class PruningEnv(gym.Env):
         # v26
         # use cv2 to show the point mask
         # try:
-        #multiply one channel mask with rgb
+        # # multiply one channel mask with rgb
         #
-        # cv2.imshow("point_mask", self.observation['point_mask'][0][:,:, np.newaxis] * self.observation['rgb'])
-        # cv2.waitKey(1)
+        #     cv2.imshow("point_mask", self.observation['point_mask'][0][:,:, np.newaxis] * self.observation['rgb'])
+        #     cv2.waitKey(1)
         # except:
         #     pass
         return self.observation, reward, terminated, truncated, infos
@@ -664,7 +664,7 @@ class PruningEnv(gym.Env):
             projection = (projection + 1) / 2
             row = self.pyb.cam_height - 1 - int(projection[1] * (self.pyb.cam_height))
             col = int(projection[0] * self.pyb.cam_width)
-            radius = 40  # TODO: Make this a variable proportional to distance
+            radius = 20  # TODO: Make this a variable proportional to distance
             # modern scikit uses a tuple for center
             rr, cc = disk((row, col), radius)
             point_mask[np.clip(0, rr, self.pyb.cam_height - 1), np.clip(0, cc,
@@ -773,11 +773,15 @@ class PruningEnv(gym.Env):
                 (self.observation_info['achieved_vel'], self.observation_info['achieved_ang_vel'])
             ))
 
+        #Get goal relative to tool0
+        t_tw, r_tw = self.pyb.con.invertTransform(self.observation_info['achieved_pos'], self.observation_info['achieved_or_quat'])
+        goal_t, _ = self.pyb.con.multiplyTransforms(t_tw, r_tw, self.tree_goal_pos, [0, 0, 0, 1])
+
         # Update the observation dictionary
         self.observation.update({
             'achieved_goal': (np.array(achieved_pos_b) - np.array(init_pos_ee_b)).astype(np.float32),
             'desired_goal': (np.array(desired_pos_b) - np.array(init_pos_ee_b)).astype(np.float32),
-            'relative_distance': (np.array(achieved_pos_b) - np.array(desired_pos_b)).astype(np.float32),
+            'relative_distance': np.array(goal_t).astype(np.float32),
             'achieved_or': np.array(achieved_or_b_6d).astype(np.float32),
             'rgb': np.array(self.observation_info['rgb']).astype(np.float32),
             'prev_rgb': np.array(self.observation_info['prev_rgb']).astype(np.float32),
@@ -875,8 +879,7 @@ class PruningEnv(gym.Env):
                                                                                            previous_or_eebase,
                                                                                            self.tree_goal_or)
 
-        #Clip point reward between +- 0.2
-        reward += np.clip(point_reward, -0.2, 0.2)
+        reward += point_reward
 
         perp_reward, perp_cosine_sim = self.reward.calculate_perpendicular_orientation_reward(achieved_or_eebase,
                                                                                               previous_or_eebase,

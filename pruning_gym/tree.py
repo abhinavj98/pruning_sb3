@@ -305,7 +305,7 @@ class Tree:
         # Filter out outliers
         print("Number of points before filtering: ", len(self.vertex_and_projection))
         self.vertex_and_projection = list(
-            filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean,# + 0.5 * self.projection_std,
+            filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean - 1 * self.projection_std,
                    self.vertex_and_projection))
         print("Number of points after filtering: ", len(self.vertex_and_projection))
 
@@ -362,7 +362,8 @@ class Tree:
             base_name = os.path.splitext(os.path.basename(urdf))[0]
             obj = os.path.join(trees_obj_path, base_name + '.obj')
             labelled_obj = os.path.join(trees_labelled_path, base_name + '.obj')
-
+            # if len(trees) >= num_trees: #TODO: Should do this but not doing as dataset saving should reflect that less trees were used
+            #     break
             if os.path.exists(obj) and os.path.exists(labelled_obj):
                 print("Making tree from urdf: ", urdf, obj, labelled_obj)
                 trees.append(Tree(env, pyb, urdf_path=urdf, obj_path=obj, pos=pos, orientation=orientation, scale=scale,

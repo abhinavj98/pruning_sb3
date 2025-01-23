@@ -35,10 +35,12 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
     def __init__(self, or_bins, verbose=0):
         super(PruningTrainSetGoalCallback, self).__init__(verbose)
         self.or_bins = or_bins
-        self.delta_pos_max = np.array([1, -0.9, 0])
-        self.delta_pos_min = np.array([-1, -1.2, -2])
-        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1.2, 0.05)
-        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1, 0.05)
+
+        #TODO: Make this an argument to the callback
+        #WARNING: This is hardcoded, change for eval as well
+        self.delta_pos_max = np.array([1, -0.8, 0])
+        self.delta_pos_min = np.array([-1, -1.1, -2])
+        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1.15, 0.05)
 
     def _init_callback(self) -> None:
         for i in range(self.training_env.num_envs):
@@ -123,7 +125,8 @@ class PruningCheckpointCallback(CheckpointCallback):
             self.model.save(model_path, exclude=["_last_obs", "_last_episode_starts", "_last_original_obs"
                                                  "expert_buffer", "expert_data", "expert_batch_idx",
                                                  "rollout_buffer", "expert_batch", "dataset", "data_iter", "dataloader",
-                                                 '_last_original_obs'])
+                                                 '_last_original_obs', "ep_info_buffer", "ep_success_buffer", "_last_obs_expert",
+                                                    "_last_lstm_states_expert", "rollout_buffer", "expert_buffer"])
             if self.verbose >= 1:
                 print(f"Saving model checkpoint to {model_path}")
             mean_std_path = self._checkpoint_path(checkpoint_type="mean_std_", extension="pkl")
