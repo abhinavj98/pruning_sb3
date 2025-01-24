@@ -172,40 +172,30 @@ class Encoder(BaseFeaturesExtractor):
         self.in_channels = in_channels
         self.size = size
         self.encoder = nn.Sequential(
-            nn.Conv2d(in_channels, 16, 3, padding='same'),  # b, 16, 240, 424
+            nn.Conv2d(in_channels, 32, 8, stride = 4,  padding=3),  # b, 16, 60, 106
+            nn.LayerNorm([32, 60, 106]),  # Apply LayerNorm before ReLU
             nn.ReLU(),
-            # nn.LayerNorm([16, 240, 424]),  # Apply LayerNorm after ReLU
 
-            nn.Conv2d(16, 32, 3, padding=1, stride=2),  # b, 32, 120, 212
+            nn.Conv2d(32, 64, 3, padding=1, stride=2),  # b, 128, 30, 53
+            nn.LayerNorm([64, 30, 53]),  # Apply LayerNorm after ReLU
             nn.ReLU(),
-            # nn.LayerNorm([32, 120, 212]),  # Apply LayerNorm after ReLU
 
-            nn.Conv2d(32, 64, 3, padding=1, stride=2),  # b, 64, 60, 106
+            nn.Conv2d(64, 64, 3, padding=1, stride=2),  # b, 64, 15, 27
+            nn.LayerNorm([64, 15, 27]),  # Apply LayerNorm after ReLU
             nn.ReLU(),
-            # nn.LayerNorm([64, 60, 106]),  # Apply LayerNorm after ReLU
 
-            nn.Conv2d(64, 128, 3, padding=1, stride=2),  # b, 128, 30, 53
+            nn.Conv2d(64, 32, 3, padding=1, stride=2),  # b, 32, 8, 14
+            nn.LayerNorm([32, 8, 14]),  # Apply LayerNorm after ReLU
             nn.ReLU(),
-            # nn.LayerNorm([128, 30, 53]),  # Apply LayerNorm after ReLU
 
-            nn.Conv2d(128, 128, 3, padding=1, stride=2),  # b, 128, 15, 27
+            nn.Conv2d(32, 8, 3, padding=1),  # b, 32, 8, 14
+            nn.LayerNorm([8, 8, 14]),  # Apply LayerNorm after ReLU
             nn.ReLU(),
-            # nn.LayerNorm([128, 15, 27]),  # Apply LayerNorm after ReLU
 
-            nn.Conv2d(128, 64, 3, padding=1, stride=2),  # b, 64, 8, 14
-            nn.ReLU(),
-            # nn.LayerNorm([64, 8, 14]),  # Apply LayerNorm after ReLU
 
-            nn.Conv2d(64, 32, 3, padding=1),  # b, 32, 8, 14
-            nn.ReLU(),
-            # nn.LayerNorm([32, 8, 14]),  # Apply LayerNorm after ReLU
-
-            nn.Conv2d(32, 8, 3, padding=1),  # b, 8, 8, 14
-            nn.ReLU(),
-            # nn.LayerNorm([8, 8, 14]),  # Apply LayerNorm after ReLU
         )
         self.fc_in = nn.Sequential(
-            nn.Linear(8*8*14, 128),)
+            nn.Linear(8*8*14, 64),)
 
     def _preprocess(self, img):
         img = TVF.resize(img, size=self.size, antialias=False)

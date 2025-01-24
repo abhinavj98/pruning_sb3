@@ -267,7 +267,7 @@ args = {
         },
         'state_dim': {
             'type': int,
-            'default': 128 + 33,
+            'default': 64 + 33,
             'help': 'dimension of the state space'
         },
         # Training parameters

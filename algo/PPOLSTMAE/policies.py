@@ -93,8 +93,8 @@ class MlpExtractorLN(nn.Module):
         # Iterate through the policy layers and build the policy net
         for curr_layer_dim in pi_layers_dims:
             policy_net.append(nn.Linear(last_layer_dim_pi, curr_layer_dim))
-            # if add_layer_norm:
-            #     policy_net.append(nn.LayerNorm(curr_layer_dim))
+            if add_layer_norm:
+                policy_net.append(nn.LayerNorm(curr_layer_dim))
             policy_net.append(activation_fn())
             last_layer_dim_pi = curr_layer_dim
 
