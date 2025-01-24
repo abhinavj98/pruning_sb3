@@ -317,7 +317,7 @@ class PruningEnv(gym.Env):
 
     def set_camera_pose(self):
         pan_bounds = (-1, 1)
-        tilt_bounds = (-1, 1)
+        tilt_bounds = (0, 1)
         self.cam_pan = np.radians(np.random.uniform(*pan_bounds))
         self.cam_tilt = np.deg2rad(10 + np.random.uniform(*tilt_bounds))
         self.cam_xyz_offset = np.random.uniform(-1, 1, 3) * np.array([0.005, 0.005, 0.005]) #Realsense camera offset from base + randomization np.array([0.0115, 0.015, 0.015]) +
@@ -655,16 +655,18 @@ class PruningEnv(gym.Env):
 
         noisy_desired_pos = np.array(self.tree_goal_pos, dtype=np.float32) + self.cutpoint_noise
         noisy_desired_pos_homog = np.array([noisy_desired_pos[0], noisy_desired_pos[1], noisy_desired_pos[2], 1])
-        projection = proj_matrix @ view_matrix @ noisy_desired_pos_homog
+        projection_cam_space = view_matrix @ noisy_desired_pos_homog
+        projection_image = proj_matrix @ projection_cam_space
         # Normalize by w
-        projection = projection / projection[3]
+        projection_image = projection_image / projection_image[3]
+        R = 5
 
-        # if projection within 1,-1, set point mask to 1
-        if projection[0] < 1 and projection[0] > -1 and projection[1] < 1 and projection[1] > -1:
-            projection = (projection + 1) / 2
-            row = self.pyb.cam_height - 1 - int(projection[1] * (self.pyb.cam_height))
-            col = int(projection[0] * self.pyb.cam_width)
-            radius = 20  # TODO: Make this a variable proportional to distance
+        radius = R*proj_matrix[0, 0] / np.abs(projection_cam_space[2])
+
+        if projection_image[0] < 1 and projection_image[0] > -1 and projection_image[1] < 1 and projection_image[1] > -1:
+            projection_image = (projection_image + 1) / 2
+            row = self.pyb.cam_height - 1 - int(projection_image[1] * (self.pyb.cam_height))
+            col = int(projection_image[0] * self.pyb.cam_width)
             # modern scikit uses a tuple for center
             rr, cc = disk((row, col), radius)
             point_mask[np.clip(0, rr, self.pyb.cam_height - 1), np.clip(0, cc,

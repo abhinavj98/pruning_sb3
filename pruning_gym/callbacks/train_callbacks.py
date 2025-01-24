@@ -38,9 +38,10 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
 
         #TODO: Make this an argument to the callback
         #WARNING: This is hardcoded, change for eval as well
-        self.delta_pos_max = np.array([1, -0.8, 0])
-        self.delta_pos_min = np.array([-1, -1.1, -2])
-        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1.15, 0.05)
+        self.delta_pos_max = np.array([1, -0.85, 0])
+        self.delta_pos_min = np.array([-1, -1.15, -2])
+        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1.15, 0.05, minimum_distance=-0.85,
+                                                                          maximum_below=-0.2)
 
     def _init_callback(self) -> None:
         for i in range(self.training_env.num_envs):
@@ -75,8 +76,8 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
                                              tree_orientation=tree_orientation, tree_scale=scale, tree_pos=tree_pos,
                                              point_branch_normal=current_branch_normal)
     def _on_step(self) -> bool:
-        if self.locals['offline']:
-            return
+        # if self.locals['offline']:
+        #     return
         self._update_tree_properties()  # Maybe remove infos check and pass it in an EventCallback that triggers whenever episode terminates
         return True
 

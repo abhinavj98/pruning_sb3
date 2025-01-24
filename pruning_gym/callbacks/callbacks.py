@@ -29,7 +29,8 @@ class PruningSetGoalCallback(BaseCallback):
         pass
 
     @staticmethod
-    def get_reachable_euclidean_grid(radius, resolution):
+    def get_reachable_euclidean_grid(radius, resolution, minimum_distance=-0.8, maximum_below=-0.2):
+        #TODO: Fix this with the correct values
         num_bins = round(radius / resolution) * 2
         base_center = np.array([0, 0, 0.91])
         # Create a 3D grid of indices
@@ -41,7 +42,7 @@ class PruningSetGoalCallback(BaseCallback):
 
         # Create a mask for the valid centers
         mask = (centers[..., 0] ** 2 + centers[..., 1] ** 2 + centers[..., 2] ** 2 <= radius ** 2) & (
-                centers[..., 1] < -0.75) & (centers[..., 2] > -0.2)
+                centers[..., 1] < minimum_distance) & (centers[..., 2] > maximum_below)
 
         # Apply the mask to the centers array to get the valid centers
         valid_centers = centers[mask] + base_center
@@ -230,22 +231,16 @@ class PruningLogCallback(BaseCallback):
         self._collisions_unacceptable_buffer.extend(self.training_env.get_attr("collisions_unacceptable"))
 
     def _on_rollout_start(self) -> None:
-        if self.locals['offline']:
-            return
         if self.verbose > 0:
             print("INFO: Rollout start")
         self._init_log_storage()
 
     def _on_step(self) -> bool:
-        if self.locals['offline']:
-            return True
         self._log_infos()
         self._log_collisions()
         return True
 
     def _on_rollout_end(self) -> None:
-        if self.locals['offline']:
-            return
         if self.verbose > 0:
             print("INFO: Rollout end")
             print("INFO: Success rate", np.mean(self._info_dict["is_success"]))

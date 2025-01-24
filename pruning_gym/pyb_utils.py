@@ -41,7 +41,7 @@ class pyb_utils:
         # self.enable_gravity()
         self.con.setRealTimeSimulation(False)
         self.proj_mat = self.con.computeProjectionMatrixFOV(
-            fov=60, aspect=self.cam_width / self.cam_height, nearVal=self.near_val,
+            fov=42, aspect=self.cam_width / self.cam_height, nearVal=self.near_val,
             farVal=self.far_val)
 
         self.con.resetDebugVisualizerCamera(cameraDistance=1.06, cameraYaw=-120.3, cameraPitch=-12.48,
