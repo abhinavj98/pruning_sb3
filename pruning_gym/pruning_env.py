@@ -48,7 +48,7 @@ class PruningEnv(gym.Env):
 
     def __init__(self, tree_urdf_path: str, tree_obj_path: str, tree_labelled_path: str, renders: bool = False,
                  max_steps: int = 500,
-                 distance_threshold: float = 0.05, angle_threshold_perp: float = 0.6,
+                 distance_threshold: float = 0.08, angle_threshold_perp: float = 0.6,
                  angle_threshold_point: float = 0.6,
                  tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
                  algo_width: int = 424, algo_height: int = 240,
@@ -716,12 +716,12 @@ class PruningEnv(gym.Env):
         )
         prev_rgb = self.observation.get('rgb', np.zeros((self.pyb.cam_height, self.pyb.cam_width, 3)))
 
-        # Calculate cosine similarity metrics for rewards
+        # Calculate cosine similarity metrics for critic
         pointing_cosine_sim = self.reward.compute_pointing_cos_sim(
-            achieved_pos, desired_pos, achieved_or_quat, self.tree_goal_or
+            achieved_tool_base_pos, desired_pos, achieved_tool_base_orient, self.tree_goal_or
         )
         perpendicular_cosine_sim = self.reward.compute_perpendicular_cos_sim(
-            achieved_or_quat, self.tree_goal_or
+            achieved_tool_base_orient, self.tree_goal_or
         )
 
         # Calculate the deprojected point mask and encode joint angles
@@ -741,7 +741,7 @@ class PruningEnv(gym.Env):
             'joint_angles': encoded_joint_angles,
             'achieved_vel': achieved_vel,
             'achieved_ang_vel': achieved_ang_vel,
-            'pointing_cosine_sim': abs(pointing_cosine_sim),
+            'pointing_cosine_sim': pointing_cosine_sim,
             'perpendicular_cosine_sim': abs(perpendicular_cosine_sim),
             'target_distance': np.linalg.norm(achieved_pos - desired_pos)
         })
@@ -1454,7 +1454,7 @@ class PruningEnvRRT(PruningEnv):
 
         def fn(q1, q2):
             yield q1
-            num_steps = int(np.ceil(np.linalg.norm(np.divide(difference_fn(q2, q1), 0.1), ord=2))) + 1
+            num_steps = int(np.ceil(np.linalg.norm(np.divide(difference_fn(q2, q1), 0.1), ord=2))) + 1 #0.1 means divide q1 and q2 in 10 steps
             prev_positions = q1
             for i in range(num_steps):
                 positions = (i / (num_steps - 1)) * np.array(difference_fn(q2, q1)) + q1
