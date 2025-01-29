@@ -38,9 +38,9 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
 
         #TODO: Make this an argument to the callback
         #WARNING: This is hardcoded, change for eval as well
-        self.delta_pos_max = np.array([1, -0.85, 0])
-        self.delta_pos_min = np.array([-1, -1.15, -2])
-        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1.15, 0.05, minimum_distance=-0.85,
+        self.delta_pos_max = np.array([1, -0.8, 0])
+        self.delta_pos_min = np.array([-1, -1.1, -2])
+        self.reachable_euclidean_grid = self.get_reachable_euclidean_grid(1.05, 0.05, minimum_distance=-0.8,
                                                                           maximum_below=-0.2)
 
     def _init_callback(self) -> None:
@@ -130,9 +130,9 @@ class PruningCheckpointCallback(CheckpointCallback):
                                                     "_last_lstm_states_expert", "rollout_buffer", "expert_buffer"])
             if self.verbose >= 1:
                 print(f"Saving model checkpoint to {model_path}")
-            mean_std_path = self._checkpoint_path(checkpoint_type="mean_std_", extension="pkl")
-            with open(mean_std_path, "wb") as f:
-                pickle.dump((self.model.policy.running_mean_var_oflow_x, self.model.policy.running_mean_var_oflow_y), f)
+            # mean_std_path = self._checkpoint_path(checkpoint_type="mean_std_", extension="pkl")
+            # with open(mean_std_path, "wb") as f:
+            #     pickle.dump((self.model.policy.running_mean_var_oflow_x, self.model.policy.running_mean_var_oflow_y), f)
             if self.verbose >= 2:
                 print(f"Saving model checkpoint to {model_path}")
 
