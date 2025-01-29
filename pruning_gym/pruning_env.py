@@ -753,7 +753,7 @@ class PruningEnv(gym.Env):
         init_or_ee = np.array(self.ur5.init_pos_ee[1], dtype=np.float32)
 
         # Transform positions and orientations relative to the robot base
-        t_bw, r_bw = self.pyb.con.invertTransform(self.ur5.init_pos_base[0], self.ur5.init_pos_base[1])
+        t_bw, r_bw = self.ur5.t_bw, self.ur5.r_bw
         achieved_pos_b, achieved_or_quat_b = self.pyb.con.multiplyTransforms(
             t_bw, r_bw, self.observation_info['achieved_pos'], self.observation_info['achieved_or_quat']
         )
@@ -937,8 +937,8 @@ class PruningEnv(gym.Env):
 class PruningEnvRRT(PruningEnv):
     def __init__(self, tree_urdf_path: str, tree_obj_path: str, tree_labelled_path: str, renders: bool = False,
                  max_steps: int = 500,
-                 distance_threshold: float = 0.05, angle_threshold_perp: float = 0.52,
-                 angle_threshold_point: float = 0.52,
+                 distance_threshold: float = 0.08, angle_threshold_perp: float = 0.6,
+                 angle_threshold_point: float = 0.6,
                  tree_count: int = 9999, cam_width: int = 424, cam_height: int = 240,
                  algo_width: int = 224, algo_height: int = 224,
                  evaluate: bool = False, num_points: Optional[int] = None, action_dim: int = 12,

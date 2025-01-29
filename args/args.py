@@ -49,12 +49,12 @@ args = {
         },
         'condition_reward_scale': {
             'type': float,
-            'default': 0,
+            'default': -0.01,
             'help': 'scaling factor for the condition reward'
         },
         'terminate_reward_scale': {
             'type': float,
-            'default': 2.,
+            'default': 3.,
             'help': 'scaling factor for the terminate reward'
         },
         'collision_reward_scale': {

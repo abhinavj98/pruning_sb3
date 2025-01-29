@@ -58,7 +58,10 @@ class Reward:
         return pointing_orientation_reward, cosine_sim_curr
 
     def calculate_condition_number_reward(self, condition_number):
-        condition_number_reward = np.abs(1 / condition_number) * self.condition_reward_scale
+        #If condition number > 80, reward is negative
+        condition_number_reward = 0
+        if condition_number > 60:
+            condition_number_reward = 1 * self.condition_reward_scale
         self.reward_info['condition_number_reward'] = condition_number_reward
         return condition_number_reward
 
@@ -130,7 +133,7 @@ class Reward:
                                  branch_vector):
         # Orientation reward is computed as the dot product between the current orientation and the
         # perpendicular vector to the end effector and goal pos vector
-        # This is to encourage the end effector to be perpendicular to the branch
+        # This is to encourage the end effector to be pointing to the branch
 
         # Perpendicular vector to branch vector
         ideal_pointing_vector = Reward.compute_perpendicular_projection(achieved_pos, desired_pos,
@@ -140,6 +143,7 @@ class Reward:
         # Initial vectors
         init_vector = np.array([0, 0, 1])  # Z points forward
         current_pointing_vector = rot_mat.dot(init_vector)
+
         pointing_cos_sim = np.dot(current_pointing_vector, ideal_pointing_vector) / (
                 np.linalg.norm(current_pointing_vector) * np.linalg.norm(ideal_pointing_vector))
 
