@@ -73,7 +73,7 @@ class UR5:
         #Success link is the pruner mouth
         self.end_effector_index = 24
         self.success_link_index = 26
-        self.base_index = 2
+        self.base_index = 3
         self.camera_link_index = 27
         flags = self.con.URDF_USE_SELF_COLLISION
 
@@ -122,7 +122,7 @@ class UR5:
                                                force=0)
             self.joints[info.name] = info
         # self.set_collision_filter()
-        self.init_joint_angles = (-np.pi / 2, -np.pi * 2 / 3, np.pi * 2 / 3, -np.pi, -np.pi / 2,
+        self.init_joint_angles = (-np.pi / 2 + np.pi/4, -np.pi * 2 / 3, np.pi * 2 / 3, -np.pi, -np.pi / 2,
                                   0)  # (-np.pi/2, -np.pi/6, np.pi*2/3, -np.pi*3/2, -np.pi/2, np.pi)#
         self.set_joint_angles_no_collision(self.init_joint_angles)
         for _ in range(10):
@@ -131,6 +131,11 @@ class UR5:
         self.init_pos_ee = self.get_current_pose(self.end_effector_index)
         self.init_pos_base = self.get_current_pose(self.base_index)
         self.init_pos_eebase = self.get_current_pose(self.success_link_index)
+
+        t_bw, r_bw = self.con.invertTransform(self.init_pos_base[0], self.init_pos_base[1])
+
+        self.t_bw = t_bw
+        self.r_bw = r_bw
         # self.action = np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
         self.joint_angles = np.array(self.init_joint_angles).astype(np.float32)
         self.achieved_pos = np.array(self.get_current_pose(self.end_effector_index)[0])
@@ -362,7 +367,7 @@ class UR5:
         if len(collisions_success) > 0:
             print("DEBUG: Success Collision")
         for i in range(len(collisions_success)):
-            if collisions_success[i][-6] < 0.05:
+            if collisions_success[i][-6] < 0.0001:
                 if self.verbose > 1:
                     print("DEBUG: Success Collision")
                 return True
