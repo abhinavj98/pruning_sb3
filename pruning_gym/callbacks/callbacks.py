@@ -42,7 +42,7 @@ class PruningSetGoalCallback(BaseCallback):
 
         # Create a mask for the valid centers
         mask = (centers[..., 0] ** 2 + centers[..., 1] ** 2 + centers[..., 2] ** 2 <= radius ** 2) & (
-                centers[..., 1] < minimum_distance) & (centers[..., 2] > maximum_below)
+                centers[..., 1] <= minimum_distance) & (centers[..., 2] > maximum_below)
 
         # Apply the mask to the centers array to get the valid centers
         valid_centers = centers[mask] + base_center
