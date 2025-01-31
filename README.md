@@ -1,3 +1,25 @@
+# Pruning Gym Environment
+
+
+A custom Gym environment designed for the tree pruning task. This environment interfaces with Stable Baselines3 to train visuomotor control policies for learning pruning.
+
+
+
+## Features
+
+
+
+- **Custom Gym Environment**: Simulates the tree pruning task with realistic trees built using LPy (https://github.com/OSUrobotics/treesim_lpy).
+
+- **Pybullet as physics engine**: Implements methods to control a UR5 robot in simulation.
+
+- **Stable Baselines3 Integration**: Integrates with Stable Baselines3 for training reinforcement learning agents. Also introduces an LSTM version of the policy that learns with behavioral cloning and RL.
+
+- **Pybullet planning Integration**: Integrates with pybullet planning to run traditional planners such as RRT-Connect. These are used to benchmark RL policy and generate expert data.
+
+
+
+
 How to make trees
 
 https://github.com/OSUrobotics/treesim_lpy
