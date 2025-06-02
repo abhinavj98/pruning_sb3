@@ -1004,8 +1004,8 @@ class PruningEnvRRT(PruningEnv):
         #Add noise about pointing and perpendicular
          # --- 4. Noise about local Y ---
         angle_y = np.random.uniform(-self.angle_threshold_point, self.angle_threshold_point)
-        R_y = R.from_rotvec(angle_y * frame_x[:, 1]).as_matrix()
-        frame_xy = R_y @ frame_x
+        R_y = R.from_rotvec(angle_y * rotated_ideal_frame[:, 1]).as_matrix()
+        frame_xy = R_y @ rotated_ideal_frame
 
         # --- 5. Noise about local Z ---
         angle_z = np.random.uniform(-self.angle_threshold_perp, self.angle_threshold_perp)
