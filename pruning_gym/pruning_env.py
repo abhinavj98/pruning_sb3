@@ -977,58 +977,99 @@ class PruningEnvRRT(PruningEnv):
         return optical_flow
 
     def generate_goal_pos(self):
-        branch_normal = self.tree_goal_normal / np.linalg.norm(self.tree_goal_normal)
-        branch_parallel = self.tree_goal_or / np.linalg.norm(self.tree_goal_or)
-        forward = np.cross(branch_parallel, branch_normal)
+        # Make the frame for the branch
+        branch_parallel = self.tree_goal_or / np.linalg.norm(self.tree_goal_or)      # X axis
+        branch_normal   = self.tree_goal_normal / np.linalg.norm(self.tree_goal_normal) # "Y" reference
+        forward         = np.cross(branch_parallel, branch_normal)                   # Z reference
+        branch_frame = np.column_stack((branch_parallel, branch_normal, forward))
+    
+        # Build closest optimal frame
+        # Compute optimal Z (projected EE pointing,  from current EE frame)
+        ee_rot = np.array(self.pyb.con.getMatrixFromQuaternion(self.ur5.init_pos_ee[1])).reshape(3, 3) #Current frame
+        ee_z = ee_rot[:, 2]
+        ee_z_proj = ee_z - np.dot(ee_z, branch_parallel) * branch_parallel #Project ee_z to be perpendicular to branch parallel
+        ee_z_proj /= np.linalg.norm(ee_z_proj)
 
-        # Get a vector in plane of forward and right using linear combination
-        rotation_matrix = np.column_stack((branch_parallel, branch_normal, forward))
-        rotation_matrix = R.from_matrix(rotation_matrix).as_matrix()
-
-        rotation_axis_x = rotation_matrix[:, 0]
-        # How much to rotate about this axis to make same as branch normal?
-        # self.ur5.init_pos_ee[1] as rotation matrix
-        rot_ee = self.pyb.con.getMatrixFromQuaternion(self.ur5.init_pos_ee[1])
-        rot_ee = np.array(rot_ee).reshape(3, 3)
-        rot_pointing = rot_ee[:, 2]
-
-        # Project rot_pointing perpendicular to rotation_axis_x
-        rot_pointing = rot_pointing - np.dot(rot_pointing, rotation_axis_x) * rotation_axis_x
-        rot_pointing = rot_pointing / np.linalg.norm(rot_pointing)
-
-        # Minimize the angle between the branch normal and the rotation matrix [2] axis
-        cos_theta = np.dot(rot_pointing, rotation_matrix[:, 2])
-        sin_theta = np.linalg.norm(np.cross(rot_pointing, rotation_matrix[:, 2]))
-        theta = np.arctan2(sin_theta, cos_theta)
-
-        # Make this concentration lower to make the solutions more random as num_attempts increases.
+        ee_x = branch_parallel
+        ee_y = np.cross(ee_z_proj, branch_parallel)
+        ee_y /= np.linalg.norm(ee_y)
+        
+        ee_ideal_frame = np.column_stack((ee_x, ee_y, ee_z_proj))  # columns = X, Y, Z
+        #Rotate ee_ideal_fram about branch_parallel
         concentration = 0.85
+        theta_x = vonmises(loc=0, kappa=concentration).rvs(1)
+        R_x = R.from_rotvec(theta_x * ee_x).as_matrix()
+        rotated_ideal_frame = R_x @ ee_frame
+        
+        #Add noise about pointing and perpendicular
+         # --- 4. Noise about local Y ---
+        angle_y = np.random.uniform(-self.angle_threshold_point, self.angle_threshold_point)
+        R_y = R.from_rotvec(angle_y * frame_x[:, 1]).as_matrix()
+        frame_xy = R_y @ frame_x
 
-        rotation_angle_x = vonmises(loc=theta, kappa=concentration).rvs(1)
-        # rotation_angle_x = np.random.uniform(0, 2 * np.pi)
-        random_rotation_x = R.from_rotvec(rotation_angle_x * rotation_axis_x).as_matrix()
+        # --- 5. Noise about local Z ---
+        angle_z = np.random.uniform(-self.angle_threshold_perp, self.angle_threshold_perp)
+        R_z = R.from_rotvec(angle_z * frame_xy[:, 2]).as_matrix()
+        final_frame = R_z @ frame_xy
 
-        rotation_axis_y = rotation_matrix[:, 1]
-        rotation_angle_y = np.random.uniform(0, self.angle_threshold_perp)
-        random_rotation_y = R.from_rotvec(rotation_angle_y * rotation_axis_y).as_matrix()
-        # random_rotation_y = np.eye(3)
-        rotation_axis_z = rotation_matrix[:, 2]
-        rotation_angle_z = np.random.uniform(0, self.angle_threshold_point)
-        random_rotation_z = R.from_rotvec(rotation_angle_z * rotation_axis_z).as_matrix()
-        # random_rotation_z = np.eye(3)
+        quaternion = R.from_matrix(noisy_frame).as_quat()
+        return quaternion, forward, final_frame
+        
+        
 
-        random_rotation = random_rotation_z @ random_rotation_y @ random_rotation_x
-        rotation_matrix = random_rotation @ rotation_matrix
-        # print(np.dot(rotation_matrix[:, 2], rot_pointing))
-        # self.pyb.visualize_rot_mat(rotation_matrix, self.tree_goal_pos)
-        # self.pyb.visualize_rot_mat(rot_ee, self.tree_goal_pos)
-        # self.pyb.visualize_rot_mat(rot_ee, self.ur5.init_pos_ee[0])
-        # input()
+    # def generate_goal_pos(self):
+    #     branch_normal = self.tree_goal_normal / np.linalg.norm(self.tree_goal_normal)
+    #     branch_parallel = self.tree_goal_or / np.linalg.norm(self.tree_goal_or)
+    #     forward = np.cross(branch_parallel, branch_normal)
 
-        # time.sleep(1)
-        r = R.from_matrix(rotation_matrix)
-        quaternion = r.as_quat()
-        return quaternion, forward, rotation_matrix
+    #     # Get a vector in plane of forward and right using linear combination
+    #     rotation_matrix = np.column_stack((branch_parallel, branch_normal, forward))
+    #     rotation_matrix = R.from_matrix(rotation_matrix).as_matrix()
+
+    #     rotation_axis_x = rotation_matrix[:, 0]
+    #     # How much to rotate about this axis to make same as branch normal?
+    #     # self.ur5.init_pos_ee[1] as rotation matrix
+    #     rot_ee = self.pyb.con.getMatrixFromQuaternion(self.ur5.init_pos_ee[1])
+    #     rot_ee = np.array(rot_ee).reshape(3, 3)
+    #     rot_pointing = rot_ee[:, 2]
+
+    #     # Project rot_pointing perpendicular to rotation_axis_x
+    #     rot_pointing = rot_pointing - np.dot(rot_pointing, rotation_axis_x) * rotation_axis_x
+    #     rot_pointing = rot_pointing / np.linalg.norm(rot_pointing)
+
+    #     # Minimize the angle between the branch normal and the rotation matrix [2] axis
+    #     cos_theta = np.dot(rot_pointing, rotation_matrix[:, 2])
+    #     sin_theta = np.linalg.norm(np.cross(rot_pointing, rotation_matrix[:, 2]))
+    #     theta = np.arctan2(sin_theta, cos_theta)
+
+    #     # Make this concentration lower to make the solutions more random as num_attempts increases.
+    #     concentration = 0.85
+
+    #     rotation_angle_x = vonmises(loc=theta, kappa=concentration).rvs(1)
+    #     # rotation_angle_x = np.random.uniform(0, 2 * np.pi)
+    #     random_rotation_x = R.from_rotvec(rotation_angle_x * rotation_axis_x).as_matrix()
+
+    #     rotation_axis_y = rotation_matrix[:, 1]
+    #     rotation_angle_y = np.random.uniform(0, self.angle_threshold_perp)
+    #     random_rotation_y = R.from_rotvec(rotation_angle_y * rotation_axis_y).as_matrix()
+    #     # random_rotation_y = np.eye(3)
+    #     rotation_axis_z = rotation_matrix[:, 2]
+    #     rotation_angle_z = np.random.uniform(0, self.angle_threshold_point)
+    #     random_rotation_z = R.from_rotvec(rotation_angle_z * rotation_axis_z).as_matrix()
+    #     # random_rotation_z = np.eye(3)
+
+    #     random_rotation = random_rotation_z @ random_rotation_y @ random_rotation_x
+    #     rotation_matrix = random_rotation @ rotation_matrix
+    #     # print(np.dot(rotation_matrix[:, 2], rot_pointing))
+    #     # self.pyb.visualize_rot_mat(rotation_matrix, self.tree_goal_pos)
+    #     # self.pyb.visualize_rot_mat(rot_ee, self.tree_goal_pos)
+    #     # self.pyb.visualize_rot_mat(rot_ee, self.ur5.init_pos_ee[0])
+    #     # input()
+
+    #     # time.sleep(1)
+    #     r = R.from_matrix(rotation_matrix)
+    #     quaternion = r.as_quat()
+    #     return quaternion, forward, rotation_matrix
 
     def sample_goal(self, config=False, offset=0.03):
         orientation, forward, rot = self.generate_goal_pos()
