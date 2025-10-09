@@ -127,7 +127,7 @@ class PruningCheckpointCallback(CheckpointCallback):
                                                  "expert_buffer", "expert_data", "expert_batch_idx",
                                                  "rollout_buffer", "expert_batch", "dataset", "data_iter", "dataloader",
                                                  '_last_original_obs', "ep_info_buffer", "ep_success_buffer", "_last_obs_expert",
-                                                    "_last_lstm_states_expert", "rollout_buffer", "expert_buffer"])
+                                                    "_last_lstm_states_expert", "rollout_buffer", "expert_buffer", "expert_policy"])
             if self.verbose >= 1:
                 print(f"Saving model checkpoint to {model_path}")
             # mean_std_path = self._checkpoint_path(checkpoint_type="mean_std_", extension="pkl")

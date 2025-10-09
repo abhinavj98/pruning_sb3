@@ -1,4 +1,5 @@
 import glob
+import os.path
 import pickle
 import random
 import sys
@@ -1654,6 +1655,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                     self.policy.optimizer_logstd.zero_grad()
                     self.step_optimizer()
 
+
                 # Train the expert
                 elif self.use_offline_data:
                     # Train just on offline data using PPO Clip -- Redundant remove from file
@@ -1718,7 +1720,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                         mean_grad = param.grad.abs().mean()
                         gradient.append(np.abs(mean_grad.item()))
 
-                if not continue_training:
+                if not continue_training or self.use_bc:
                     break
 
         self._n_updates += self.n_epochs
@@ -1843,16 +1845,23 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         use_awac = self.use_awac
         use_bc = self.use_bc
 
-        if use_bc:
+        if os.path.exists("bc_expert_policy"+self.env.get_attr("tree_urdf_path", 0)[0]+".pt") and self.use_bc:
+            print("Found existing BC expert policy. Skipping BC phase.")
+            self.use_bc = False
+
+        # Disable other training modes while BC is active
+        if self.use_bc:
             self.use_online_bc = False
             self.use_online_data = False
             self.use_offline_data = False
             self.use_ppo_offline = False
             self.use_awac = False
+
         while self.num_timesteps < total_timesteps:
             if self.use_bc and self.num_timesteps > int(0.05 * total_timesteps):
                 print("Switching off BC")
                 self.expert_policy.load_state_dict(self.policy.state_dict())
+                torch.save(self.expert_policy.state_dict(), "bc_expert_policy"+self.env.get_attr("tree_urdf_path", 0)[0]+".pt")
                 self.use_bc = False
                 self.use_online_bc = use_online_bc
                 self.use_online_data = use_online_data
