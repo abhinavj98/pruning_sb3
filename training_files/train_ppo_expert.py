@@ -1,15 +1,16 @@
 import os
 import sys
+from typing import Tuple
+
+import torch as th
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
-from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
-from pruning_sb3.algo.PPOLSTMAE.ppo_recurrent_ae import RecurrentPPOAEWithExpert
-from pruning_sb3.pruning_gym.models import Encoder
+
+from pruning_sb3.algo.PPOEXPERT.ppo_expert import PPO
 
 from pruning_sb3.pruning_gym.callbacks.callbacks import EveryNRollouts, PruningLogCallback
 from pruning_sb3.pruning_gym.callbacks.train_callbacks import PruningTrainSetGoalCallback, \
     PruningTrainRecordEnvCallback, PruningCheckpointCallback, Pruning1TreeSetGoalCallback
-from pruning_sb3.pruning_gym.callbacks.eval_callbacks import GenerateResults
 
 from pruning_sb3.pruning_gym.pruning_env import PruningEnv
 
@@ -20,10 +21,43 @@ from stable_baselines3.common.env_util import make_vec_env
 import argparse
 from pruning_sb3.args.args import \
     args
-from pruning_sb3.pruning_gym.helpers import linear_schedule, set_args, organize_args, init_wandb, make_or_bins, \
-    get_policy_kwargs
-import pickle
-import glob
+from pruning_sb3.pruning_gym.helpers import linear_schedule, set_args, organize_args, init_wandb, make_or_bins
+from stable_baselines3.common.policies import MultiInputActorCriticPolicy
+
+class MultiInputPolicyExpert(MultiInputActorCriticPolicy):
+    def __init__(self, *args, **kwargs):
+        super(MultiInputPolicyExpert, self).__init__(*args, **kwargs)
+
+    def forward_expert(self, obs, action, deterministic=False):
+        """
+        Forward pass in all the networks (actor and critic)
+
+        :param obs: Observation
+        :param deterministic: Whether to sample or use deterministic actions
+        :return: action, value and log probability of the action
+        """
+        # Preprocess the observation if needed
+        features = self.extract_features(obs)
+        if self.share_features_extractor:
+            latent_pi, latent_vf = self.mlp_extractor(features)
+        else:
+            pi_features, vf_features = features
+            latent_pi = self.mlp_extractor.forward_actor(pi_features)
+            latent_vf = self.mlp_extractor.forward_critic(vf_features)
+        # Evaluate the values for the given observations
+        values = self.value_net(latent_vf)
+        distribution = self._get_action_dist_from_latent(latent_pi)
+        actions = action #Replaced sampling with the expert action
+        log_prob = distribution.log_prob(actions)
+        actions = actions.reshape((-1, *self.action_space.shape))  # type: ignore[misc]
+        return actions, values, log_prob
+
+def get_policy_kwargs(args_policy):
+    policy_kwargs = {"log_std_init": -1.5, 'activation_fn': th.nn.ReLU, 'squash_output': True,
+                  }
+
+    return policy_kwargs
+
 
 if __name__ == "__main__":
     reset = False
@@ -35,7 +69,7 @@ if __name__ == "__main__":
         parsed_args)
     verbose = 1
 
-    init_wandb(parsed_args_dict, args_global['run_name'])
+    # init_wandb(parsed_args_dict, args_global['run_name'])
     load_timestep = args_global['load_timestep']
 
     if args_global['load_path']:
@@ -62,6 +96,8 @@ if __name__ == "__main__":
     new_logger = utils.configure_logger(verbose=0, tensorboard_log="./runs/", reset_num_timesteps=True)
     env.logger = new_logger
 
+
+
     set_goal_callback = PruningTrainSetGoalCallback(or_bins=or_bins, verbose=args_callback['verbose'])
     # set_goal_callback = Pruning1TreeSetGoalCallback(expert_data['tree_info'], verbose=args_callback['verbose'])
     checkpoint_callback = PruningCheckpointCallback(save_freq=args_callback['save_freq'],
@@ -72,8 +108,8 @@ if __name__ == "__main__":
     logging_callback = PruningLogCallback(expert=True, verbose=args_callback['verbose'])
     callback_list = [set_goal_callback, checkpoint_callback, logging_callback]
 
-    policy_kwargs = get_policy_kwargs(args_policy, args_env, Encoder)
-    policy = RecurrentActorCriticPolicy
+    policy_kwargs = get_policy_kwargs(args_policy)
+    policy = MultiInputPolicyExpert
     if args_policy['use_online_bc'] or args_policy['use_ppo_offline']:
         learning_rate_logstd = linear_schedule(args_policy['learning_rate']*20)
     else:
@@ -82,30 +118,12 @@ if __name__ == "__main__":
 
 
     if not load_path_model:
-        model = RecurrentPPOAEWithExpert(expert_trajectory_path, args_policy['use_online_data'],
-                                         args_policy['use_offline_data'],
-                                         args_policy['use_ppo_offline'],
-                                         args_policy['use_online_bc'],
-                                         args_policy['use_awac'],
-                                         args_policy['use_bc'],
-                                         policy_kwargs['algo_size'],
-                                         args_policy['bc_coeff'],
-                                         args_policy['use_cached_optical_flow'],
-                                         policy, env, policy_kwargs=policy_kwargs,
-                                         learning_rate=linear_schedule(args_policy['learning_rate']),
-                                         learning_rate_ae=linear_schedule(args_policy['learning_rate_ae']),
-                                         learning_rate_logstd=learning_rate_logstd,
-                                         n_steps=args_policy['steps_per_epoch'],
-                                         batch_size=args_policy['batch_size'],
-                                         n_epochs=args_policy['epochs'],
-                                         ae_coeff=args_policy['ae_coeff'],
-                                         verbose=args_policy['verbose'],
-                                         )
+        model = PPO(policy, env, verbose=verbose, tensorboard_log="./runs/", policy_kwargs=policy_kwargs, learning_rate=linear_schedule(args_policy['learning_rate']))
     else:
         load_dict = {"learning_rate": linear_schedule(args_policy['learning_rate']),
                      "learning_rate_ae": linear_schedule(args_policy['learning_rate_ae']),
                      "learning_rate_logstd": learning_rate_logstd}
-        model = RecurrentPPOAEWithExpert.load(load_path_model, env=env, path_trajectories=expert_trajectory_path, use_online_data=args_policy['use_online_data'],
+        model = PPO.load(load_path_model, env=env, path_trajectories=expert_trajectory_path, use_online_data=args_policy['use_online_data'],
                                                 use_offline_data=args_policy['use_offline_data'], use_awac = args_policy['use_awac'],
                                                 use_ppo_offline=args_policy['use_ppo_offline'], use_online_bc = args_policy['use_online_bc'], custom_objects=load_dict)
 
@@ -121,7 +139,7 @@ if __name__ == "__main__":
     if verbose > 0:
         print("INFO: Policy on device: ", model.policy.device)
         print("INFO: Model on device: ", model.device)
-        print("INFO: Optical flow on device: ", model.policy.optical_flow_model.device)
+        # print("INFO: Optical flow on device: ", model.policy.optical_flow_model.device)
         print("INFO: Using device: ", utils.get_device())
 
     model.learn(args_policy['total_timesteps'], callback=callback_list, progress_bar=False, reset_num_timesteps=False)

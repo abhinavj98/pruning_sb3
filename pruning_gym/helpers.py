@@ -187,6 +187,7 @@ def make_or_bins(args, train_type, tree_type):
     from pruning_sb3.pruning_gym.pruning_env import PruningEnv
     from pruning_sb3.pruning_gym.tree import Tree
     if os.path.exists(f"{tree_type}_{train_type}_or_bins_{args['tree_count']}.pkl"):
+        print(f"Loading or_bins from {tree_type}_{train_type}_or_bins_{args['tree_count']}.pkl")
         with open(f"{tree_type}_{train_type}_or_bins_{args['tree_count']}.pkl", "rb") as f:
             or_bins = pickle.load(f)
             for key in or_bins.keys():

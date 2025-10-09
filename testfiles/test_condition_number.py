@@ -15,6 +15,8 @@ from pruning_sb3.algo.PPOLSTMAE.policies import RecurrentActorCriticPolicy
 from stable_baselines3.common import utils
 from pruning_sb3.pruning_gym.tree import Tree
 import time
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 def get_key_pressed(env, relevant=None):
     pressed_keys = []
@@ -83,31 +85,29 @@ if __name__ == "__main__":
         # Read keyboard input using python input
         action = get_key_pressed(env)
         # if action is wasd, then move the robot
-        if ord('a') in action:
+        if ord('j') in action:  # +X
             val = np.array([0.05, 0, 0, 0, 0, 0])
-        elif ord('d') in action:
+        elif ord('l') in action:  # -X
             val = np.array([-0.05, 0, 0, 0, 0, 0])
-        elif ord('s') in action:
+        elif ord('k') in action:  # +Y
             val = np.array([0, 0.05, 0, 0, 0, 0])
-        elif ord('w') in action:
+        elif ord('i') in action:  # -Y
             val = np.array([0, -0.05, 0, 0, 0, 0])
-        elif ord('q') in action:
+        elif ord('u') in action:  # +Z
             val = np.array([0, 0, 0.05, 0, 0, 0])
-        elif ord('e') in action:
+        elif ord('o') in action:  # -Z
             val = np.array([0, 0, -0.05, 0, 0, 0])
-        elif ord('z') in action:
+        elif ord('n') in action:  # +Roll (Rx)
             val = np.array([0, 0, 0, 0.05, 0, 0])
-        elif ord('c') in action:
+        elif ord('m') in action:  # -Roll (Rx)
             val = np.array([0, 0, 0, -0.05, 0, 0])
-        elif ord('x') in action:
+        elif ord('t') in action:  # +Pitch (Ry)
             val = np.array([0, 0, 0, 0, 0.05, 0])
-        elif ord('v') in action:
+        elif ord('y') in action:  # -Pitch (Ry)
             val = np.array([0, 0, 0, 0, -0.05, 0])
-        elif ord('r') in action:
+        elif ord('h') in action:  # +Yaw (Rz)
             val = np.array([0, 0, 0, 0, 0, 0.05])
-        elif ord('f') in action:
-            val = np.array([0, 0, 0, 0, 0, -0.05])
-        elif ord('t') in action:
+        elif ord('b') in action:  # -Yaw (Rz)
             # env.force_time_limit()
             infos = {}
             infos['TimeLimit.truncated'] = True
@@ -118,11 +118,13 @@ if __name__ == "__main__":
         else:
             val = np.array([0.,0.,0, 0., 0., 0.])
 
+
+
         val_loc = env.convert_global_action_to_local(val)
         # val =  np.hstack((global_velocity, global_angular_velocity))
         # print()
-        observation, reward, terminated, truncated, infos = env.step(val)
-        print("infos", infos)
+        observation, reward, terminated, truncated, infos = env.step(val_loc)
+        # print("infos", infos)
         set_goal_callback.locals = {"infos": [infos]}
         # print(np.array(env.pyb.con.getMatrixFromQuaternion(orientation)).reshape(3, 3))
         # trans, ang = env.ur5.get_current_vel(env.ur5.end_effector_index)
@@ -133,24 +135,34 @@ if __name__ == "__main__":
         time.sleep(0.05)
         # print(env.ur5.check_)
         # print(env.ur5.get_joint_angles())
-        # for i in range(20):
-        #     pos, orn = env.ur5.get_current_pose(i)
-        #     orn_mat = np.array(env.pyb.con.getMatrixFromQuaternion(orn)).reshape(3, 3)
-        #     env.pyb.visualize_rot_mat(orn_mat, pos)
-        #     # print(env.ur5.calculate_jacobian())
-        #
+        ee_list = [env.ur5.tool0_index]
+
+        for i in ee_list:
+            pos, orn = env.ur5.get_current_pose(i)
+            orn_mat = np.array(env.pyb.con.getMatrixFromQuaternion(orn)).reshape(3, 3)
+            env.pyb.visualize_rot_mat(orn_mat, pos)
+            # print(env.ur5.calculate_jacobian())
+        # input()
         # # print("Velocity global", val, val_loc, env.ur5.get_current_vel(env.ur5.tool0_index))
         # # print("Current pose", env.ur5.get_current_pose(env.ur5.end_effector_index))
         # # print(infos)
         # input()
-        pos, orn = env.ur5.get_current_pose(env.ur5.end_effector_index)
-        # camera_tf = env.ur5.create_camera_transform(0, np.pi/180*10, np.array([0,0,0]))
-        orn_mat = np.array(env.pyb.con.getMatrixFromQuaternion(orn)).reshape(3, 3)
-        # print(camera_tf)
-        env.pyb.visualize_rot_mat(orn_mat, pos)
-
-        pos, orn = env.ur5.get_current_pose(env.ur5.tool0_index)
-        # camera_tf = env.ur5.create_camera_transform(0, np.pi/180*10, np.array([0,0,0]))
-        orn_mat = np.array(env.pyb.con.getMatrixFromQuaternion(orn)).reshape(3, 3)
-        # print(camera_tf)
-        env.pyb.visualize_rot_mat(orn_mat, pos)
+        # pos, orn = env.ur5.get_current_pose(env.ur5.end_effector_index)
+        # pos = list(pos)
+        # pos[1] = pos[1] + 0.025
+        # # # camera_tf = env.ur5.create_camera_transform(0, np.pi/180*10, np.array([0,0,0]))
+        # # orn_mat = np.array(env.pyb.con.getMatrixFromQuaternion(orn)).reshape(3, 3)
+        # # # print(camera_tf)
+        # env.pyb.visualize_rot_mat(orn_mat, pos)
+        #
+        # pos, orn = env.ur5.get_current_pose(3)
+        # # camera_tf = env.ur5.create_camera_transform(0, np.pi/180*10, np.array([0,0,0]))
+        # orn_mat = np.array(env.pyb.con.getMatrixFromQuaternion(orn)).reshape(3, 3)
+        # # print(camera_tf)
+        # env.pyb.visualize_rot_mat(orn_mat, pos)
+        # camera_tf = env.ur5.create_camera_transform(env.cam_pan, env.cam_tilt, env.cam_xyz_offset)
+        # env.pyb.visualize_rot_mat(camera_tf[:3, :3], camera_tf[:3, 3])
+        # condition_number = env.ur5.get_condition_number()
+        # print("Condition number", condition_number)
+        # curr_pose = env.ur5.get_current_pose(env.ur5.end_effector_index)
+        # print("Current pose", curr_pose)

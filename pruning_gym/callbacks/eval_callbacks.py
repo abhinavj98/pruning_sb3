@@ -159,9 +159,11 @@ class PruningEvalRecordEnvCallback(BaseCallback):
     def __init__(self, verbose=0):
         super(PruningEvalRecordEnvCallback, self).__init__(verbose)
         self._screens_buffer = None
+        self._all_screens_buffer = None
 
     def _init_callback(self) -> None:
         self._screens_buffer = [[] for i in range(self.training_env.num_envs)]
+        self._all_screens_buffer = []
 
     def reset_buffer(self, i):
         self._screens_buffer[i] = []
@@ -179,6 +181,10 @@ class PruningEvalRecordEnvCallback(BaseCallback):
 
         self._screens_buffer[i].append(screen_copy.astype(np.uint8))
 
+    def _grab_all_screens(self, _locals: Dict[str, Any], _globals: Dict[str, Any]) -> None:
+        render = np.array(self.training_env.render())*255
+        render = cv2.resize(render, (2160, 2160), interpolation=cv2.INTER_NEAREST)
+        self._all_screens_buffer.append(render.astype(np.uint8))
     def add_info_on_image(self, screen_copy, _locals, observation_info):
         # screen_copy = cv2.resize(screen_copy, (1124, 768), interpolation=cv2.INTER_NEAREST)
         screen_copy = cv2.putText(screen_copy, "Reward: " + str(_locals['reward']), (0, 80), cv2.FONT_HERSHEY_SIMPLEX,
@@ -206,10 +212,13 @@ class PruningEvalRecordEnvCallback(BaseCallback):
                                   0.6, (255, 0, 0), 2, cv2.LINE_AA)
         return screen_copy
 
+
+
     def _on_step(self, _locals, _globals) -> bool:
         if self.verbose > 1:
             print("DEBUG: Recording video")
         self._grab_screen(_locals, _globals)
+        self._grab_all_screens(_locals, _globals)
         self.maybe_save_video(_locals, _globals)
         return True
 
@@ -223,7 +232,14 @@ class PruningEvalRecordEnvCallback(BaseCallback):
                 print("INFO: Saving video")
             imageio.mimsave("results/{}_{}.gif".format(observation_info["desired_pos"], tree_goal_pos),
                             self._screens_buffer[i])
+            if len(self._all_screens_buffer) > 1000:
+                imageio.mimsave("results/all_{}_{}.gif".format(observation_info["desired_pos"], tree_goal_pos),
+                                self._all_screens_buffer)
+                self._all_screens_buffer = []
+
             self.reset_buffer(i)
+
+
 
 
 class PruningLogResultCallback(BaseCallback):
@@ -334,23 +350,29 @@ class PruningLogResultCallback(BaseCallback):
         self._log_rewards(_locals, _globals)
         self._log_final_metrics(_locals, _globals)
 
-    def save_results(self):
+    def save_results(self, type):
         episode_info_df = pd.DataFrame(self._episode_info)
         terminal_info_df = pd.DataFrame(self._terminal_dict)
         save_df = pd.concat([episode_info_df, terminal_info_df], axis=1)
-        save_df.to_csv(f"episode_info_{self.timestep}.csv", mode='a')
+        save_path = f"episode_info_{self.timestep}_{type}.csv"
+        if not os.path.exists(save_path):
+            print(f"INFO: Saving results to {save_path}")
+            save_df.to_csv(save_path, index=False)
+        save_df.to_csv(f"episode_info_{self.timestep}_{type}.csv", mode='a')
 
 
 class GenerateResults:
-    def __init__(self, model, env, set_goal_callback, log_callback, other_callbacks=None, verbose = 1):
+    def __init__(self, model, env, set_goal_callback, log_callback, type = "uniform", other_callbacks=None, verbose = 1):
         self.model = model
         self.env = env
         self.verbose = verbose
         self.set_goal_callback = set_goal_callback
         self.log_callback = log_callback
-
+        self.type = type
         self.other_callbacks = other_callbacks
         self._init_callback()
+        #create csv file
+        print(f"INFO: Creating csv file for {self.type} type evaluation")
 
     def _init_callback(self):
         self.set_goal_callback.init_callback(self.model)
@@ -370,6 +392,7 @@ class GenerateResults:
     def run(self):
         if self.verbose > 0:
             print("INFO: Starting evaluation")
+        print(f"INFO: Evaluating {self.num_episodes} episodes with type {self.type}")
         import time
         start = time.time()
         episode_rewards, episode_lengths = evaluate_policy(
@@ -392,4 +415,4 @@ class GenerateResults:
             print(f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
             print(f"Episode length: {mean_ep_length:.2f} +/- {std_ep_length:.2f}")
 
-        self.log_callback.save_results()
+        self.log_callback.save_results(self.type)

@@ -23,7 +23,7 @@ from pruning_sb3.pruning_gym.helpers import set_args, organize_args, make_or_bin
 import pickle
 
 if __name__ == "__main__":
-    type = "uniform"
+    type = "analysis"
     parser = argparse.ArgumentParser()
     set_args(args, parser)
     parsed_args = vars(parser.parse_args())
@@ -49,39 +49,46 @@ if __name__ == "__main__":
                                                    num_orientations=args_callback['n_eval_orientations'],
                                                    num_points_per_or=args_callback['n_points_per_orientation'],
                                                    verbose=args_callback['verbose'])
-    record_env_callback = PruningEvalRecordEnvCallback(verbose=args_callback['verbose'])
+
 
 
     policy_kwargs = get_policy_kwargs(args_policy, args_env, AutoEncoder)
     policy = RecurrentActorCriticPolicy
+    other_callbacks = []
 
-    load_timestep_list = [2108000]
-    for i in range(len(load_timestep_list)):
-        load_timestep = load_timestep_list[i]
-        logging_callback = PruningLogResultCallback(timestep = load_timestep, verbose=args_callback['verbose'])
-        print("Loading model at timestep: ", load_timestep)
-        if parsed_args_dict['args_global']['load_path']:
-            load_path_model = "./logs/{}/model_{}_steps.zip".format(
-                parsed_args_dict['args_global']['load_path'], load_timestep)
+    if args_baseline['save_video']:
+        record_env_callback = PruningEvalRecordEnvCallback(verbose=args_callback['verbose'])
+        other_callbacks.append(record_env_callback)
 
-        model = RecurrentPPOAE.load(load_path_model, env=env)
-        # model.save("./logs/{}/model_{}_steps.zip".format(
-        #         "test", load_timestep), exclude=["_last_obs", "_last_episode_starts", "_last_original_obs",
-        #                             "_last_obs", "_last_episode_starts", "_last_original_obs",
-        #                             "ep_info_buffer", "ep_success_buffer", "_last_obs_expert",
-        #                             "_last_lstm_states_expert", "rollout_buffer","expert_buffer"])
-        # model.policy.load_running_mean_std_from_file(load_path_mean_std)
-        model.num_timesteps = load_timestep
-        model._num_timesteps_at_start = load_timestep
-        model.set_logger(new_logger)
+    load_timestep = args_global['load_timestep']
 
-        eval_method = GenerateResults(model, env, verbose=args_callback['verbose'], set_goal_callback=set_goal_callback,
-                                      log_callback=logging_callback)
-        # if verbose > 0:
-        #     print("INFO: Policy on device: ", model.policy.device)
-        #     print("INFO: Model on device: ", model.device)
-        #     print("INFO: Optical flow on device: ", model.policy.optical_flow_model.device)
-        #     print("INFO: Using device: ", utils.get_device())
-        #     print("INFO: Number of timesteps: ", model.num_timesteps)
+    logging_callback = PruningLogResultCallback(timestep = load_timestep, verbose=args_callback['verbose'])
+    print("Loading model at timestep: ", load_timestep)
+    if parsed_args_dict['args_global']['load_path']:
+        load_path_model = "./logs/{}/model_{}_steps.zip".format(
+            parsed_args_dict['args_global']['load_path'], load_timestep)
 
-        eval_method.run()
+    model = RecurrentPPOAE.load(load_path_model, env=env)#.to(utils.get_device())
+    # model.save("./logs/{}/model_{}_steps.zip".format(
+    #         "test", load_timestep), exclude=["_last_obs", "_last_episode_starts", "_last_original_obs",
+    #                             "_last_obs", "_last_episode_starts", "_last_original_obs",
+    #                             "ep_info_buffer", "ep_success_buffer", "_last_obs_expert",
+    #                             "_last_lstm_states_expert", "rollout_buffer","expert_buffer"])
+    # model.policy.load_running_mean_std_from_file(load_path_mean_std)
+    #Send model to device
+    model.policy.to(utils.get_device())
+    print("INFO: Model on device: ", model.policy.device)
+    model.num_timesteps = load_timestep
+    model._num_timesteps_at_start = load_timestep
+    model.set_logger(new_logger)
+
+    eval_method = GenerateResults(model, env, verbose=args_callback['verbose'], set_goal_callback=set_goal_callback,
+                                  log_callback=logging_callback, other_callbacks = other_callbacks, type = type)
+    # if verbose > 0:
+    #     print("INFO: Policy on device: ", model.policy.device)
+    #     print("INFO: Model on device: ", model.device)
+    #     print("INFO: Optical flow on device: ", model.policy.optical_flow_model.device)
+    #     print("INFO: Using device: ", utils.get_device())
+    #     print("INFO: Number of timesteps: ", model.num_timesteps)
+
+    eval_method.run()

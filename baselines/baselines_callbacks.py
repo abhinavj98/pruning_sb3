@@ -44,7 +44,7 @@ class GenerateResults:
         num_points = len(self.set_goal_callback.dataset)//self.set_goal_callback.training_env.num_envs
         print("Running", num_points, "points")
         ret = self.set_goal_callback.training_env.env_method("run_baseline", planner = self.planner, file_path = file_path, save_video = self.save_video, shortcutting = self.shortcutting)
-        # for i in ret:
-        #     self.result_df = pd.concat([self.result_df, i])
-        #
-        # self.result_df.to_csv("rrt_results.csv")
+        for i in ret:
+            self.result_df = pd.concat([self.result_df, i])
+
+        self.result_df.to_csv("rrt_results.csv")

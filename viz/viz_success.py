@@ -321,8 +321,8 @@ def plot_bar(df, label, save=False):
 
 
 # Step 1: Read the csv file
-df_policy = pd.read_csv('results_data/policy_uniform.csv')
-df_rrt = pd.read_csv('rrt_connect_new_uniform.csv')
+df_policy = pd.read_csv('episode_info_1176000.csv')
+# df_rrt = pd.read_csv('rrt_connect_new_uniform.csv')
 
 df_rrt = df_policy
 #reset index
@@ -338,7 +338,7 @@ print(len(df_rrt))
 num_latitude_bins = 18
 num_longitude_bins = 36
 bins = create_bins(num_latitude_bins, num_longitude_bins)
-idx_name = 'is_success'
+idx_name = 'perpendicular_cosine_sim_error'
 title = 'Reachability'
 df_rrt[title] = df_rrt[idx_name]
 bins = populate_bins(bins, df_rrt, idx_name)

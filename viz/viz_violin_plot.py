@@ -5,8 +5,9 @@ import seaborn as sns
 
 
 # read csv file
-def read_csv_file(file_name):
-    df = pd.read_csv(file_name)
+def read_csv_file(file_name, nrows = 3000):
+    #Only read first 3000 rows
+    df = pd.read_csv(file_name, nrows=nrows)
     return df
 
 
@@ -67,7 +68,7 @@ def plot_violin(df, x, label, title, val, save=False, y=None, xlim=None):
 
     # palette = ['#0072B2', '#009E73', '#D55E00']
     palette = [(0.0, 0.447, 0.741), (0.85, 0.325, 0.098), (0.466, 0.674, 0.188)]
-    sns.violinplot(data=df, x=x, cut=0, inner='quart', orient='h', y=y, hue=y, split=True, gap=-0.2, palette=palette,
+    sns.violinplot(data=df, x=x, cut=0, inner='quart', orient='h', y=y, hue=y, split=False, gap=-0.2, palette=palette,
                    legend='brief').set(yticklabels=[])
     plt.xlabel(label)
     plt.ylabel(' ')
@@ -96,14 +97,17 @@ def plot_density(df, x, label, title, val):
 
 
 if __name__ == '__main__':
-    file_path = 'results_data/policy_uniform.csv'
-    real_world_file_path = 'results_data/real_world_results_transformed.csv'
+    file_path = 'episode_info_1984000_uniform_envy.csv'
+    # real_world_file_path = 'results_data/real_world_results_transformed.csv'
     save = True
     df = read_csv_file(file_path)
-    df_real = read_csv_file(real_world_file_path)
-    df['pointing_cosine_angle_error_abs'] = np.arccos(df['pointing_cosine_sim_error']).abs()
-    df['perpendicular_cosine_angle_error_abs'] = np.arccos(df['perpendicular_cosine_sim_error']).abs()
-    data1 = df_real['euclidean_error']
+    #Only keep first 3001 rows
+    df = df.iloc[:3000]
+    # df_real = read_csv_file(real_world_file_path)
+    df['pointing_cosine_angle_error_abs'] = np.rad2deg(np.arccos(df['pointing_cosine_sim_error']).abs())
+    df['perpendicular_cosine_angle_error_abs'] = np.rad2deg(np.arccos(df['perpendicular_cosine_sim_error']).abs())
+    # data1 = df_real['euclidean_error']
+    data1 = df['euclidean_error']
     data2 = df['euclidean_error']
     df_euc = pd.DataFrame({
         'Euclidean Error': np.concatenate([data1, data2]),
@@ -112,24 +116,26 @@ if __name__ == '__main__':
     plot_violin(df_euc, 'Euclidean Error', 'Euclidean Error (m)', 'Euclidean Error', 0.05, save, 'Environment',
                 xlim=[-0., 0.25])
 
-    data1 = df_real['perpendicular_cosine_angle_error_abs']
+    # data1 = df_real['perpendicular_cosine_angle_error_abs']
+    data1 = df['perpendicular_cosine_angle_error_abs']
     data2 = df['perpendicular_cosine_angle_error_abs']
     df_perp = pd.DataFrame({
         'Perpendicular angle error': np.concatenate([data1, data2]),
         'Environment': ['Real World'] * len(data1) + ['Simulation'] * len(data2)
     })
-    plot_violin(df_perp, 'Perpendicular angle error', 'Perpendicular angle error (rad)', 'Euclidean Error', 0.52, save,
-                'Environment', xlim=[-0.1, 1.75])
+    plot_violin(df_perp, 'Perpendicular angle error', 'Perpendicular angle error (deg)', 'Euclidean Error', 30, save,
+                'Environment', xlim=[-0.1, 90])
 
-    data1 = df_real['pointing_cosine_angle_error_abs']
+    # data1 = df_real['pointing_cosine_angle_error_abs']
+    data1 = df['pointing_cosine_angle_error_abs']
     data2 = df['pointing_cosine_angle_error_abs']
     df_point = pd.DataFrame({
         'Pointing angle error': np.concatenate([data1, data2]),
         'Environment': ['Real World'] * len(data1) + ['Simulation'] * len(data2)
     })
-    plot_violin(df_point, 'Pointing angle error', 'Pointing angle error (rad)', 'Euclidean Error', 0.52, save,
-                'Environment', xlim=[-0.1, 1.75])
+    plot_violin(df_point, 'Pointing angle error', 'Pointing angle error (deg)', 'Euclidean Error', 30, save,
+                'Environment', xlim=[-0.1, 90])
     # get rows where all conditions are satisfied
-    df_success = df_real[(df_real['euclidean_error'] < 0.05) & (df_real['pointing_cosine_angle_error_abs'] < 0.52) & (
-            df_real['perpendicular_cosine_angle_error_abs'] < 0.52)]
-    print(len(df_success) / len(df_real))
+    # df_success = df_real[(df_real['euclidean_error'] < 0.05) & (df_real['pointing_cosine_angle_error_abs'] < 0.52) & (
+    #         df_real['perpendicular_cosine_angle_error_abs'] < 0.52)]
+    # print(len(df_success) / len(df_real))

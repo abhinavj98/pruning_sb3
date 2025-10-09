@@ -26,8 +26,8 @@ if __name__ == "__main__":
 
     print(parsed_args_dict)
 
-    or_bins = make_or_bins(args_train, "train", args_global['tree_type'])
-
+    # or_bins = make_or_bins(args_train, "train", args_global['tree_type'])
+    or_bins = make_or_bins(args_test, "test", args_global['tree_type'])
     env = make_vec_env(PruningEnvRRT, env_kwargs=args_record, n_envs=args_global['n_envs'], vec_env_cls=SubprocVecEnv)
 
     dataset = None

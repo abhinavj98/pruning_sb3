@@ -329,27 +329,27 @@ def plot_bar(df, label):
 
 
 # Step 1: Read the csv file
-df_policy = pd.read_csv('results_data/policy_task.csv')
-df_rrt = pd.read_csv('results_data/rrt_task.csv')
+df_policy = pd.read_csv('episode_info_1984000_analysis_envy.csv')
+# df_rrt = pd.read_csv('episode_info_1984000_analysis_envy.csv')
 df_policy['pointing_cosine_angle_error_abs'] = np.arccos(df_policy['pointing_cosine_sim_error']).abs()
 df_policy['perpendicular_cosine_angle_error_abs'] = np.arccos(df_policy['perpendicular_cosine_sim_error']).abs()
 # print(df_policy.keys())
 # print(df_rrt.head())
 
-# Make a common table for both dfs where 'pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z','or_w' are same an
-new_df = pd.merge(df_policy, df_rrt, on=['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z'])
-new_df['is_success'] = new_df['is_success_x'] | new_df['is_success_y']
+# # Make a common table for both dfs where 'pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z','or_w' are same an
+# new_df = pd.merge(df_policy, df_rrt, on=['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z'])
+# new_df['is_success'] = new_df['is_success_x'] | new_df['is_success_y']
 
-new_df = new_df[new_df['is_success'] == True]
+# new_df = new_df[new_df['is_success'] == True]
 
-filtered_df_policy = pd.merge(df_policy, new_df[['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z']],
-                              on=['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z'],
-                              how='inner')
-filtered_df_rrt = pd.merge(df_rrt, new_df[['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z']],
-                           on=['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z'],
-                           how='inner')
-print(len(filtered_df_policy[filtered_df_policy['is_success'] == True]) / len(filtered_df_policy))
-print(len(filtered_df_rrt[filtered_df_rrt['is_success'] == True]) / len(filtered_df_rrt))
+# filtered_df_policy = pd.merge(df_policy, new_df[['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z']],
+#                               on=['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z'],
+#                               how='inner')
+# filtered_df_rrt = pd.merge(df_rrt, new_df[['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z']],
+#                            on=['pointx', 'pointy', 'pointz', 'or_x', 'or_y', 'or_z'],
+#                            how='inner')
+# print(len(filtered_df_policy[filtered_df_policy['is_success'] == True]) / len(filtered_df_policy))
+# print(len(filtered_df_rrt[filtered_df_rrt['is_success'] == True]) / len(filtered_df_rrt))
 # Normalize the orientation data
 # orientations = orientations / np.linalg.norm(orientations, axis=1)[:, np.newaxis]
 dataset = []
@@ -372,6 +372,8 @@ for idx_name, idx_title, colorbar_title in idx_title_list:
     perp_bins = {}
     for key in bins.keys():
         perp_bins[key] = np.mean(np.array(bins[key]))
+    print(f"Average {idx_name} per bin:")
+    print(list(perp_bins.values()))
 
     title = idx_title
     if 'success' in idx_name:
@@ -387,17 +389,17 @@ for idx_name, idx_title, colorbar_title in idx_title_list:
 #     if len(bins[key]) == 0:
 #         bins[key].append(1)
 #     perp_bins[key] = np.mean(np.array(bins[key]))
-# visualize_2d(perp_bins, 'is_success', 'Success Rate', reverse=False, save=False)
-# visualize_2d is_success rate for RRT
-bins = create_bins(num_latitude_bins, num_longitude_bins)
-bins = populate_bins(bins, df_rrt, 'is_success')
-perp_bins = {}
-title = 'Success Rate (RRT Connect)'
-colorbar_title = 'Success Rate'
-for key in bins.keys():
-    perp_bins[key] = np.mean(np.array(bins[key]))
-plt.figure()
-visualize_2d(perp_bins, 'is_success', title, colorbar_title, save=True)
+# # visualize_2d(perp_bins, 'is_success', 'Success Rate', reverse=False, save=False)
+# # visualize_2d is_success rate for RRT
+# bins = create_bins(num_latitude_bins, num_longitude_bins)
+# bins = populate_bins(bins, df_rrt, 'is_success')
+# perp_bins = {}
+# title = 'Success Rate (RRT Connect)'
+# colorbar_title = 'Success Rate'
+# for key in bins.keys():
+#     perp_bins[key] = np.mean(np.array(bins[key]))
+# plt.figure()
+# visualize_2d(perp_bins, 'is_success', title, colorbar_title, save=True)
 #
 # bins_rrt = create_bins(num_latitude_bins, num_longitude_bins)
 # bins_rrt = populate_bins(bins_rrt, df_rrt, 'is_success')

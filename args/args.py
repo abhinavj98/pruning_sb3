@@ -30,7 +30,7 @@ args = {
         },
         'verbose': {
             'type': int,
-            'default': 1,
+            'default': 0,
             'help': 'verbosity level'
         },
     },
@@ -141,7 +141,7 @@ args = {
         },
         'verbose': {
             'type': int,
-            'default': 1,
+            'default': 0,
             'help': 'verbosity level'
         },
 
@@ -317,7 +317,7 @@ args = {
         },
         'verbose': {
             'type': int,
-            'default': 1,
+            'default': 0,
             'help': 'verbosity level'
         },
         'use_offline_data': {
@@ -346,6 +346,12 @@ args = {
             'action': "store_true",
             'default': False,
             'help': 'whether to use online bc'
+        },
+
+        'use_bc': {
+            'action': "store_true",
+            'default': False,
+            'help': 'whether to use bc loss'
         },
 
         'use_awac': {

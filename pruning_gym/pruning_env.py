@@ -280,14 +280,15 @@ class PruningEnv(gym.Env):
         # a = self.pyb.con.createCollisionShape(self.pyb.con.GEOM_CYLINDER, radius=.025, collisionFramePosition=point_pos,collisionFrameOrientation=point_branch_or_quat)
         # b = self.pyb.con.createVisualShape(self.pyb.con.GEOM_CYLINDER, radius=.025, visualFramePosition=point_pos, visualFrameOrientation = point_branch_or_quat, rgbaColor=[1,1,1,1])
         # self.pyb.con.createMultiBody(0, a, b)
-        self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=self.tree_goal_pos,
-                                lineToXYZ=[self.tree_goal_pos[0] + 0.005, self.tree_goal_pos[1] + 0.005,
-                                           self.tree_goal_pos[2] + 0.005],
-                                lineColorRGB=[1, 0, 0],
-                                lineWidth=400)
-        self.pyb.add_debug_item('line', 'reset', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
-                                lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
-                                lineWidth=400)
+        if self.verbose > 1:
+            self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=self.tree_goal_pos,
+                                    lineToXYZ=[self.tree_goal_pos[0] + 0.005, self.tree_goal_pos[1] + 0.005,
+                                               self.tree_goal_pos[2] + 0.005],
+                                    lineColorRGB=[1, 0, 0],
+                                    lineWidth=400)
+            self.pyb.add_debug_item('line', 'reset', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
+                                    lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
+                                    lineWidth=400)
 
         self.activate_tree(self.pyb)
 
@@ -372,14 +373,15 @@ class PruningEnv(gym.Env):
             self.pyb.con.stepSimulation()
 
         self.activate_tree(self.pyb)
-        self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=self.tree_goal_pos,
-                                lineToXYZ=[self.tree_goal_pos[0] + 0.005, self.tree_goal_pos[1] + 0.005,
-                                           self.tree_goal_pos[2] + 0.005],
-                                lineColorRGB=[1, 0, 0],
-                                lineWidth=400)
-        self.pyb.add_debug_item('line', 'reset', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
-                                lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
-                                lineWidth=400)
+        if self.verbose > 1:
+            self.pyb.add_debug_item('sphere', 'reset', lineFromXYZ=self.tree_goal_pos,
+                                    lineToXYZ=[self.tree_goal_pos[0] + 0.005, self.tree_goal_pos[1] + 0.005,
+                                               self.tree_goal_pos[2] + 0.005],
+                                    lineColorRGB=[1, 0, 0],
+                                    lineWidth=400)
+            self.pyb.add_debug_item('line', 'reset', lineFromXYZ=self.tree_goal_pos - 50 * self.tree_goal_or,
+                                    lineToXYZ=self.tree_goal_pos + 50 * self.tree_goal_or, lineColorRGB=[1, 0, 0],
+                                    lineWidth=400)
 
         pos, orient = self.ur5.get_current_pose(self.ur5.end_effector_index)
 
@@ -1017,60 +1019,6 @@ class PruningEnvRRT(PruningEnv):
         
         
 
-    # def generate_goal_pos(self):
-    #     branch_normal = self.tree_goal_normal / np.linalg.norm(self.tree_goal_normal)
-    #     branch_parallel = self.tree_goal_or / np.linalg.norm(self.tree_goal_or)
-    #     forward = np.cross(branch_parallel, branch_normal)
-
-    #     # Get a vector in plane of forward and right using linear combination
-    #     rotation_matrix = np.column_stack((branch_parallel, branch_normal, forward))
-    #     rotation_matrix = R.from_matrix(rotation_matrix).as_matrix()
-
-    #     rotation_axis_x = rotation_matrix[:, 0]
-    #     # How much to rotate about this axis to make same as branch normal?
-    #     # self.ur5.init_pos_ee[1] as rotation matrix
-    #     rot_ee = self.pyb.con.getMatrixFromQuaternion(self.ur5.init_pos_ee[1])
-    #     rot_ee = np.array(rot_ee).reshape(3, 3)
-    #     rot_pointing = rot_ee[:, 2]
-
-    #     # Project rot_pointing perpendicular to rotation_axis_x
-    #     rot_pointing = rot_pointing - np.dot(rot_pointing, rotation_axis_x) * rotation_axis_x
-    #     rot_pointing = rot_pointing / np.linalg.norm(rot_pointing)
-
-    #     # Minimize the angle between the branch normal and the rotation matrix [2] axis
-    #     cos_theta = np.dot(rot_pointing, rotation_matrix[:, 2])
-    #     sin_theta = np.linalg.norm(np.cross(rot_pointing, rotation_matrix[:, 2]))
-    #     theta = np.arctan2(sin_theta, cos_theta)
-
-    #     # Make this concentration lower to make the solutions more random as num_attempts increases.
-    #     concentration = 0.85
-
-    #     rotation_angle_x = vonmises(loc=theta, kappa=concentration).rvs(1)
-    #     # rotation_angle_x = np.random.uniform(0, 2 * np.pi)
-    #     random_rotation_x = R.from_rotvec(rotation_angle_x * rotation_axis_x).as_matrix()
-
-    #     rotation_axis_y = rotation_matrix[:, 1]
-    #     rotation_angle_y = np.random.uniform(0, self.angle_threshold_perp)
-    #     random_rotation_y = R.from_rotvec(rotation_angle_y * rotation_axis_y).as_matrix()
-    #     # random_rotation_y = np.eye(3)
-    #     rotation_axis_z = rotation_matrix[:, 2]
-    #     rotation_angle_z = np.random.uniform(0, self.angle_threshold_point)
-    #     random_rotation_z = R.from_rotvec(rotation_angle_z * rotation_axis_z).as_matrix()
-    #     # random_rotation_z = np.eye(3)
-
-    #     random_rotation = random_rotation_z @ random_rotation_y @ random_rotation_x
-    #     rotation_matrix = random_rotation @ rotation_matrix
-    #     # print(np.dot(rotation_matrix[:, 2], rot_pointing))
-    #     # self.pyb.visualize_rot_mat(rotation_matrix, self.tree_goal_pos)
-    #     # self.pyb.visualize_rot_mat(rot_ee, self.tree_goal_pos)
-    #     # self.pyb.visualize_rot_mat(rot_ee, self.ur5.init_pos_ee[0])
-    #     # input()
-
-    #     # time.sleep(1)
-    #     r = R.from_matrix(rotation_matrix)
-    #     quaternion = r.as_quat()
-    #     return quaternion, forward, rotation_matrix
-
     def sample_goal(self, config=False, offset=0.03):
         orientation, forward, rot = self.generate_goal_pos()
         init_vec = np.array([0, 0, 1])
@@ -1091,7 +1039,7 @@ class PruningEnvRRT(PruningEnv):
             self.pyb.con.stepSimulation()
             collision = False
 
-            goal, goal_orientation = self.sample_goal()
+            goal, goal_orientation = self.sample_goal(offset = 0.05)
 
             self.ur5.set_collision_filter_tree(self.collision_object_ids)
             offset = np.random.uniform(-0.1, 0.1, 3)
@@ -1248,15 +1196,19 @@ class PruningEnvRRT(PruningEnv):
             else:
                 raise ValueError("Planner not found")
 
+
             self.save_waypoints_to_hdf5(env_info_dict, fail_mode, path, file_path + '.hdf5')
             print("Completed", i, fail_mode)
-            # result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
-            #           "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}#, "path": path, "tree_info": tree_info}
-            # result.update(timing)
-            #
-            # # write to existing file
-            # result = pd.DataFrame([result])
-            # self.append_row_to_csv(result, file_path)
+            goal_pos = self.tree_goal_pos
+            goal_or = self.tree_goal_or
+            success = True if fail_mode == ResultMode.SUCCESS else False
+            result = {"pointx": goal_pos[0], "pointy": goal_pos[1], "pointz": goal_pos[2], "or_x": goal_or[0],
+                      "or_y": goal_or[1], "or_z": goal_or[2], "is_success": success, "fail_mode": fail_mode}#, "path": path, "tree_info": tree_info}
+            result.update(timing)
+
+            # write to existing file
+            result = pd.DataFrame([result])
+            self.append_row_to_csv(result, file_path)
             # result_df = pd.concat([result_df, result], ignore_index=True)
         self.pyb.con.disconnect()
         return
@@ -1457,7 +1409,7 @@ class PruningEnvRRT(PruningEnv):
                 continue
             else:
                 if save_video:
-                    self.baseline_save_video(path, "rrt_connect", tree_info[1])
+                    self.baseline_save_video(path, "rrt_connect", goal)
                 break
 
         timing['time_find_path'] = time.time() - start_find_path - timing['time_find_end_config']
@@ -1469,6 +1421,16 @@ class PruningEnvRRT(PruningEnv):
 
         if path is None:
             print("No valid path found")
+            return [], ResultMode.NO_PATH, env_info_dict, None, timing
+
+        #Check if final pose is close enough to the goal
+        self.ur5.set_joint_angles_no_collision(path[-1])
+        for j in range(50):
+            self.pyb.con.stepSimulation()
+
+        terminated = self.is_state_successful_rrt(path[-1])
+        if not terminated:
+            print("Path does not reach goal")
             return [], ResultMode.NO_PATH, env_info_dict, None, timing
 
         if path is not None and shortcutting:
