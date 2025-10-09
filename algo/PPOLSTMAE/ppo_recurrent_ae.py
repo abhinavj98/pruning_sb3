@@ -1844,8 +1844,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         use_ppo_offline = self.use_ppo_offline
         use_awac = self.use_awac
         use_bc = self.use_bc
-
-        if os.path.exists("bc_expert_policy"+self.env.get_attr("tree_urdf_path", 0)[0]+".pt") and self.use_bc:
+        expert_policy_path = "bc_expert_policy"+self.env.get_attr("tree_urdf_path", 0)[0].split("/")[-2]+".pt"
+        if os.path.exists(expert_policy_path) and self.use_bc:
             print("Found existing BC expert policy. Skipping BC phase.")
             self.use_bc = False
 
@@ -1861,7 +1861,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             if self.use_bc and self.num_timesteps > int(0.05 * total_timesteps):
                 print("Switching off BC")
                 self.expert_policy.load_state_dict(self.policy.state_dict())
-                torch.save(self.expert_policy.state_dict(), "bc_expert_policy"+self.env.get_attr("tree_urdf_path", 0)[0]+".pt")
+                torch.save(self.expert_policy.state_dict(), expert_policy_path)
                 self.use_bc = False
                 self.use_online_bc = use_online_bc
                 self.use_online_data = use_online_data
