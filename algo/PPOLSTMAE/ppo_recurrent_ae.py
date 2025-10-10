@@ -1269,14 +1269,14 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             batch_offline.actions
         )
 
-        bc_loss = -th.mean(log_prob_offline[mask_offline])
+        bc_loss = -th.mean(log_prob_offline[mask_offline]) * self.bc_coeff
 
         value_loss_offline = th.mean(
             (((batch_offline.returns - values) ** 2))[
                 mask_offline]) * self.vf_coef
 
         # Linearly scale the bc_loss
-        offline_loss = bc_loss * self.bc_coeff + value_loss_offline
+        offline_loss = bc_loss  + value_loss_offline
 
         offline_loss_dict = {"bc_loss": bc_loss.item(), "value_loss":value_loss_offline.item(), "offline_loss": offline_loss.item()}
 
@@ -1318,9 +1318,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             use_cached_optical_flow=self.use_cached_optical_flow
         )
 
-        min_log_prob = -20  # TODO: Is this necessary?
+        min_log_prob = -10  # TODO: Is this necessary?
         log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
-        log_prob_expert = 7 # ideally think of expert as a gaussian policy and this number is the density at expert action.
+
         # Set this number according to the variance of that distribution
         ratio_old_expert_offline = th.exp(
             batch_offline.old_log_prob - batch_offline.log_prob_expert)  # p_old(a|s) / p_expert(a|s)
@@ -1343,7 +1343,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
         ratio_current_old_offline = th.exp(log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100))
         ratio_current_expert_offline = th.exp(
-            log_prob_offline - log_prob_expert)
+            log_prob_offline - batch_offline.log_prob_expert)
 
 
         # clipped surrogate loss for online
@@ -1378,9 +1378,12 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # Value loss using the TD(gae_lambda) target
         value_loss_online = th.mean((((batch_online.returns - values_pred_online) ** 2))[
                                         mask_online]) * self.vf_coef
-        value_loss_offline = th.mean(
-            (((batch_offline.returns - values_pred_offline) ** 2))[
-                mask_offline]) * self.vf_coef/10
+        # When expert actions lose support under current policy, we do not update the value function.
+        # This otherwise will lead to a cycle of lowering the value of expert actions, then lowering their probability, which in turn lowers their value even more...
+
+        value_diff_offline = batch_offline.returns - values_pred_offline
+        value_diff_offline = th.clamp(value_diff_offline, min=0.0)
+        value_loss_offline = th.mean((value_diff_offline ** 2)[mask_offline]) * self.vf_coef
 
         # Entropy loss favor exploration
         if entropy_online is None:
@@ -1396,7 +1399,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             entropy_loss_offline = -th.mean(entropy_offline[mask_offline]) * self.ent_coef
 
         online_loss = policy_loss_online + entropy_loss_online + value_loss_online
-        offline_loss = policy_loss_offline + value_loss_offline  # TODO: Regularization here for offline actions with -ve advantage
+        offline_loss = policy_loss_offline + value_loss_offline
 
         with th.no_grad():
             # Approx KL Divergence -- Try to keep them vv low (For online+BC this value below 0.02 works)
@@ -1720,8 +1723,12 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                         mean_grad = param.grad.abs().mean()
                         gradient.append(np.abs(mean_grad.item()))
 
-                if not continue_training or self.use_bc:
+                if not continue_training:
                     break
+            if self.use_bc:
+                # For BC just one epoch is enough
+                break
+
 
         self._n_updates += self.n_epochs
 
@@ -1847,6 +1854,11 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         expert_policy_path = "bc_expert_policy"+self.env.get_attr("tree_urdf_path", 0)[0].split("/")[-2]+".pt"
         if os.path.exists(expert_policy_path) and self.use_bc:
             print("Found existing BC expert policy. Skipping BC phase.")
+            #Load the expert policy
+            self.expert_policy.load_state_dict(torch.load(expert_policy_path))
+            self.expert_policy.to(self.device)
+            self.policy.load_state_dict(torch.load(expert_policy_path))
+            self.policy.to(self.device)
             self.use_bc = False
 
         # Disable other training modes while BC is active
