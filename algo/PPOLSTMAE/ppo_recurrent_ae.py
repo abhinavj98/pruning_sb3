@@ -1276,7 +1276,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 mask_offline]) * self.vf_coef
 
         # Linearly scale the bc_loss
-        offline_loss = bc_loss  + value_loss_offline
+        offline_loss = bc_loss + value_loss_offline
 
         offline_loss_dict = {"bc_loss": bc_loss.item(), "value_loss":value_loss_offline.item(), "offline_loss": offline_loss.item()}
 
