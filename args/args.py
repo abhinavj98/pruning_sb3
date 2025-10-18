@@ -49,7 +49,7 @@ args = {
         },
         'condition_reward_scale': {
             'type': float,
-            'default': -0.01,
+            'default': 0.0,
             'help': 'scaling factor for the condition reward'
         },
         'terminate_reward_scale': {
@@ -273,7 +273,7 @@ args = {
         # Training parameters
         'total_timesteps': {
             'type': int,
-            'default': 3_500_000,
+            'default': 4_000_000,
             'help': 'total number of timesteps to train for'
         },
         # For logging purposes keep as multiple of episode length
