@@ -288,6 +288,7 @@ args = {
             'help': 'number of epochs to train for'
         },
         'batch_size': {
+
             'type': int,
             'default': 32,
             'help': 'batch size'

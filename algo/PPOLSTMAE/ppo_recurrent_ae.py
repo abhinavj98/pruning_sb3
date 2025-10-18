@@ -738,6 +738,8 @@ class ExpertRolloutBuffer(RecurrentDictRolloutBuffer):
 
         last_gae_lam = 0
         last_values = last_values.clone().cpu().numpy().flatten()
+        rho_bar = 1
+        c_bar = 1
         for step in reversed(range(self.buffer_size)):
             if step == self.buffer_size - 1:
                 next_non_terminal = 1.0 - dones.astype(np.float32)
@@ -747,13 +749,14 @@ class ExpertRolloutBuffer(RecurrentDictRolloutBuffer):
                 next_values = self.values[step + 1]
 
             ratio = np.exp(self.log_probs[step] - self.log_prob_expert[step])  # ratio = p(a|s) / p(a|s, expert)
-            ratio = np.clip(ratio, 1e-3, 1)
+            rho = np.clip(ratio, 1e-3, rho_bar)
+            c = np.clip(ratio, 1e-3, c_bar)*self.gae_lambda
             # next_ratio = np.clip(next_ratio, 1e-5, 1)
             # print(type(ratio), type(next_values), type(next_non_terminal), type(self.rewards[step]))
-            delta = (self.rewards[step] + self.gamma * next_values * next_non_terminal - self.values[step])*ratio
+            delta = (self.rewards[step] + self.gamma * next_values * next_non_terminal - self.values[step])*rho
             # last_gae_lam = delta + self.gamma * self.gae_lambda * next_non_terminal * last_gae_lam
             #For retrace
-            last_gae_lam = delta + self.gamma* next_non_terminal * last_gae_lam*ratio
+            last_gae_lam = delta + c * self.gamma * next_non_terminal * last_gae_lam
             self.advantages[step] = last_gae_lam
         self.returns = self.advantages + self.values
 
@@ -1352,9 +1355,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         policy_loss_online = -th.mean(th.min(policy_loss_1_online, policy_loss_2_online)[mask_online])
 
         # clipped surrogate loss for offline
-        policy_loss_1_offline = advantages_offline * ratio_current_old_offline #Old/expert ratio is already multiplied
+        policy_loss_1_offline = advantages_offline * ratio_old_expert_offline * ratio_current_old_offline #Old/expert ratio is already multiplied
         #old/expert*current/old = current/expert (Expert sampled the data)
-        policy_loss_2_offline = advantages_offline * th.clamp(ratio_current_old_offline, 1 - clip_range,
+        policy_loss_2_offline = advantages_offline * ratio_old_expert_offline * th.clamp(ratio_current_old_offline, 1 - clip_range,
                                                               1 + clip_range)
 
         # old/expert*current/old
@@ -1382,8 +1385,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # This otherwise will lead to a cycle of lowering the value of expert actions, then lowering their probability, which in turn lowers their value even more...
 
         value_diff_offline = batch_offline.returns - values_pred_offline
-        value_diff_offline = th.clamp(value_diff_offline, min=0.0)
-        value_loss_offline = th.mean((value_diff_offline ** 2)[mask_offline]) * self.vf_coef
+        value_loss_offline = th.mean((value_diff_offline ** 2)[mask_offline]) * self.vf_coef * 0.5
 
         # Entropy loss favor exploration
         if entropy_online is None:
