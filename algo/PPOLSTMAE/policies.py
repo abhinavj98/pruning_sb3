@@ -747,7 +747,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         else:
             pi_features, vf_features = features
         # latent_pi, latent_vf = self.mlp_extractor(features)
-        latent_pi, lstm_states_pi = self._process_sequence(pi_features, lstm_states.pi, epeisode_starts, self.lstm_actor)
+        latent_pi, lstm_states_pi = self._process_sequence(pi_features, lstm_states.pi, episode_starts, self.lstm_actor)
         if self.lstm_critic is not None:
             latent_vf, lstm_states_vf = self._process_sequence(vf_features, lstm_states.vf, episode_starts,
                                                                self.lstm_critic)
