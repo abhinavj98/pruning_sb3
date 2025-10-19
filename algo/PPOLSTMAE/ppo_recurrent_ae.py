@@ -1274,6 +1274,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             batch_offline.episode_starts,
             batch_offline.actions
         )
+        values = values.flatten()
 
         bc_loss = -th.mean(log_prob_offline[mask_offline]) * self.bc_coeff
 
