@@ -716,7 +716,7 @@ class ExpertRolloutBuffer(RecurrentDictRolloutBuffer):
     def add(self, *args, lstm_states: RNNStates, log_prob_expert,  **kwargs) -> None:
         super().add(*args, lstm_states=lstm_states, **kwargs)
         self.log_prob_expert[self.pos-1] = log_prob_expert.clone().cpu().numpy()
-    def compute_returns_and_advantage(self, last_values: th.Tensor, dones: np.ndarray) -> None:
+    def compute_returns_and_advantage(self, last_values: th.Tensor, dones: np.ndarray, use_is = True) -> None:
         """
         Post-processing step: compute the lambda-return (TD(lambda) estimate)
         and GAE(lambda) advantage.
@@ -747,10 +747,13 @@ class ExpertRolloutBuffer(RecurrentDictRolloutBuffer):
             else:
                 next_non_terminal = 1.0 - self.episode_starts[step + 1]
                 next_values = self.values[step + 1]
-
-            ratio = np.exp(self.log_probs[step] - self.log_prob_expert[step])  # ratio = p(a|s) / p(a|s, expert)
-            rho = np.clip(ratio, 1e-3, rho_bar)
-            c = np.clip(ratio, 1e-3, c_bar)*self.gae_lambda
+            if use_is:
+                ratio = np.exp(self.log_probs[step] - self.log_prob_expert[step])  # ratio = p(a|s) / p(a|s, expert)
+                rho = np.clip(ratio, 1e-3, rho_bar)
+                c = np.clip(ratio, 1e-3, c_bar)*self.gae_lambda
+            else:
+                rho = 1.0
+                c = self.gae_lambda
             # next_ratio = np.clip(next_ratio, 1e-5, 1)
             # print(type(ratio), type(next_values), type(next_non_terminal), type(self.rewards[step]))
             delta = (self.rewards[step] + self.gamma * next_values * next_non_terminal - self.values[step])*rho
@@ -993,7 +996,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         """
         return OrderedDict([(k, np.stack([o[k] for o in obs])) for k in observation_space.spaces.keys()])
 
-    def make_offline_rollouts(self, callback, expert_buffer: RolloutBuffer, n_rollout_steps) -> bool:
+    def make_offline_rollouts(self, callback, expert_buffer: RolloutBuffer, n_rollout_steps, use_is = True) -> bool:
         # Make a list of offline observations, actions and trees
         if self.verbose > 0:
             print("INFO: Making offline rollouts")
@@ -1067,7 +1070,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             episode_starts = th.tensor(dones, dtype=th.float32, device=self.device)
             values = self.policy.predict_values(obs_as_tensor(next_obs, self.device), lstm_states.vf,
                                                 episode_starts, use_cached_optical_flow=self.use_cached_optical_flow) # pylint: disable=unexpected-keyword-arg
-        expert_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
+        expert_buffer.compute_returns_and_advantage(last_values=values, dones=dones, use_is=use_is)
 
         if self.verbose > 0:
             print("INFO: Finished making offline rollouts")
@@ -1278,7 +1281,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             (((batch_offline.returns - values) ** 2))[
                 mask_offline]) * self.vf_coef
 
-        # Linearly scale the bc_loss
+
         offline_loss = bc_loss + value_loss_offline
 
         offline_loss_dict = {"bc_loss": bc_loss.item(), "value_loss":value_loss_offline.item(), "offline_loss": offline_loss.item()}
@@ -1872,7 +1875,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             self.use_awac = False
 
         while self.num_timesteps < total_timesteps:
-            if self.use_bc and self.num_timesteps > int(0.05 * total_timesteps):
+            if self.use_bc and self.num_timesteps > int(0.1 * total_timesteps):
                 print("Switching off BC")
                 self.expert_policy.load_state_dict(self.policy.state_dict())
                 torch.save(self.expert_policy.state_dict(), expert_policy_path)
@@ -1891,7 +1894,11 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 break
 
             if self.use_offline_data or self.use_ppo_offline or self.use_online_bc or self.use_awac or self.use_bc:
-                self.make_offline_rollouts(callback, self.expert_buffer, n_rollout_steps=self.n_steps)
+                if self.use_bc:
+                    use_is = False
+                else:
+                    use_is = True
+                self.make_offline_rollouts(callback, self.expert_buffer, n_rollout_steps=self.n_steps, use_is = use_is)
 
             iteration += 1
             self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
