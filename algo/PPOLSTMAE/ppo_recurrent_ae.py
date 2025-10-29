@@ -925,6 +925,16 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 th.zeros(single_hidden_state_shape, device=self.device),
             ),
         )
+        self._last_lstm_states_expert_for_expert = RNNStates(
+            (
+                th.zeros(single_hidden_state_shape, device=self.device),
+                th.zeros(single_hidden_state_shape, device=self.device),
+            ),
+            (
+                th.zeros(single_hidden_state_shape, device=self.device),
+                th.zeros(single_hidden_state_shape, device=self.device),
+            ),
+        )
         self.expert_buffer = ExpertRolloutBuffer(
             buffer_size=self.n_steps,
             observation_space=self.observation_space_expert,
@@ -1007,6 +1017,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # callback.update_locals(locals())
         # callback.on_rollout_start()
         lstm_states = deepcopy(self._last_lstm_states_expert)
+        lstm_states_expert = deepcopy(self._last_lstm_states_expert_for_expert)
         # Sample expert episode
         self._last_episode_starts_expert = np.ones((self.num_expert_envs,), dtype=bool)
         while n_steps < n_rollout_steps:
@@ -1040,8 +1051,10 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 obs_tensor = obs_as_tensor(self._last_obs_expert, self.device)
                 actions = obs_as_tensor(actions, self.device)
                 episode_starts = th.tensor(self._last_episode_starts_expert, dtype=th.float32, device=self.device)
-                _, _, log_probs_expert, _ = self.expert_policy.forward_expert(obs_tensor, lstm_states,
+                # Log prob of expert policy on expert actions
+                _, _, log_probs_expert, lstm_states_expert = self.expert_policy.forward_expert(obs_tensor, lstm_states_expert,
                                                                               episode_starts, actions)
+                #Log prob of current policy on expert actions
                 actions, values, log_probs, lstm_states = self.policy.forward_expert(obs_tensor, lstm_states,
                                                                                      episode_starts, actions)
 
@@ -1062,6 +1075,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
             self._last_episode_starts_expert = dones
             self._last_lstm_states_expert = lstm_states  # These get reset in forward_expert (process_sequence)
+            self._last_lstm_states_expert_for_expert = lstm_states_expert
 
         next_obs = self._flatten_obs(batch['next_observation'],
                                      self.observation_space_expert)  # Get the next observation to calculate the values
