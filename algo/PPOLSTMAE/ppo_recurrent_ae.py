@@ -739,7 +739,7 @@ class ExpertRolloutBuffer(RecurrentDictRolloutBuffer):
         last_gae_lam = 0
         last_values = last_values.clone().cpu().numpy().flatten()
         rho_bar = 1
-        c_bar = 1
+        c_bar = 0.95
         for step in reversed(range(self.buffer_size)):
             if step == self.buffer_size - 1:
                 next_non_terminal = 1.0 - dones.astype(np.float32)
@@ -1325,13 +1325,13 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             use_cached_optical_flow=self.use_cached_optical_flow
         )
 
-        min_log_prob = -10  # TODO: Is this necessary?
+        min_log_prob = -30  # TODO: Is this necessary?
         log_prob_offline = th.clamp(log_prob_offline, min_log_prob, 100)
 
         # Set this number according to the variance of that distribution
         ratio_old_expert_offline = th.exp(
             batch_offline.old_log_prob - batch_offline.log_prob_expert)  # p_old(a|s) / p_expert(a|s)
-        # ratio_old_expert_offline = th.clamp(ratio_old_expert_offline, 0.2, 2)
+        ratio_old_expert_offline = th.clamp(ratio_old_expert_offline, 1e-3, 1)
         values_online = values_online.flatten()
         values_offline = values_offline.flatten()
         # Normalize advantage
@@ -1389,7 +1389,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # This otherwise will lead to a cycle of lowering the value of expert actions, then lowering their probability, which in turn lowers their value even more...
 
         value_diff_offline = batch_offline.returns - values_pred_offline
-        value_loss_offline = th.mean((value_diff_offline ** 2)[mask_offline]) * self.vf_coef * 0.5
+        value_loss_offline = th.mean((value_diff_offline ** 2)[mask_offline]) * self.vf_coef
 
         # Entropy loss favor exploration
         if entropy_online is None:
@@ -1858,14 +1858,21 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         use_awac = self.use_awac
         use_bc = self.use_bc
         expert_policy_path = "bc_expert_policy"+self.env.get_attr("tree_urdf_path", 0)[0].split("/")[-2]+".pt"
-        if os.path.exists(expert_policy_path) and self.use_bc:
+        if os.path.exists(expert_policy_path):
             print("Found existing BC expert policy. Skipping BC phase.")
             #Load the expert policy
             self.expert_policy.load_state_dict(torch.load(expert_policy_path))
             self.expert_policy.to(self.device)
-            self.policy.load_state_dict(torch.load(expert_policy_path))
-            self.policy.to(self.device)
-            self.use_bc = False
+            with torch.no_grad():
+                self.expert_policy.log_std.copy_(torch.ones_like(self.expert_policy.log_std) * -2.3)
+
+            if self.use_bc:
+                self.policy.load_state_dict(torch.load(expert_policy_path))
+                self.policy.to(self.device)
+                with torch.no_grad():
+                    self.policy.log_std.copy_(torch.ones_like(self.policy.log_std) * -2.3)
+
+                self.use_bc = False
 
         # Disable other training modes while BC is active
         if self.use_bc:
