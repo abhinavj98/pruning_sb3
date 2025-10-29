@@ -1040,10 +1040,11 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                 obs_tensor = obs_as_tensor(self._last_obs_expert, self.device)
                 actions = obs_as_tensor(actions, self.device)
                 episode_starts = th.tensor(self._last_episode_starts_expert, dtype=th.float32, device=self.device)
+                _, _, log_probs_expert, _ = self.expert_policy.forward_expert(obs_tensor, lstm_states,
+                                                                              episode_starts, actions)
                 actions, values, log_probs, lstm_states = self.policy.forward_expert(obs_tensor, lstm_states,
                                                                                      episode_starts, actions)
-                _, _, log_probs_expert, _ = self.expert_policy.forward_expert(obs_tensor, lstm_states,
-                                                                                episode_starts, actions)
+
 
             actions = actions.cpu().numpy()
 
