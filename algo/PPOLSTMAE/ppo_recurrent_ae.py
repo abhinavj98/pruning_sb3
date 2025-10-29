@@ -1385,11 +1385,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # Value loss using the TD(gae_lambda) target
         value_loss_online = th.mean((((batch_online.returns - values_pred_online) ** 2))[
                                         mask_online]) * self.vf_coef
-        # When expert actions lose support under current policy, we do not update the value function.
-        # This otherwise will lead to a cycle of lowering the value of expert actions, then lowering their probability, which in turn lowers their value even more...
 
         value_diff_offline = batch_offline.returns - values_pred_offline
-        value_loss_offline = th.mean((value_diff_offline ** 2)[mask_offline]) * self.vf_coef
+        value_loss_offline = th.mean((value_diff_offline ** 2)[mask_offline]) * self.vf_coef * 0.0
 
         # Entropy loss favor exploration
         if entropy_online is None:
@@ -1429,6 +1427,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         ratio_old_expert_offline_mean = th.mean(ratio_old_expert_offline).item()
         max_log_prob_offline = th.max(log_prob_offline).item()
         min_log_prob_offline = th.min(log_prob_offline).item()
+        log_prob_expert_mean = th.mean(batch_offline.log_prob_expert).item()
         log_prob_offline_mean = th.mean(log_prob_offline).item()
         log_prob_online_mean = th.mean(log_prob_online).item()
         advantages_online_mean = th.mean(advantages_online).item()
@@ -1442,7 +1441,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                              "clip_fraction": clip_fraction_offline,
                                 "clamp_fraction": clamp_fraction_offline,
                              "advantages": advantages_offline_mean, "log_prob_offline": log_prob_offline_mean, "max_log_prob_offline": max_log_prob_offline,
-                             "min_log_prob_offline": min_log_prob_offline}
+                             "min_log_prob_offline": min_log_prob_offline, "log_prob_expert": log_prob_expert_mean}
         online_loss_dict = {"ratio_current_old": ratio_current_old_online_mean,
                             "policy_loss": policy_loss_online.item(),
                             "entropy_loss": entropy_loss_online.item(), "value_loss": value_loss_online.item(),
@@ -1761,11 +1760,12 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             # Logging data from dictionary
             self.log_dict_mean(offline_loss_cumulative_dict, "train_offline/")
 
+            if hasattr(self.expert_policy, "log_std"):
+                self.logger.record("train_offline/std", th.exp(self.expert_policy.log_std).mean().item())
+
             # Logging critic returns and values
             self.log_from_rollout_buffer(self.expert_buffer, "train_offline/")
 
-            if hasattr(self.policy, "log_std"):
-                self.logger.record("train_offline/std", th.exp(self.policy.log_std).mean().item())
 
         # Log gradient statistics
         self.logger.record("train/gradient", np.mean(gradient))
@@ -1869,8 +1869,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             if self.use_bc:
                 self.policy.load_state_dict(torch.load(expert_policy_path))
                 self.policy.to(self.device)
-                with torch.no_grad():
-                    self.policy.log_std.copy_(torch.ones_like(self.policy.log_std) * -2.3)
+                # with torch.no_grad():
+                #     self.policy.log_std.copy_(torch.ones_like(self.policy.log_std) * )
 
                 self.use_bc = False
 
