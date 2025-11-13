@@ -23,7 +23,7 @@ from pruning_sb3.pruning_gym.helpers import set_args, organize_args, make_or_bin
 import pickle
 
 if __name__ == "__main__":
-    type = "analysis"
+    type = "uniform"
     parser = argparse.ArgumentParser()
     set_args(args, parser)
     parsed_args = vars(parser.parse_args())
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     model.set_logger(new_logger)
 
     eval_method = GenerateResults(model, env, verbose=args_callback['verbose'], set_goal_callback=set_goal_callback,
-                                  log_callback=logging_callback, other_callbacks = other_callbacks, type = type)
+                                  log_callback=logging_callback, other_callbacks = other_callbacks, type = type, name = parsed_args_dict['args_global']['load_path'])
     # if verbose > 0:
     #     print("INFO: Policy on device: ", model.policy.device)
     #     print("INFO: Model on device: ", model.device)

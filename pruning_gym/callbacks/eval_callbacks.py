@@ -350,7 +350,7 @@ class PruningLogResultCallback(BaseCallback):
         self._log_rewards(_locals, _globals)
         self._log_final_metrics(_locals, _globals)
 
-    def save_results(self, type):
+    def save_results(self, type, name):
         episode_info_df = pd.DataFrame(self._episode_info)
         terminal_info_df = pd.DataFrame(self._terminal_dict)
         save_df = pd.concat([episode_info_df, terminal_info_df], axis=1)
@@ -358,11 +358,11 @@ class PruningLogResultCallback(BaseCallback):
         if not os.path.exists(save_path):
             print(f"INFO: Saving results to {save_path}")
             save_df.to_csv(save_path, index=False)
-        save_df.to_csv(f"episode_info_{self.timestep}_{type}.csv", mode='a')
+        save_df.to_csv(f"episode_info_{name}_{self.timestep}_{type}.csv", mode='a')
 
 
 class GenerateResults:
-    def __init__(self, model, env, set_goal_callback, log_callback, type = "uniform", other_callbacks=None, verbose = 1):
+    def __init__(self, model, env, set_goal_callback, log_callback, type = "uniform", other_callbacks=None, verbose = 1, name = ""):
         self.model = model
         self.env = env
         self.verbose = verbose
@@ -370,6 +370,7 @@ class GenerateResults:
         self.log_callback = log_callback
         self.type = type
         self.other_callbacks = other_callbacks
+        self.name = name
         self._init_callback()
         #create csv file
         print(f"INFO: Creating csv file for {self.type} type evaluation")
@@ -415,4 +416,4 @@ class GenerateResults:
             print(f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
             print(f"Episode length: {mean_ep_length:.2f} +/- {std_ep_length:.2f}")
 
-        self.log_callback.save_results(self.type)
+        self.log_callback.save_results(self.type, self.name)
