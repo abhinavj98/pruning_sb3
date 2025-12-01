@@ -76,4 +76,4 @@ pd.set_option("display.max_rows", None)
 pd.set_option("display.max_columns", None)
 pd.set_option("display.width", 200)
 
-print(summarize_run("ppo_1", base_dir="bootstrap_eval_results"))
+print(summarize_run("bc_3", base_dir="bootstrap_checkpoint_results"))
