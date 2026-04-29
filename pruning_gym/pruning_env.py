@@ -10,7 +10,7 @@ from pruning_sb3.pruning_gym import label
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
-from nptyping import NDArray, Shape, Float
+import numpy.typing as npt
 import imageio
 import pickle
 from .tree import Tree
@@ -557,7 +557,7 @@ class PruningEnv(gym.Env):
         local_action = np.dot(np.linalg.inv(adjoint), action)
         return local_action
 
-    def step(self, action: NDArray[Shape['6, 1'], Float]) -> Tuple[dict, float, bool, bool, dict]:
+    def step(self, action: npt.NDArray[np.float64]) -> Tuple[dict, float, bool, bool, dict]:
 
         self.pyb.remove_debug_items("step")
         # Scale all the actions TODO: Make scaling for rotation and translation different
@@ -622,7 +622,7 @@ class PruningEnv(gym.Env):
         #     pass
         return self.observation, reward, terminated, truncated, infos
 
-    def render(self, mode=None) -> NDArray:  # type: ignore
+    def render(self, mode=None) -> npt.NDArray:  # type: ignore
         sphere = -1
         if "record" in self.name:
             # add sphere

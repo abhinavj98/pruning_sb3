@@ -1,5 +1,5 @@
 import numpy as np
-from nptyping import NDArray, Shape, Float
+import numpy.typing as npt
 from pybullet import getMatrixFromQuaternion, getDifferenceQuaternion
 
 
@@ -119,8 +119,8 @@ class Reward:
         return cosine_sim_perp
 
     @staticmethod
-    def compute_perpendicular_projection(a: NDArray[Shape['3, 1'], Float], b: NDArray[Shape['3, 1'], Float],
-                                         c: NDArray[Shape['3, 1'], Float]):
+    def compute_perpendicular_projection(a: npt.NDArray[np.float64], b: npt.NDArray[np.float64],
+                                         c: npt.NDArray[np.float64]):
         ab = b - a
         bc = c - b
         projection = ab - np.dot(ab, bc) / np.dot(bc, bc) * bc

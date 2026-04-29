@@ -7,7 +7,8 @@ from typing import Optional, Tuple, List
 import numpy as np
 import pybullet
 import pywavefront
-from nptyping import NDArray, Shape, Float
+import numpy.typing as npt
+from scipy.spatial import KDTree
 from pruning_sb3.pruning_gym.helpers import compute_perpendicular_projection_vector
 from collections import defaultdict
 from pruning_sb3.pruning_gym import label
@@ -112,6 +113,8 @@ class Tree:
         if os.path.exists(pkl_path):
             self.load_points_from_pickle(pkl_path)
         else:
+            # Precompute stable branch directions for each vertex using PCA
+            self.vertex_directions = self.compute_vertex_directions()
             # Get all points on the tree
             self.get_all_cutpoints(tree_obj)
             # Filter out outliers
@@ -228,6 +231,33 @@ class Tree:
         vertex_w_transform = pyb.con.multiplyTransforms(self.pos, self.orientation, vertex_pos, vertex_orientation)
         return np.array(vertex_w_transform[0]), vertex[3]
 
+    def compute_vertex_directions(self, k=20):
+        """
+        For each vertex, compute the local branch direction by fitting a line (PCA)
+        to its k nearest neighbors.
+        """
+        if self.verbose > 0:
+            print(f"INFO: Precomputing vertex branch directions (k={k})...")
+        
+        positions = np.array([v[0] for v in self.transformed_vertices])
+        tree = KDTree(positions)
+        
+        vertex_directions = np.zeros((len(positions), 3))
+        
+        # Query all points at once for speed
+        _, idxs = tree.query(positions, k=k)
+        
+        for i in range(len(positions)):
+            neighbors = positions[idxs[i]]
+            # Center the neighbors
+            centered = neighbors - np.mean(neighbors, axis=0)
+            # Use SVD to find the principal axis (direction of max variance)
+            _, _, Vt = np.linalg.svd(centered)
+            # The first singular vector is the direction along the branch
+            vertex_directions[i] = Vt[0]
+            
+        return vertex_directions
+
 
     def get_all_cutpoints(self, tree_obj):
         if self.verbose > 2:
@@ -254,22 +284,17 @@ class Tree:
             # print("Normal vec: ", np.dot(normal_vec, [0, 1, 0]))
             if np.dot(normal_vec, [0, 1, 0]) < 0:
                 continue
-            # argsort sorts in ascending order
-            sides = [ab, ac, bc]
-            sorted_sides = np.argsort([x[2] for x in sides])
-            ac = sides[sorted_sides[2]]
-            ab = sides[sorted_sides[1]]
-            bc = sides[sorted_sides[0]]
-            # |a
-            # |\
-            # | \
-            # |  \
-            # |   \
-            # |    \
-            # b______\c
+            # Use the PCA-derived stable branch direction instead of a potentially skewed triangle edge.
+            # We average the directions of the face's vertices for a smooth local estimate.
+            face_branch_dir = (self.vertex_directions[face[0]] + 
+                               self.vertex_directions[face[1]] + 
+                               self.vertex_directions[face[2]]) / 3.0
+            face_branch_dir /= (np.linalg.norm(face_branch_dir) + 1e-8)
+
+            # We want a vector perpendicular to the branch axis. 
+            # We project the face normal (or a relative vector) into the plane perpendicular to face_branch_dir.
             perpendicular_projection = compute_perpendicular_projection_vector(
-                self.transformed_vertices[ac[0]][0] - self.transformed_vertices[ac[1]][0],
-                self.transformed_vertices[bc[0]][0] - self.transformed_vertices[bc[1]][0])
+                normal_vec, face_branch_dir)
 
             scale = np.random.uniform()
             tree_point = (
@@ -318,7 +343,7 @@ class Tree:
             filter(lambda x: abs(x[0][0] - self.pos[0]) > 0.8, self.vertex_and_projection))
         print("Number of points after filtering trunk points: ", len(self.vertex_and_projection))
 
-    def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]], env,
+    def is_reachable(self, vertice: Tuple[npt.NDArray, npt.NDArray], env,
                      pyb) -> bool:
         if vertice[3] != "SPUR":
             return False
@@ -353,8 +378,8 @@ class Tree:
 
     @staticmethod
     def make_trees_from_folder(env, pyb, trees_urdf_path: str, trees_obj_path: str, trees_labelled_path: str,
-                               pos: NDArray,
-                               orientation: NDArray, scale: int, num_points: int, num_trees: int,
+                               pos: npt.NDArray,
+                               orientation: npt.NDArray, scale: int, num_points: int, num_trees: int,
                                curriculum_distances: Tuple, curriculum_level_steps: Tuple,
                                randomize_pose: bool = False) -> List:
         trees: List[Tree] = []

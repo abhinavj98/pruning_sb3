@@ -7,9 +7,9 @@ import time
 from typing import Union, Callable
 
 import numpy as np
+import numpy.typing as npt
 import torch as th
 import wandb
-from nptyping import NDArray, Shape, Float
 import re
 import ast
 from .optical_flow import OpticalFlow
@@ -105,18 +105,18 @@ def optical_flow_create_shared_vars(num_envs: int = 1, algo_size=(224, 224)):
     return shared_var
 
 
-def compute_perpendicular_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
+def compute_perpendicular_projection_vector(ab: npt.NDArray[np.float64], bc: npt.NDArray[np.float64]):
     projection = ab - np.dot(ab, bc) / (np.dot(bc, bc) + 1e-8) * bc
     return projection
 
 
-def goal_distance(goal_a: NDArray[Shape['3, 1'], Float], goal_b: NDArray[Shape['3, 1'], Float]) -> float:
+def goal_distance(goal_a: npt.NDArray[np.float64], goal_b: npt.NDArray[np.float64]) -> float:
     # Compute the distance between the goal and the achieved goal.
     assert goal_a.shape == goal_b.shape
     return np.linalg.norm(goal_a - goal_b, axis=-1)
 
 
-def compute_parallel_projection_vector(ab: NDArray[Shape['3, 1'], Float], bc: NDArray[Shape['3, 1'], Float]):
+def compute_parallel_projection_vector(ab: npt.NDArray[np.float64], bc: npt.NDArray[np.float64]):
     projection = np.dot(ab, bc) / np.dot(bc, bc) * bc
     return projection
 

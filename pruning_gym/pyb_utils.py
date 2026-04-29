@@ -3,7 +3,7 @@ from typing import List, Tuple
 
 import numpy as np
 import pybullet as pybullet
-from nptyping import NDArray
+import numpy.typing as npt
 from pruning_sb3.pruning_gym import MESHES_AND_URDF_PATH
 from pybullet_utils import bullet_client as bc
 
@@ -147,7 +147,7 @@ class pyb_utils:
                                                                    farVal=100.0)
 
     @staticmethod
-    def seperate_rgbd_rgb_d(rgbd: List, height: int, width: int) -> Tuple[NDArray, NDArray]:
+    def seperate_rgbd_rgb_d(rgbd: List, height: int, width: int) -> Tuple[npt.NDArray, npt.NDArray]:
         """Seperate rgb and depth from the rgbd image, return RGB and depth"""
         rgb = np.array(rgbd[2]).reshape(height, width, 4) / 255
         rgb = rgb[:, :, :3]
@@ -155,12 +155,12 @@ class pyb_utils:
         return rgb, depth
 
     @staticmethod
-    def linearize_depth(depth: NDArray, far_val: float, near_val: float):
+    def linearize_depth(depth: npt.NDArray, far_val: float, near_val: float):
         """OpenGL returns contracted depth, linearize it"""
         depth_linearized = near_val / (far_val - (far_val - near_val) * depth + 0.00000001)
         return depth_linearized
 
-    def get_rgbd_at_cur_pose(self, type, view_matrix, light_direction, light_color, light_distance) -> Tuple[NDArray, NDArray]:
+    def get_rgbd_at_cur_pose(self, type, view_matrix, light_direction, light_color, light_distance) -> Tuple[npt.NDArray, npt.NDArray]:
         """Get RGBD image at current pose"""
         # cur_p = self.ur5.get_current_pose(self.camera_link_index)
         rgbd = self.get_image_at_curr_pose(type, view_matrix, light_direction=light_direction, light_color=light_color,

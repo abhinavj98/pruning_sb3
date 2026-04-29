@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pruning_sb3"
+version = "0.1.0"
+description = "Reinforcement Learning environment and training for pruning using PyBullet and Stable Baselines 3"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "gymnasium>=0.28.1",
+    "h5py",
+    "imageio",
+    "filelock",
+    "matplotlib",
+    "numpy",
+    "opencv-python",
+    "pandas",
+    "pillow",
+    "plotly",
+    "pybullet",
+    "pybullet_planning",
+    "pyb_utils",
+    "pymeshlab",
+    "pytest",
+    "pywavefront",
+    "sb3-contrib>=2.0.0",
+    "scikit-image",
+    "scipy",
+    "seaborn",
+    "stable-baselines3>=2.0.0",
+    "torch",
+    "torchvision",
+    "transformers",
+    "wandb",
+    "tensorboard"
+]
+
+[tool.setuptools]
+package-dir = {"pruning_sb3" = "."}
+packages = [
+    "pruning_sb3.algo",
+    "pruning_sb3.args",
+    "pruning_sb3.baselines",
+    "pruning_sb3.pruning_gym",
+    "pruning_sb3.training_files",
+    "pruning_sb3.viz"
+]
+
+[tool.uv]
+managed = true

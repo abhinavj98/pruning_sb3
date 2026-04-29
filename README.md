@@ -25,7 +25,45 @@ A custom Gym environment designed for the tree pruning task. This environment in
 
 
 
-How to make trees
+## Setup
+
+### Prerequisites
+
+Install [uv](https://docs.astral.sh/uv/) (fast Python package and project manager):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### Install dependencies
+
+Clone the repo and sync the environment with the locked dependencies:
+
+```bash
+git clone <repo-url>
+cd pruning_sb3
+
+# Create a virtual environment and install all dependencies from uv.lock
+uv sync
+```
+
+### Activate the environment
+
+```bash
+source .venv/bin/activate
+```
+
+### Run scripts
+
+You can also run scripts directly without activating the environment:
+
+```bash
+uv run python training_files/train_ppo_lstm_expert.py --args_global_n_envs 4
+```
+
+---
+
+## How to make trees
 
 https://github.com/OSUrobotics/treesim_lpy
 

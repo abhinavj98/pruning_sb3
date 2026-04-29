@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.
 import numpy as np
 import pybullet
 
-from nptyping import NDArray, Shape, Float
+import numpy.typing as npt
 from collections import namedtuple
 
 
@@ -247,8 +247,7 @@ class UR5:
             forces=forces
         )
 
-    # TODO: Decide typing or nptyping or what
-    def set_joint_velocities(self, joint_velocities: NDArray[Shape['6, 1'], Float]) -> bool:
+    def set_joint_velocities(self, joint_velocities: npt.NDArray[np.float64]) -> bool:
         """Set joint velocities using pybullet motor control"""
         velocities = []
         indexes = []
@@ -289,7 +288,7 @@ class UR5:
         return jacobian
 
     def calculate_joint_velocities_from_ee_velocity(self,
-                                                    end_effector_velocity: NDArray[Shape['6, 1'], Float]) -> \
+                                                    end_effector_velocity: npt.NDArray[np.float64]) -> \
             Tuple[ndarray, ndarray]:
         """Calculate joint velocities from end effector velocity using jacobian"""
         jacobian = self.calculate_jacobian()
@@ -298,7 +297,7 @@ class UR5:
         return joint_velocities, jacobian
 
     def calculate_joint_velocities_from_ee_velocity_dls(self,
-                                                        end_effector_velocity: NDArray[Shape['6, 1'], Float],
+                                                        end_effector_velocity: npt.NDArray[np.float64],
                                                         damping_factor: float = 0.05) -> \
             Tuple[ndarray, ndarray]:
         """Calculate joint velocities from end effector velocity using damped least squares"""
