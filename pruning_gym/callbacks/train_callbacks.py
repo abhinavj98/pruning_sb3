@@ -59,8 +59,17 @@ class PruningTrainSetGoalCallback(PruningSetGoalCallback):
         point_sampled = False
         rand_vector = self.rand_direction_vector()
         orientation = self.get_bin_from_orientation(rand_vector)
+        attempts = 0
         while not point_sampled:
             point_sampled, point = self.maybe_sample_point(orientation)
+            attempts += 1
+            if not point_sampled and attempts >= 100:
+                # Invalid delta pose for this orientation bin — resample a new orientation
+                if self.verbose > 1:
+                    print(f"Invalid Delta Pose, resample orientation after {attempts} attempts")
+                rand_vector = self.rand_direction_vector()
+                orientation = self.get_bin_from_orientation(rand_vector)
+                attempts = 0
         return point
 
     def _update_tree_properties(self):

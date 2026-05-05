@@ -431,7 +431,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                     advantages = (advantages - advantages[mask].mean()) / (advantages[mask].std() + 1e-8)
 
                 # ratio between old and new policy, should be one at the first iteration
-                ratio = th.exp(log_prob - rollout_data.old_log_prob)
+                ratio = th.exp(th.clamp(log_prob - rollout_data.old_log_prob, -20, 20))
 
                 # clipped surrogate loss
                 policy_loss_1 = advantages * ratio
@@ -476,7 +476,7 @@ class RecurrentPPOAE(OnPolicyAlgorithm):
                 # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
                 # and Schulman blog: http://joschu.net/blog/kl-approx.html
                 with th.no_grad():
-                    log_ratio = log_prob - rollout_data.old_log_prob
+                    log_ratio = th.clamp(log_prob - rollout_data.old_log_prob, -20, 20)
                     approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask]).cpu().numpy()
                     approx_kl_divs.append(approx_kl_div)
 
@@ -748,9 +748,13 @@ class ExpertRolloutBuffer(RecurrentDictRolloutBuffer):
                 next_non_terminal = 1.0 - self.episode_starts[step + 1]
                 next_values = self.values[step + 1]
             if use_is:
-                ratio = np.exp(self.log_probs[step] - self.log_prob_expert[step])  # ratio = p(a|s) / p(a|s, expert)
+                log_ratio = self.log_probs[step] - self.log_prob_expert[step]
+                # Clamp log-ratio before exp to prevent overflow → inf → NaN chain.
+                # Safe because ratio is clipped to [1e-3, rho_bar] anyway.
+                log_ratio = np.clip(log_ratio, np.log(1e-3), np.log(rho_bar) if rho_bar > 0 else 0.0)
+                ratio = np.exp(log_ratio)
                 rho = np.clip(ratio, 1e-3, rho_bar)
-                c = np.clip(ratio, 1e-3, c_bar)*self.gae_lambda
+                c = np.clip(ratio, 1e-3, c_bar) * self.gae_lambda
             else:
                 rho = 1.0
                 c = self.gae_lambda
@@ -1124,7 +1128,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             advantages = (advantages - advantages[mask].mean()) / (advantages[mask].std() + 1e-8)
 
         # ratio between old and new policy, should be one at the first iteration
-        ratio = th.exp(log_prob - batch.old_log_prob)
+        ratio = th.exp(th.clamp(log_prob - batch.old_log_prob, -20, 20))
 
         # clipped surrogate loss
         policy_loss_1 = advantages * ratio
@@ -1162,7 +1166,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
         # and Schulman blog: http://joschu.net/blog/kl-approx.html
         with th.no_grad():
-            log_ratio = log_prob - batch.old_log_prob
+            log_ratio = th.clamp(log_prob - batch.old_log_prob, -20, 20)
             approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask]).cpu().numpy()
         online_loss_dict = {"policy_loss": policy_loss.item(), "entropy_loss": entropy_loss.item(),
                             "value_loss": value_loss.item(),
@@ -1203,7 +1207,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             advantages = (advantages - advantages[mask_online].mean()) / (advantages[mask_online].std() + 1e-8)
 
         # ratio between old and new policy, should be one at the first iteration
-        ratio = th.exp(log_prob - batch_online.old_log_prob)
+        ratio = th.exp(th.clamp(log_prob - batch_online.old_log_prob, -20, 20))
 
         # clipped surrogate loss
         policy_loss_1 = advantages * ratio
@@ -1254,7 +1258,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
         # and Schulman blog: http://joschu.net/blog/kl-approx.html
         with th.no_grad():
-            log_ratio = log_prob - batch_online.old_log_prob
+            log_ratio = th.clamp(log_prob - batch_online.old_log_prob, -20, 20)
             approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask_online]).cpu().numpy()
 
         online_loss_dict = {"policy_loss": policy_loss.item(), "entropy_loss": entropy_loss.item(),
@@ -1345,7 +1349,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # Set this number according to the variance of that distribution
         ratio_old_expert_offline = th.exp(
-            batch_offline.old_log_prob - batch_offline.log_prob_expert)  # p_old(a|s) / p_expert(a|s)
+            th.clamp(batch_offline.old_log_prob - batch_offline.log_prob_expert, -20, 20))
         ratio_old_expert_offline = th.clamp(ratio_old_expert_offline, 1e-3, 1)
         values_online = values_online.flatten()
         values_offline = values_offline.flatten()
@@ -1362,10 +1366,10 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         advantages_offline = advantages[len(advantages_online):]
 
         # ratio between old and new policy, should be one at the first iteration
-        ratio_current_old_online = th.exp(log_prob_online - batch_online.old_log_prob)
-        ratio_current_old_offline = th.exp(log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100))
+        ratio_current_old_online = th.exp(th.clamp(log_prob_online - batch_online.old_log_prob, -20, 20))
+        ratio_current_old_offline = th.exp(th.clamp(log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100), -20, 20))
         ratio_current_expert_offline = th.exp(
-            log_prob_offline - batch_offline.log_prob_expert)
+            th.clamp(log_prob_offline - batch_offline.log_prob_expert, -20, 20))
 
 
         # clipped surrogate loss for online
@@ -1378,9 +1382,12 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         #old/expert*current/old = current/expert (Expert sampled the data)
         policy_loss_2_offline = advantages_offline * ratio_old_expert_offline * th.clamp(ratio_current_old_offline, 1 - clip_range,
                                                               1 + clip_range)
+        policy_loss_3_offline = advantages_offline * th.clamp(ratio_current_expert_offline, 1 - clip_range, 1 + clip_range)
 
         # old/expert*current/old
-        policy_loss_offline = -th.mean(th.min(policy_loss_1_offline, policy_loss_2_offline)[mask_offline])
+        policy_loss_offline_min =th.min(policy_loss_1_offline, policy_loss_2_offline)
+        policy_loss_offline_min = th.min(policy_loss_offline_min, policy_loss_3_offline)
+        policy_loss_offline = -th.mean(policy_loss_offline_min[mask_offline])
 
         if self.clip_range_vf is None:
             # No clipping
@@ -1422,10 +1429,10 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         with th.no_grad():
             # Approx KL Divergence -- Try to keep them vv low (For online+BC this value below 0.02 works)
-            log_ratio_online = log_prob_online - batch_online.old_log_prob
+            log_ratio_online = th.clamp(log_prob_online - batch_online.old_log_prob, -20, 20)
             approx_kl_div_online = th.mean(
                 ((th.exp(log_ratio_online) - 1) - log_ratio_online)[mask_online]).cpu().numpy()
-            log_ratio_offline = log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100)
+            log_ratio_offline = th.clamp(log_prob_offline - th.clamp(batch_offline.old_log_prob, min_log_prob, 100), -20, 20)
             approx_kl_div_offline = th.mean(
                 ((th.exp(log_ratio_offline) - 1) - log_ratio_offline)[mask_offline]).cpu().numpy()
 
@@ -1579,9 +1586,9 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
             advantages = (advantages - advantages[mask].mean()) / (advantages[mask].std() + 1e-8)
 
         # ratio between old and new online policy, should be one at the first iteration
-        ratio_current_old = th.exp(log_prob - batch.old_log_prob)
-        ratio_current_expert = th.exp(log_prob - 0)  # Expert probability is 1, so log prob is 0
-        ratio_old_expert = th.exp(batch.old_log_prob - 0)  # Expert probability is 1, so log prob is 0
+        ratio_current_old = th.exp(th.clamp(log_prob - batch.old_log_prob, -20, 20))
+        ratio_current_expert = th.exp(th.clamp(log_prob, -20, 20))  # Expert probability is 1, so log prob is 0
+        ratio_old_expert = th.exp(th.clamp(batch.old_log_prob, -20, 20))  # Expert probability is 1, so log prob is 0
 
         # print("ratio_current_old", ratio_current_old, "log_prob", log_prob, "old_log_prob", rollout_data.old_log_prob)
         # print("ratio_current_expert", ratio_current_expert)
@@ -1623,7 +1630,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         # and Schulman blog: http://joschu.net/blog/kl-approx.html
 
         with th.no_grad():
-            log_ratio = log_prob - batch.old_log_prob
+            log_ratio = th.clamp(log_prob - batch.old_log_prob, -20, 20)
             approx_kl_div = th.mean(((th.exp(log_ratio) - 1) - log_ratio)[mask]).cpu().numpy()
 
         offline_loss_dict = {"policy_loss": pg_loss,  "entropy_loss": entropy_loss.item(),
