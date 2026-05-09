@@ -735,37 +735,51 @@ class ExpertRolloutBuffer(RecurrentDictRolloutBuffer):
         :param last_values: state value estimation for the last step (one for each env)
         :param dones: if the last step was a terminal step (one bool for each env).
         """
+        _MAX_ABS_LOG_RATIO_FOR_EXP_F32 = 88.722839
 
-        last_gae_lam = 0
-        last_values = last_values.clone().cpu().numpy().flatten()
-        rho_bar = 1
+        buffer_size, n_envs = self.rewards.shape
+        rho_bar = 1.0
         c_bar = 0.95
-        for step in reversed(range(self.buffer_size)):
-            if step == self.buffer_size - 1:
+        is_ratio_min = 1e-3
+
+        
+        log_ratio = self.log_probs.astype(np.float64, copy=False) - self.log_prob_expert.astype(np.float64, copy=False)
+        log_ratio = np.clip(log_ratio, -_MAX_ABS_LOG_RATIO_FOR_EXP_F32, _MAX_ABS_LOG_RATIO_FOR_EXP_F32)
+        ratio = np.exp(log_ratio)
+        ratio = ratio.astype(np.float32, copy=False)
+
+        if is_ratio_min is None:
+            rho = np.minimum(ratio, np.float32(rho_bar))
+            c = np.minimum(ratio, np.float32(c_bar))
+        else:
+            lo = np.float32(is_ratio_min)
+            rho = np.clip(ratio, lo, np.float32(rho_bar))
+            c = np.clip(ratio, lo, np.float32(c_bar))
+        
+        actor_advantages = np.zeros_like(self.values, dtype=np.float32)
+        returns = np.zeros_like(self.values, dtype=np.float32)
+        last_gae_lam = np.zeros((n_envs,), dtype=np.float32)
+        last_v = last_values.clone().cpu().numpy().reshape(n_envs)
+
+        for step in reversed(range(buffer_size)):
+            if step == buffer_size - 1:
                 next_non_terminal = 1.0 - dones.astype(np.float32)
-                next_values = last_values
+                next_values = last_v
             else:
-                next_non_terminal = 1.0 - self.episode_starts[step + 1]
+                next_non_terminal = 1.0 - self.episode_starts[step + 1].astype(np.float32)
                 next_values = self.values[step + 1]
-            if use_is:
-                log_ratio = self.log_probs[step] - self.log_prob_expert[step]
-                # Clamp log-ratio before exp to prevent overflow → inf → NaN chain.
-                # Safe because ratio is clipped to [1e-3, rho_bar] anyway.
-                log_ratio = np.clip(log_ratio, np.log(1e-3), np.log(rho_bar) if rho_bar > 0 else 0.0)
-                ratio = np.exp(log_ratio)
-                rho = np.clip(ratio, 1e-3, rho_bar)
-                c = np.clip(ratio, 1e-3, c_bar) * self.gae_lambda
-            else:
-                rho = 1.0
-                c = self.gae_lambda
-            # next_ratio = np.clip(next_ratio, 1e-5, 1)
-            # print(type(ratio), type(next_values), type(next_non_terminal), type(self.rewards[step]))
-            delta = (self.rewards[step] + self.gamma * next_values * next_non_terminal - self.values[step])*rho
-            # last_gae_lam = delta + self.gamma * self.gae_lambda * next_non_terminal * last_gae_lam
-            #For retrace
-            last_gae_lam = delta + c * self.gamma * next_non_terminal * last_gae_lam
-            self.advantages[step] = last_gae_lam
-        self.returns = self.advantages + self.values
+
+            unweighted_delta = self.rewards[step] + self.gamma * next_values * next_non_terminal - self.values[step]
+            delta = unweighted_delta * rho[step]
+
+            actor_advantages[step] = unweighted_delta + (
+                self.gamma * self.gae_lambda * next_non_terminal * last_gae_lam * c[step]
+            )
+            last_gae_lam = delta + self.gamma * self.gae_lambda * next_non_terminal * last_gae_lam * c[step]
+            returns[step] = last_gae_lam + self.values[step]
+
+        self.advantages = actor_advantages
+        self.returns = returns
 
     def get(self, batch_size: Optional[int] = None) -> Generator[RecurrentDictRolloutBufferSamplesExpert, None, None]:
         assert self.full, "Rollout buffer must be full before sampling from it"
@@ -1385,7 +1399,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
         policy_loss_3_offline = advantages_offline * th.clamp(ratio_current_expert_offline, 1 - clip_range, 1 + clip_range)
 
         # old/expert*current/old
-        policy_loss_offline_min =th.min(policy_loss_1_offline, policy_loss_2_offline)
+        policy_loss_offline_min = th.min(policy_loss_1_offline, policy_loss_2_offline)
         policy_loss_offline_min = th.min(policy_loss_offline_min, policy_loss_3_offline)
         policy_loss_offline = -th.mean(policy_loss_offline_min[mask_offline])
 
@@ -1409,7 +1423,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                                         mask_online]) * self.vf_coef
 
         value_diff_offline = batch_offline.returns - values_pred_offline
-        value_loss_offline = th.mean((value_diff_offline ** 2)[mask_offline]) * self.vf_coef * 0.0
+        value_loss_offline = th.mean((value_diff_offline ** 2)[mask_offline]) * self.vf_coef
 
         # Entropy loss favor exploration
         if entropy_online is None:
@@ -1587,8 +1601,8 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # ratio between old and new online policy, should be one at the first iteration
         ratio_current_old = th.exp(th.clamp(log_prob - batch.old_log_prob, -20, 20))
-        ratio_current_expert = th.exp(th.clamp(log_prob, -20, 20))  # Expert probability is 1, so log prob is 0
-        ratio_old_expert = th.exp(th.clamp(batch.old_log_prob, -20, 20))  # Expert probability is 1, so log prob is 0
+        ratio_current_expert = th.exp(th.clamp(log_prob - batch.log_prob_expert, -20, 20))
+        ratio_old_expert = th.exp(th.clamp(batch.old_log_prob - batch.log_prob_expert, -20, 20))
 
         # print("ratio_current_old", ratio_current_old, "log_prob", log_prob, "old_log_prob", rollout_data.old_log_prob)
         # print("ratio_current_expert", ratio_current_expert)
@@ -1614,7 +1628,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # Value loss using the TD(gae_lambda) target
         # Mask padded sequences
-        value_loss = th.mean(((batch.returns * ratio_old_expert - values_pred) ** 2)[mask]) * self.vf_coef
+        value_loss = th.mean(((batch.returns - values_pred) ** 2)[mask]) * self.vf_coef
 
         # Entropy loss favor exploration
         if entropy is None:
@@ -1711,10 +1725,11 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
                         online_data, offline_data, clip_range, clip_range_vf)
                     loss_offline = loss_offline / 2 # Divide by 2 because we are taking mean of two losses
                     loss_online = loss_online / 2
-                    loss_offline.backward()
+                    loss = loss_online + loss_offline
+                    loss.backward()
                     # Let only online policy effect the variance
-                    self.policy.optimizer_logstd.zero_grad()
-                    loss_online.backward()
+                    # self.policy.optimizer_logstd.zero_grad()
+                    # loss_online.backward()
                     self.step_optimizer()
 
                 elif self.use_online_bc:
