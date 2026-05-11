@@ -304,8 +304,10 @@ class Tree:
         # Filter out outliers
         print("Number of points before filtering: ", len(self.vertex_and_projection))
         self.vertex_and_projection = list(
-            filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean - 1 * self.projection_std,
-                   self.vertex_and_projection))
+            filter(lambda x: np.linalg.norm(x[1]) < self.projection_mean + 2*self.projection_std and 
+                             np.linalg.norm(x[1]) > self.projection_mean - 2*self.projection_std,
+                   self.vertex_and_projection)
+        )
         print("Number of points after filtering: ", len(self.vertex_and_projection))
 
     def filter_points_below_base(self):
