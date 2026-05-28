@@ -1238,7 +1238,7 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
 
         # behavior cloning loss  for offline data
         # Run policy on offline data
-        _, log_prob_offline, _, _ = self.policy.forward_expert(
+        _, _, log_prob_offline, _ = self.policy.forward_expert(
             batch_offline.observations,
             batch_offline.lstm_states,
             batch_offline.episode_starts,

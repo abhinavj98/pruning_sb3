@@ -767,6 +767,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         distribution = self._get_action_dist_from_latent(latent_pi)
         actions = distribution.get_actions(deterministic=deterministic)
         log_prob = distribution.log_prob(actions)
+        actions = actions.reshape((-1, *self.action_space.shape))
         return actions, values, log_prob, RNNStates(lstm_states_pi, lstm_states_vf)
 
     def forward_expert(self, obs, lstm_states, episode_starts, action):
@@ -797,6 +798,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicySquashed):
         distribution = self._get_action_dist_from_latent(latent_pi)
         actions = action
         log_prob = distribution.log_prob(actions)
+        actions = actions.reshape((-1, *self.action_space.shape))
         return actions, values, log_prob, RNNStates(lstm_states_pi, lstm_states_vf)
 
 
