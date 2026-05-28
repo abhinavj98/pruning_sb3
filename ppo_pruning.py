@@ -477,12 +477,13 @@ class PPO(OnPolicyAlgorithm):
 
                 #Importance sampling ratios
                 ratio_old_expert_offline = th.exp(
-                    offline_batch.old_log_prob - log_prob_expert)
-                ratio_current_old_online = th.exp(log_prob_online - online_batch.old_log_prob)
+                    th.clamp(offline_batch.old_log_prob - log_prob_expert, *_log_clamp))
+                ratio_current_old_online = th.exp(
+                    th.clamp(log_prob_online - online_batch.old_log_prob, *_log_clamp))
                 ratio_current_old_offline = th.exp(
-                    log_prob_offline - th.clamp(offline_batch.old_log_prob, min_log_prob))
+                    th.clamp(log_prob_offline - th.clamp(offline_batch.old_log_prob, min_log_prob), *_log_clamp))
                 ratio_current_expert_offline = th.exp(
-                    log_prob_offline - log_prob_expert)
+                    th.clamp(log_prob_offline - log_prob_expert, *_log_clamp))
 
                 # Normalize advantage
                 advantages_online = online_batch.advantages
@@ -549,10 +550,10 @@ class PPO(OnPolicyAlgorithm):
                 # and Schulman blog: http://joschu.net/blog/kl-approx.html
                 with th.no_grad():
                     # Approx KL Divergence -- Try to keep them vv low (For online+BC this value below 0.02 works)
-                    log_ratio_online = log_prob_online - online_batch.old_log_prob
+                    log_ratio_online = th.clamp(log_prob_online - online_batch.old_log_prob, *_log_clamp)
                     approx_kl_div_online = th.mean(
                         ((th.exp(log_ratio_online) - 1) - log_ratio_online)).cpu().numpy()
-                    log_ratio_offline = log_prob_offline - th.clamp(offline_batch.old_log_prob, min_log_prob, 100)
+                    log_ratio_offline = th.clamp(log_prob_offline - th.clamp(offline_batch.old_log_prob, min_log_prob, 100), *_log_clamp)
                     approx_kl_div_offline = th.mean(
                         ((th.exp(log_ratio_offline) - 1) - log_ratio_offline)).cpu().numpy()
 

@@ -7,7 +7,6 @@ from typing import Optional, Tuple, List
 import numpy as np
 import pybullet
 import pywavefront
-from nptyping import NDArray, Shape, Float
 from pruning_sb3.pruning_gym.helpers import compute_perpendicular_projection_vector
 from collections import defaultdict
 from pruning_sb3.pruning_gym import label
@@ -305,8 +304,10 @@ class Tree:
         # Filter out outliers
         print("Number of points before filtering: ", len(self.vertex_and_projection))
         self.vertex_and_projection = list(
-            filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean + 1 * self.projection_std,
-                   self.vertex_and_projection))
+            filter(lambda x: np.linalg.norm(x[1]) < self.projection_mean + 2*self.projection_std and 
+                             np.linalg.norm(x[1]) > self.projection_mean - 2*self.projection_std,
+                   self.vertex_and_projection)
+        )
         print("Number of points after filtering: ", len(self.vertex_and_projection))
 
     def filter_points_below_base(self):
@@ -318,7 +319,7 @@ class Tree:
             filter(lambda x: abs(x[0][0] - self.pos[0]) > 0.8, self.vertex_and_projection))
         print("Number of points after filtering trunk points: ", len(self.vertex_and_projection))
 
-    def is_reachable(self, vertice: Tuple[NDArray[Shape['3, 1'], Float], NDArray[Shape['3, 1'], Float]], env,
+    def is_reachable(self, vertice: Tuple[np.ndarray, np.ndarray], env,
                      pyb) -> bool:
         if vertice[3] != "SPUR":
             return False
@@ -353,8 +354,8 @@ class Tree:
 
     @staticmethod
     def make_trees_from_folder(env, pyb, trees_urdf_path: str, trees_obj_path: str, trees_labelled_path: str,
-                               pos: NDArray,
-                               orientation: NDArray, scale: int, num_points: int, num_trees: int,
+                                pos: np.ndarray,
+                                orientation: np.ndarray, scale: int, num_points: int, num_trees: int,
                                curriculum_distances: Tuple, curriculum_level_steps: Tuple,
                                randomize_pose: bool = False) -> List:
         trees: List[Tree] = []

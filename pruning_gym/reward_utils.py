@@ -114,8 +114,8 @@ class Reward:
         init_vector = np.array([1, 0, 0])  # Coz of starting orientation of end effector
         camera_vector = rot_mat.dot(init_vector)
         # Check antiparallel case as well
-        cosine_sim_perp = np.dot(camera_vector, branch_vector) / (
-                np.linalg.norm(camera_vector) * np.linalg.norm(branch_vector))
+        denom = np.linalg.norm(camera_vector) * np.linalg.norm(branch_vector)
+        cosine_sim_perp = np.dot(camera_vector, branch_vector) / (denom + 1e-8)
         return cosine_sim_perp
 
     @staticmethod
@@ -144,9 +144,8 @@ class Reward:
         init_vector = np.array([0, 0, 1])  # Z points forward
         current_pointing_vector = rot_mat.dot(init_vector)
 
-        pointing_cos_sim = np.dot(current_pointing_vector, ideal_pointing_vector) / (
-                np.linalg.norm(current_pointing_vector) * np.linalg.norm(ideal_pointing_vector))
-
+        denom = np.linalg.norm(current_pointing_vector) * np.linalg.norm(ideal_pointing_vector)
+        pointing_cos_sim = np.dot(current_pointing_vector, ideal_pointing_vector) / (denom + 1e-8)
 
         return pointing_cos_sim
 
@@ -175,6 +174,6 @@ class Reward:
         # compute difference in rotation matrix
         diff = np.matmul(current_or_mat, rf.T)
         # get theta
-        theta = np.arccos((np.trace(diff) - 1) / 2)
+        theta = np.arccos(np.clip((np.trace(diff) - 1) / 2, -1.0, 1.0))
 
         return theta, rf

@@ -450,7 +450,12 @@ class UR5:
                                               self.get_joint_angles(),
                                               [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0])
         jacobian = np.vstack(jacobian)
-        condition_number = np.linalg.cond(jacobian)
+        try:
+            condition_number = np.linalg.cond(jacobian)
+        except np.linalg.LinAlgError:
+            # SVD failed to converge — robot is at or near a kinematic singularity.
+            # Return a large sentinel value so training can continue.
+            condition_number = 1e2
         return condition_number
 
     def remove_ur5_robot(self):

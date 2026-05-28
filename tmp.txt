@@ -1,0 +1,62 @@
+diff --git a/algo/PPOLSTMAE/ppo_recurrent_ae.py b/algo/PPOLSTMAE/ppo_recurrent_ae.py
+index 0a15378..5225641 100644
+--- a/algo/PPOLSTMAE/ppo_recurrent_ae.py
++++ b/algo/PPOLSTMAE/ppo_recurrent_ae.py
+@@ -1378,9 +1378,12 @@ class RecurrentPPOAEWithExpert(RecurrentPPOAE):
+         #old/expert*current/old = current/expert (Expert sampled the data)
+         policy_loss_2_offline = advantages_offline * ratio_old_expert_offline * th.clamp(ratio_current_old_offline, 1 - clip_range,
+                                                               1 + clip_range)
++        policy_loss_3_offline = advantages_offline * th.clamp(ratio_current_expert_offline, 1 - clip_range, 1 + clip_range)
+ 
+         # old/expert*current/old
+-        policy_loss_offline = -th.mean(th.min(policy_loss_1_offline, policy_loss_2_offline)[mask_offline])
++        policy_loss_offline_min =th.min(policy_loss_1_offline, policy_loss_2_offline)
++        policy_loss_offline_min = th.min(policy_loss_offline_min, policy_loss_3_offline)
++        policy_loss_offline = -th.mean(policy_loss_offline_min[mask_offline])
+ 
+         if self.clip_range_vf is None:
+             # No clipping
+diff --git a/pruning_gym/callbacks/callbacks.py b/pruning_gym/callbacks/callbacks.py
+index 6df4b93..a7aa6f1 100644
+--- a/pruning_gym/callbacks/callbacks.py
++++ b/pruning_gym/callbacks/callbacks.py
+@@ -145,7 +145,8 @@ class PruningSetGoalCallback(BaseCallback):
+         if len(self.or_bins[orientation]) == 0:
+             if self.verbose > 1:
+                 print(f"DEBUG: No trees in orientation {orientation}")
+-                assert ValueError
++            raise Exception(f"DEBUG: No trees in orientation {orientation}")
++            return False, None
+         tree_urdf, random_point, tree_orientation, scale = random.choice(self.or_bins[orientation])
+         current_point_pos, current_branch_or, current_branch_normal, _ = random_point
+         required_point_pos = random.choice(self.reachable_euclidean_grid) #Choose a random point from the reachable grid
+diff --git a/pruning_gym/tree.py b/pruning_gym/tree.py
+index 1d4b878..c95c639 100644
+--- a/pruning_gym/tree.py
++++ b/pruning_gym/tree.py
+@@ -330,7 +330,7 @@ class Tree:
+         # Filter out outliers
+         print("Number of points before filtering: ", len(self.vertex_and_projection))
+         self.vertex_and_projection = list(
+-            filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean + 1 * self.projection_std,
++            filter(lambda x: np.linalg.norm(x[1]) > self.projection_mean - 1 * self.projection_std,
+                    self.vertex_and_projection))
+         print("Number of points after filtering: ", len(self.vertex_and_projection))
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index f4c3603..d8d648e 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -19,10 +19,10 @@ dependencies = [
+     "pandas",
+     "pillow",
+     "plotly",
+-    "pybullet",
++    "pybullet==3.2.7",
+     "pybullet_planning",
+     "pyb_utils",
+-    "pymeshlab",
++    # "pymeshlab",
+     "pytest",
+     "pywavefront",
+     "sb3-contrib>=2.0.0",
